@@ -1,0 +1,63 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.8.34309.116
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "extras", "extras", "{C5B58355-49DB-4209-B1B1-08D43CB264E3}"
+	ProjectSection(SolutionItems) = preProject
+		GitVersion.yml = GitVersion.yml
+		LICENSE = LICENSE
+		README.md = README.md
+		.github\workflows\main.yml = .github\workflows\main.yml
+	EndProjectSection
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{19C26739-0DB6-4EFA-A104-71ED74B83473}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{8DE90B3E-24A0-443D-95C2-EEA1EFB87C3F}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "benchmarks", "benchmarks", "{0B078B25-8D2C-4B75-A3B0-EA8411C1A04A}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Steelax.Pufflow", "src\Steelax.Pufflow\Steelax.Pufflow.csproj", "{0C594995-2C2B-4C59-96C0-F0785C05DF75}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Steelax.Pufflow.Tests", "tests\Steelax.Pufflow.Tests\Steelax.Pufflow.Tests.csproj", "{BCD8F3EC-58CE-4253-AC36-A6B0927204EF}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Steelax.Pufflow.Generator.Tests", "tests\Steelax.Pufflow.Generator.Tests\Steelax.Pufflow.Generator.Tests.csproj", "{6BBB4F49-6A45-41C7-9A29-6CB8BCF0A8EB}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Steelax.Pufflow.Generator", "src\Steelax.Pufflow.Generator\Steelax.Pufflow.Generator.csproj", "{430E130A-DA69-4F6E-A06B-2E4C5D75994A}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{0C594995-2C2B-4C59-96C0-F0785C05DF75}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{0C594995-2C2B-4C59-96C0-F0785C05DF75}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{0C594995-2C2B-4C59-96C0-F0785C05DF75}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{0C594995-2C2B-4C59-96C0-F0785C05DF75}.Release|Any CPU.Build.0 = Release|Any CPU
+		{BCD8F3EC-58CE-4253-AC36-A6B0927204EF}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{BCD8F3EC-58CE-4253-AC36-A6B0927204EF}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{BCD8F3EC-58CE-4253-AC36-A6B0927204EF}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{BCD8F3EC-58CE-4253-AC36-A6B0927204EF}.Release|Any CPU.Build.0 = Release|Any CPU
+		{6BBB4F49-6A45-41C7-9A29-6CB8BCF0A8EB}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{6BBB4F49-6A45-41C7-9A29-6CB8BCF0A8EB}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{6BBB4F49-6A45-41C7-9A29-6CB8BCF0A8EB}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{6BBB4F49-6A45-41C7-9A29-6CB8BCF0A8EB}.Release|Any CPU.Build.0 = Release|Any CPU
+		{430E130A-DA69-4F6E-A06B-2E4C5D75994A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{430E130A-DA69-4F6E-A06B-2E4C5D75994A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{430E130A-DA69-4F6E-A06B-2E4C5D75994A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{430E130A-DA69-4F6E-A06B-2E4C5D75994A}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{0C594995-2C2B-4C59-96C0-F0785C05DF75} = {19C26739-0DB6-4EFA-A104-71ED74B83473}
+		{BCD8F3EC-58CE-4253-AC36-A6B0927204EF} = {8DE90B3E-24A0-443D-95C2-EEA1EFB87C3F}
+		{6BBB4F49-6A45-41C7-9A29-6CB8BCF0A8EB} = {8DE90B3E-24A0-443D-95C2-EEA1EFB87C3F}
+		{430E130A-DA69-4F6E-A06B-2E4C5D75994A} = {19C26739-0DB6-4EFA-A104-71ED74B83473}
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {49383F29-3C46-4B19-9899-42E27D25DE4C}
+	EndGlobalSection
+EndGlobal

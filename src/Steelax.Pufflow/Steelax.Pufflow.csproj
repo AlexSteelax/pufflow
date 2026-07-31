@@ -1,0 +1,47 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>net10.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    </PropertyGroup>
+    <ItemGroup>
+        <PackageReference Include="JetBrains.Annotations" Version="2026.2.0" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <InternalsVisibleTo Include="Steelax.Pufflow.Tests" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <Compile Update="Pipe.cs">
+        <DependentUpon>FlowExt.cs</DependentUpon>
+      </Compile>
+      <Compile Update="Sink.cs">
+        <DependentUpon>FlowExt.cs</DependentUpon>
+      </Compile>
+      <Compile Update="Source.cs">
+        <DependentUpon>FlowExt.cs</DependentUpon>
+      </Compile>
+      <Compile Update="FlowExt.PushDirect.cs">
+        <DependentUpon>FlowExt.cs</DependentUpon>
+      </Compile>
+      <Compile Update="FlowExt.DirectEnumerator.cs">
+        <DependentUpon>FlowExt.cs</DependentUpon>
+      </Compile>
+      <Compile Update="FlowExt.ProxyEnumerator.cs">
+        <DependentUpon>FlowExt.cs</DependentUpon>
+      </Compile>
+      <Compile Update="FlowExt.DirectConsumator.cs">
+        <DependentUpon>FlowExt.cs</DependentUpon>
+      </Compile>
+      <Compile Update="FlowExt.Source.cs">
+        <DependentUpon>FlowExt.cs</DependentUpon>
+      </Compile>
+      <Compile Update="FlowExt.Sink.cs">
+        <DependentUpon>FlowExt.cs</DependentUpon>
+      </Compile>
+    </ItemGroup>
+    
+</Project>

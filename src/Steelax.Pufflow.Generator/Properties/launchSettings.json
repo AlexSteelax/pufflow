@@ -1,0 +1,9 @@
+{
+  "$schema": "https://json.schemastore.org/launchsettings.json",
+  "profiles": {
+    "DebugRoslynSourceGenerator": {
+      "commandName": "DebugRoslynComponent",
+      "targetProject": "../Steelax.Dataflow.Generator.Sample/Steelax.Dataflow.Generator.Sample.csproj"
+    }
+  }
+}
