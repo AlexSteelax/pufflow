@@ -37,12 +37,9 @@
         <InternalsVisibleTo Include="Steelax.Pufflow.Tests" />
     </ItemGroup>
 
-    <!-- Include the source generator as an analyzer in the package -->
+    <!-- Reference the source generator as a NuGet dependency of this package -->
     <ItemGroup>
-        <ProjectReference Include="..\Steelax.Pufflow.Generator\Steelax.Pufflow.Generator.csproj"
-                          PrivateAssets="all"
-                          ReferenceOutputAssembly="false"
-                          OutputItemType="Analyzer" />
+        <ProjectReference Include="..\Steelax.Pufflow.Generator\Steelax.Pufflow.Generator.csproj" />
     </ItemGroup>
 
     <!-- Include README and LICENSE in the package -->
