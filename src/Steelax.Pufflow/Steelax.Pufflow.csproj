@@ -5,13 +5,51 @@
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
         <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+
+        <!-- NuGet package metadata -->
+        <PackageId>Steelax.Pufflow</PackageId>
+        <Version>0.1.0</Version>
+        <Authors>Steelax</Authors>
+        <Description>A library for building dataflow pipelines based on Poll and Push models and their combinations.</Description>
+        <PackageTags>dataflow;pipeline;poll;push;stream;pufflow</PackageTags>
+        <PackageLicenseExpression>MIT</PackageLicenseExpression>
+        <PackageProjectUrl>https://github.com/Steelax/pufflow</PackageProjectUrl>
+        <RepositoryUrl>https://github.com/Steelax/pufflow.git</RepositoryUrl>
+        <RepositoryType>git</RepositoryType>
+        <PackageReadmeFile>README.md</PackageReadmeFile>
+        <PackageReleaseNotes>Initial pre-release.</PackageReleaseNotes>
+
+        <!-- SourceLink -->
+        <PublishRepositoryUrl>true</PublishRepositoryUrl>
+        <EmbedUntrackedSources>true</EmbedUntrackedSources>
+        <IncludeSymbols>true</IncludeSymbols>
+        <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+
+        <!-- Documentation -->
+        <GenerateDocumentationFile>true</GenerateDocumentationFile>
     </PropertyGroup>
+
     <ItemGroup>
         <PackageReference Include="JetBrains.Annotations" Version="2026.2.0" />
+        <PackageReference Include="Microsoft.SourceLink.GitHub" Version="8.0.0" PrivateAssets="All" />
     </ItemGroup>
 
     <ItemGroup>
         <InternalsVisibleTo Include="Steelax.Pufflow.Tests" />
+    </ItemGroup>
+
+    <!-- Include the source generator as an analyzer in the package -->
+    <ItemGroup>
+        <ProjectReference Include="..\Steelax.Pufflow.Generator\Steelax.Pufflow.Generator.csproj"
+                          PrivateAssets="all"
+                          ReferenceOutputAssembly="false"
+                          OutputItemType="Analyzer" />
+    </ItemGroup>
+
+    <!-- Include README and LICENSE in the package -->
+    <ItemGroup>
+        <None Include="..\..\README.md" Pack="true" PackagePath="\" />
+        <None Include="..\..\LICENSE" Pack="true" PackagePath="\" />
     </ItemGroup>
 
     <ItemGroup>

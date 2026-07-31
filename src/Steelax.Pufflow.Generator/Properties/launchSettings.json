@@ -3,7 +3,7 @@
   "profiles": {
     "DebugRoslynSourceGenerator": {
       "commandName": "DebugRoslynComponent",
-      "targetProject": "../Steelax.Dataflow.Generator.Sample/Steelax.Dataflow.Generator.Sample.csproj"
+      "targetProject": "../Steelax.Pufflow/Steelax.Pufflow.csproj"
     }
   }
 }
