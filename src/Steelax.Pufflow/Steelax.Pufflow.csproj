@@ -8,7 +8,6 @@
 
         <!-- NuGet package metadata -->
         <PackageId>Steelax.Pufflow</PackageId>
-        <Version>0.1.0</Version>
         <Authors>Steelax</Authors>
         <Description>A library for building dataflow pipelines based on Poll and Push models and their combinations.</Description>
         <PackageTags>dataflow;pipeline;poll;push;stream;pufflow</PackageTags>
