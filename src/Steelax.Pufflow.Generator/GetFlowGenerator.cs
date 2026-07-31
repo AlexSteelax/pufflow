@@ -10,6 +10,18 @@ using Microsoft.CodeAnalysis.Text;
 
 namespace Steelax.Pufflow.Generator;
 
+/// <summary>
+/// An incremental Roslyn source generator that produces IFlowable interface implementations
+/// implementations for classes annotated with the <c>[Flow]</c> attribute.
+/// </summary>
+/// <remarks>
+/// The generator inspects the public, non-static handler methods of a flow-annotated class
+/// (<c>GetEnumerator</c>, <c>GetAsyncEnumerator</c>, <c>Handle</c>, <c>GetConsumator</c>,
+/// <c>GetAsyncConsumator</c>, <c>GetProducator</c>, <c>GetAsyncProducator</c>, <c>Execute</c>,
+/// <c>ExecuteAsync</c>) and emits a partial class implementing the appropriate
+/// IFlowable (Source, Sink, or Pipe) interface, plus disambiguation view properties.
+/// It also supports composing two single-interface handlers into a composite pipe shape.
+/// </remarks>
 [Generator]
 public class GetFlowGenerator : IIncrementalGenerator
 {
@@ -52,6 +64,15 @@ public class GetFlowGenerator : IIncrementalGenerator
     private const string SyncName = "Steelax.Pufflow.Abstractions.Sync";
     private const string AsyncName = "Steelax.Pufflow.Abstractions.Async";
 
+    /// <summary>
+    /// Initializes the incremental generator pipeline.
+    /// </summary>
+    /// <param name="context">The incremental generator initialization context.</param>
+    /// <remarks>
+    /// Registers a syntax provider that filters class declarations with attributes
+    /// and produces the <c>[Flow]</c>-annotated class symbols, then combines them
+    /// with the compilation to emit the generated source.
+    /// </remarks>
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
         var provider = context.SyntaxProvider
