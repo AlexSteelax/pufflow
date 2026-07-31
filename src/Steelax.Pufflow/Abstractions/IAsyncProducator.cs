@@ -9,11 +9,15 @@ public interface IAsyncProducator<in T>
     where T : allows ref struct
 {
     /// <summary>Attempts to write a value without blocking.</summary>
-    WriteResult TryWrite(T value);
+    bool TryWrite(T value);
 
-    /// <summary>Waits asynchronously until the value can be written or the stream ends.</summary>
-    ValueTask<bool> WaitToWriteAsync();
-    
+    /// <summary>Waits asynchronously until the value can be written.</summary>
+    /// <remarks>
+    /// The producer is the single writer: it signals completion itself through <see cref="Complete"/>
+    /// and then no longer calls <see cref="TryWrite"/>. A completion carrying a fault is rethrown here.
+    /// </remarks>
+    ValueTask WaitToWriteAsync();
+
     /// <summary>Marks the stream as complete. Optionally signals an error.</summary>
     /// <param name="ex">Optional exception that caused the completion.</param>
     void Complete(Exception? ex = null);

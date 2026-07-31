@@ -2,7 +2,6 @@
 
   <PropertyGroup>
     <TargetFramework>netstandard2.0</TargetFramework>
-    <Nullable>enable</Nullable>
     <LangVersion>12</LangVersion>
     <IncludeBuildOutput>false</IncludeBuildOutput>
     <IsPackable>true</IsPackable>
@@ -10,29 +9,14 @@
     <IsRoslynComponent>true</IsRoslynComponent>
     <NoWarn>$(NoWarn);NU5128</NoWarn>
 
+    <!-- NuGet package metadata (project-specific; shared metadata lives in Directory.Build.props) -->
     <PackageId>Steelax.Pufflow.Generator</PackageId>
-    <Authors>Steelax</Authors>
     <Description>Source generator for Steelax.Pufflow dataflow pipelines. Generates IFlowable implementation from [Flow]-annotated classes.</Description>
     <PackageTags>dataflow;pipeline;poll;push;source-generator;roslyn</PackageTags>
-    <PackageLicenseExpression>MIT</PackageLicenseExpression>
-    <PackageProjectUrl>https://github.com/Steelax/pufflow</PackageProjectUrl>
-    <RepositoryUrl>https://github.com/Steelax/pufflow.git</RepositoryUrl>
-    <RepositoryType>git</RepositoryType>
-    <PackageReadmeFile>README.md</PackageReadmeFile>
 
-    <!-- SourceLink -->
-    <PublishRepositoryUrl>true</PublishRepositoryUrl>
-    <EmbedUntrackedSources>true</EmbedUntrackedSources>
-
+    <!-- Documentation -->
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
   </PropertyGroup>
-
-  <!-- Core Roslyn SDK dependencies -->
-  <ItemGroup>
-    <PackageReference Include="Microsoft.CodeAnalysis.Analyzers" Version="5.6.0" PrivateAssets="all" />
-    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="5.6.0" PrivateAssets="all" />
-    <PackageReference Include="Microsoft.SourceLink.GitHub" Version="8.0.0" PrivateAssets="All" />
-  </ItemGroup>
 
   <!-- Enforce custom packaging layouts -->
   <ItemGroup>
@@ -42,9 +26,12 @@
           Visible="false" />
   </ItemGroup>
 
-  <!-- Include the repository README in the package -->
   <ItemGroup>
-    <None Include="..\..\README.md" Pack="true" PackagePath="\" />
+    <PackageReference Include="Microsoft.CodeAnalysis.Analyzers">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
   </ItemGroup>
 
 </Project>

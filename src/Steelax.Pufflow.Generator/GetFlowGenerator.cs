@@ -230,45 +230,7 @@ public class GetFlowGenerator : IIncrementalGenerator
             interfaceLine += ",\n      " + line;
         }
 
-        // Build type params and constraints
-        var typeParams = "";
-        var typeParamConstraints = "";
-
         Trace.WriteLine($"[GetFlowGenerator] GenerateForClass: class='{classSymbol.ToDisplayString()}', typeParams={classSymbol.TypeParameters.Length}");
-
-        foreach (var tp in classSymbol.TypeParameters)
-            Trace.WriteLine($"[GetFlowGenerator]   tp: '{tp.Name}'");
-
-        if (classSymbol.TypeParameters.Length > 0)
-        {
-            typeParams = "<" + string.Join(", ", classSymbol.TypeParameters.Select(tp => tp.Name)) + ">";
-            Trace.WriteLine($"[GetFlowGenerator]   typeParams string='{typeParams}'");
-
-            var constraints = new List<string>();
-            foreach (var tp in classSymbol.TypeParameters)
-            {
-                var tpConstraints = new List<string>();
-
-                if (tp.HasReferenceTypeConstraint)
-                    tpConstraints.Add("class");
-                else if (tp.HasValueTypeConstraint)
-                    tpConstraints.Add("struct");
-
-                if (tp.HasNotNullConstraint)
-                    tpConstraints.Add("notnull");
-
-                if (tp.HasUnmanagedTypeConstraint)
-                    tpConstraints.Add("unmanaged");
-
-                foreach (var constraintType in tp.ConstraintTypes)
-                    tpConstraints.Add(constraintType.ToDisplayString());
-
-                if (tpConstraints.Count > 0)
-                    constraints.Add("where " + tp.Name + " : " + string.Join(", ", tpConstraints));
-            }
-
-            typeParamConstraints = string.Join(" ", constraints);
-        }
 
         var namespaceName = classSymbol.ContainingNamespace.ToDisplayString();
         var className = classSymbol.Name;
@@ -284,39 +246,12 @@ public class GetFlowGenerator : IIncrementalGenerator
         {
             var currentName = currentSymbol.Name;
             var currentTypeParams = "";
-            var currentConstraints = "";
 
-            // Collect type parameters from current and all containing types
+            // Collect type parameter names; constraints are declared by the user-authored partial
+            // and must not be duplicated in the generated declaration.
             if (currentSymbol.TypeParameters.Length > 0)
             {
                 currentTypeParams = "<" + string.Join(", ", currentSymbol.TypeParameters.Select(tp => tp.Name)) + ">";
-
-                var constraints = new List<string>();
-                foreach (var tp in currentSymbol.TypeParameters)
-                {
-                    var tpConstraints = new List<string>();
-
-                    if (tp.HasReferenceTypeConstraint)
-                        tpConstraints.Add("class");
-                    else if (tp.HasValueTypeConstraint)
-                        tpConstraints.Add("struct");
-
-                    if (tp.HasNotNullConstraint)
-                        tpConstraints.Add("notnull");
-
-                    if (tp.HasUnmanagedTypeConstraint)
-                        tpConstraints.Add("unmanaged");
-
-                    foreach (var constraintType in tp.ConstraintTypes)
-                        tpConstraints.Add(constraintType.ToDisplayString());
-
-                    if (tpConstraints.Count > 0)
-                        constraints.Add("where " + tp.Name + " : " + string.Join(", ", tpConstraints));
-                }
-
-                currentConstraints = string.Join(" ", constraints);
-                if (currentConstraints.Length > 0)
-                    currentConstraints = " " + currentConstraints;
             }
 
             var currentRecord = currentSymbol.IsRecord ? " record" : "";
@@ -325,7 +260,7 @@ public class GetFlowGenerator : IIncrementalGenerator
             // First (innermost) gets the interface + view properties, rest are containers
             if (first)
             {
-                classDecl = currentPartial + currentRecord + " class " + currentName + currentTypeParams + currentConstraints + "\n" + interfaceLine + "\n{\n";
+                classDecl = currentPartial + currentRecord + " class " + currentName + currentTypeParams + "\n" + interfaceLine + "\n{\n";
                 
                 // Add view properties for disambiguation (skip composite handlers)
                 foreach (var handler in handlers)
@@ -337,6 +272,7 @@ public class GetFlowGenerator : IIncrementalGenerator
                     if (propType is not null)
                     {
                         var propName = GetViewPropertyName(handler);
+                        classDecl += "    /// <summary>Gets the " + propName + " view of the flow for typed chaining.</summary>\n";
                         classDecl += "    public " + FlowInterfaceNs + ".IFlowable<" + propType + "> " + propName + " => this;\n";
                     }
                 }
@@ -345,7 +281,7 @@ public class GetFlowGenerator : IIncrementalGenerator
             }
             else
             {
-                classDecl = currentPartial + currentRecord + " class " + currentName + currentTypeParams + currentConstraints + "\n{\n" + classDecl;
+                classDecl = currentPartial + currentRecord + " class " + currentName + currentTypeParams + "\n{\n" + classDecl;
             }
 
             classDecl += "}\n";
@@ -485,20 +421,18 @@ namespace " + namespaceName + @";
         return "View";
     }
 
-    /// <summary>Extracts simple name from flow interface type (e.g., IConsumator, IAsyncEnumerator).</summary>
+    /// <summary>
+    /// Extracts the simple name from a flow interface type (e.g., IConsumator, IAsyncEnumerator).
+    /// Uses the symbol's metadata name, so namespaced type arguments cannot corrupt the result.
+    /// </summary>
     private static string GetInterfaceSimpleName(ITypeSymbol type)
     {
-        var name = type.ToDisplayString();
-        // Strip namespace and generic params
-        var lastDot = name.LastIndexOf('.');
-        if (lastDot >= 0)
-            name = name.Substring(lastDot + 1);
-        var genericIdx = name.IndexOf('<');
-        if (genericIdx >= 0)
-            name = name.Substring(0, genericIdx);
+        var name = type.Name;
+
         // Remove leading "I" if present
         if (name.StartsWith("I") && name.Length > 1 && char.IsUpper(name[1]))
             name = name.Substring(1);
+
         return name;
     }
 
