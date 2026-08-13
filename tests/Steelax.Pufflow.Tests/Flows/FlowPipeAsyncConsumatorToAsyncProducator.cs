@@ -1,16 +1,45 @@
-﻿using Steelax.Pufflow.Abstractions;
+using Steelax.Pufflow.Abstractions;
 
 namespace Steelax.Pufflow.Tests.Flows;
 
 [Flow]
 public partial class FlowPipeAsyncConsumatorToAsyncProducator<T1, T2>
-    // IFlowable<Pipe<Task, IAsyncConsumator<T1>, IAsyncProducator<T2>>>
 {
-    /// <remarks>
-    ///     Тянет данные из source и толкает данные в target
-    /// </remarks>
-    public Task ExecuteAsync(IAsyncConsumator<T1> source, IAsyncProducator<T2> target, FlowContext context)
+    private readonly Func<T1, T2> _transform;
+
+    public FlowPipeAsyncConsumatorToAsyncProducator(Func<T1, T2> transform)
     {
-        throw new NotImplementedException();
+        _transform = transform;
+    }
+
+    public void Fuse(IAsyncConsumator<T1> source, IAsyncProducator<T2> target, FlowContext context)
+    {
+        context.RegisterBackground(() => PumpAsync(source, target, _transform, context));
+    }
+
+    private static async Task PumpAsync(IAsyncConsumator<T1> source, IAsyncProducator<T2> target,
+        Func<T1, T2> transform, FlowContext context)
+    {
+        try
+        {
+            while (!context.Token.IsCancellationRequested)
+            {
+                if (source.TryRead(out var item))
+                {
+                    while (!target.TryWrite(transform.Invoke(item)))
+                        await target.WaitToWriteAsync();
+                    continue;
+                }
+
+                if (source.IsCompleted)
+                    break;
+
+                await source.WaitToReadAsync();
+            }
+        }
+        finally
+        {
+            target.TryComplete();
+        }
     }
 }

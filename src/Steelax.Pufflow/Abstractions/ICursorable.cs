@@ -22,18 +22,18 @@ public interface ICursorable<T>
     ///     <see cref="Advance" /> is called.
     /// </summary>
     /// <param name="value">The current value, if available.</param>
-    /// <param name="completed">
-    ///     Set to <see langword="true" /> when the stream has ended; otherwise <see langword="false" />.
-    ///     When the return value is <see langword="false" /> and <paramref name="completed" /> is
-    ///     <see langword="false" />, the current iteration is still pending.
-    /// </param>
     /// <returns>
     ///     <see langword="true" /> when a value is available; otherwise <see langword="false" />.
     /// </returns>
-    bool TryPeek([MaybeNullWhen(false)] out T value, out bool completed);
+    bool TryPeek([MaybeNullWhen(false)] out T value);
 
     /// <summary>
     ///     Advances the cursor to the next element after the current one was fully handled.
     /// </summary>
     void Advance();
+    
+    /// <summary>
+    /// 
+    /// </summary>
+    bool IsCompleted { get; }
 }

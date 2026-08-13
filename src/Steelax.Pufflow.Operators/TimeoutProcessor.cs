@@ -18,7 +18,7 @@ namespace Steelax.Pufflow.Operators;
 ///     <para>
 ///         The race is implemented by multiplexing the source's <c>MoveNextAsync</c> and a timeout timer
 ///         through a <see cref="FanInSlim" /> (slot 0 = source, slot 1 = timer), mirroring
-///         <see cref="ChunkProcessor{T}" />. When the source completes, the enumerator closes normally;
+///         <see cref="Aggregators.Chunking.ChunkProcessor{T,TChunk}" />. When the source completes, the enumerator closes normally;
 ///         when it faults or is canceled, the fault or <see cref="OperationCanceledException" /> propagates
 ///         downstream.
 ///     </para>
@@ -69,6 +69,17 @@ public sealed partial class TimeoutProcessor<T>
     }
 
     /// <summary>
+    /// 
+    /// </summary>
+    /// <param name="source"></param>
+    /// <param name="output"></param>
+    /// <param name="context"></param>
+    public void Fuse(IAsyncEnumerator<T> source, out IAsyncEnumerator<Unio<T, AwaitTimeout>> output, FlowContext context)
+    {
+        output = GetAsyncEnumerator(source, context);
+    }
+
+    /// <summary>
     ///     Returns an async enumerator that wraps <paramref name="source" /> with a per-wait timeout.
     /// </summary>
     /// <param name="source">The upstream async enumerator to time out.</param>
@@ -83,8 +94,7 @@ public sealed partial class TimeoutProcessor<T>
     /// <exception cref="Exception">
     ///     Rethrown when the source enumerator faults.
     /// </exception>
-    public async IAsyncEnumerator<Unio<T, AwaitTimeout>> GetAsyncEnumerator(IAsyncEnumerator<T> source,
-        FlowContext context)
+    public async IAsyncEnumerator<Unio<T, AwaitTimeout>> GetAsyncEnumerator(IAsyncEnumerator<T> source, FlowContext context)
     {
         var fanIn = new FanInSlim();
         var adapter = source.AsNonBlocking();

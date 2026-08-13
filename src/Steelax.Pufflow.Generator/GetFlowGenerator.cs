@@ -13,12 +13,10 @@ namespace Steelax.Pufflow.Generator;
 ///     implementations for classes annotated with the <c>[Flow]</c> attribute.
 /// </summary>
 /// <remarks>
-///     The generator inspects the public, non-static handler methods of a flow-annotated class
-///     (<c>GetEnumerator</c>, <c>GetAsyncEnumerator</c>, <c>Handle</c>, <c>GetConsumator</c>,
-///     <c>GetAsyncConsumator</c>, <c>GetProducator</c>, <c>GetAsyncProducator</c>, <c>Execute</c>,
-///     <c>ExecuteAsync</c>) and emits a partial class implementing the appropriate
-///     IFlowable (Source, Sink, or Pipe) interface, plus disambiguation view properties.
-///     It also supports composing two single-interface handlers into a composite pipe shape.
+///     The generator inspects the public, non-static <c>Fuse(...)</c> handler methods of a flow-annotated
+///     class and emits a partial class implementing the appropriate IFlowable (Source, Sink, or Pipe)
+///     interface, plus disambiguation view properties. The node's role is derived from the Fuse parameter
+///     directions (out → Source, explicit in / plain read → Sink, two parameters → Pipe).
 /// </remarks>
 [Generator]
 public class GetFlowGenerator : IIncrementalGenerator
@@ -30,21 +28,7 @@ public class GetFlowGenerator : IIncrementalGenerator
     private const string SourceName = "Steelax.Pufflow.Source";
     private const string SinkName = "Steelax.Pufflow.Sink";
     private const string PipeName = "Steelax.Pufflow.Pipe";
-    private const string SyncName = "Steelax.Pufflow.Abstractions.Sync";
-    private const string AsyncName = "Steelax.Pufflow.Abstractions.Async";
-
-    private static readonly string[] HandlerNames =
-    [
-        "GetEnumerator",
-        "GetAsyncEnumerator",
-        "Handle",
-        "GetAsyncConsumator",
-        "GetConsumator",
-        "GetProducator",
-        "GetAsyncProducator",
-        "Execute",
-        "ExecuteAsync"
-    ];
+    private static readonly string[] HandlerNames = ["Fuse"];
 
     // Read interfaces (pull - data flows out)
     private static readonly string[] ReadInterfaceNames =
@@ -164,48 +148,8 @@ public class GetFlowGenerator : IIncrementalGenerator
 
         var interfaceLines = new List<string>();
 
-        // Check for composite Pipe: exactly 2 return-based handlers with 0 flow params,
-        // one returns writer (Sink), one returns reader (Source) → combine into Pipe<TWrite, TRead>
-        var ret0Params = handlers.Where(h => !IsExecuteReturn(h.ReturnType) && CountFlowParams(h) == 0).ToList();
-        var compositeHandlers = new HashSet<HandlerInfo>();
-
-        if (ret0Params.Count == 2)
-        {
-            var h1 = ret0Params[0];
-            var h2 = ret0Params[1];
-            var h1IsWrite = IsWriteInterface(h1.ReturnType);
-            var h2IsWrite = IsWriteInterface(h2.ReturnType);
-
-            if (h1IsWrite && !h2IsWrite)
-            {
-                interfaceLines.Add(BuildPipe2Interface(h1.ReturnType, h2.ReturnType));
-                compositeHandlers.Add(h1);
-                compositeHandlers.Add(h2);
-            }
-            else if (!h1IsWrite && h2IsWrite)
-            {
-                interfaceLines.Add(BuildPipe2Interface(h2.ReturnType, h1.ReturnType));
-                compositeHandlers.Add(h1);
-                compositeHandlers.Add(h2);
-            }
-        }
-
-        // Process remaining handlers that weren't part of a composite
         foreach (var handler in handlers)
-        {
-            // Skip handlers already processed as composite
-            if (compositeHandlers.Contains(handler))
-                continue;
-
-            var isExecute = IsExecuteReturn(handler.ReturnType);
-            var flowParamCount = CountFlowParams(handler);
-
-            if (isExecute)
-                interfaceLines.Add(BuildExecuteBasedInterface(handler));
-            else if (flowParamCount == 0)
-                interfaceLines.Add(BuildReturnBased0ParamInterface(handler));
-            else if (flowParamCount == 1) interfaceLines.Add(BuildReturnBased1ParamInterface(handler));
-        }
+            interfaceLines.Add(BuildFuseBasedInterface(handler));
 
         if (interfaceLines.Count == 0)
             return;
@@ -254,12 +198,9 @@ public class GetFlowGenerator : IIncrementalGenerator
                 classDecl = currentPartial + currentRecord + " class " + currentName + currentTypeParams + "\n" +
                             interfaceLine + "\n{\n";
 
-                // Add view properties for disambiguation (skip composite handlers)
+                // Add view properties for disambiguation.
                 foreach (var handler in handlers)
                 {
-                    if (compositeHandlers.Contains(handler))
-                        continue;
-
                     var propType = GetHandlerTFlowTypeName(handler);
                     if (propType is not null)
                     {
@@ -314,6 +255,7 @@ namespace " + namespaceName + @";
             foreach (var param in method.Parameters)
             {
                 var paramType = param.Type.ToDisplayString();
+                Trace.WriteLine($"[GetFlowGenerator] FindHandlerMethods: method='{method.Name}' param='{paramType}' isRef='{param.RefKind}' isFlow='{IsFlowInterfaceType(param.Type)}'");
 
                 if (paramType == FlowContextName || paramType == FlowContextName + "?")
                     hasFlowContext = true;
@@ -337,40 +279,29 @@ namespace " + namespaceName + @";
     /// <summary>Gets the TFlow type name for a handler method (without IFlowable wrapper).</summary>
     private static string? GetHandlerTFlowTypeName(HandlerInfo h)
     {
-        var isExecute = IsExecuteReturn(h.ReturnType);
         var flowParamCount = CountFlowParams(h);
 
-        if (isExecute)
-        {
-            var kind = GetKindName(h.ReturnType);
-            if (flowParamCount == 1)
-            {
-                var p = h.FlowParams[0].Type.ToDisplayString();
-                var isWrite = IsWriteInterface(h.FlowParams[0].Type);
-                if (isWrite)
-                    return SourceName + "<" + kind + ", " + p + ">";
-                return SinkName + "<" + kind + ", " + p + ">";
-            }
-
-            if (flowParamCount == 2)
-            {
-                var p1 = h.FlowParams[0].Type.ToDisplayString();
-                var p2 = h.FlowParams[1].Type.ToDisplayString();
-                return PipeName + "<" + kind + ", " + p1 + ", " + p2 + ">";
-            }
-        }
-        else if (flowParamCount == 0)
-        {
-            var returnTypeStr = h.ReturnType.ToDisplayString();
-            if (IsWriteInterface(h.ReturnType))
-                return SinkName + "<" + returnTypeStr + ">";
-            return SourceName + "<" + returnTypeStr + ">";
-        }
-        else if (flowParamCount == 1)
+        if (flowParamCount == 1)
         {
             var p = h.FlowParams[0].Type.ToDisplayString();
-            var r = h.ReturnType.ToDisplayString();
-            return PipeName + "<" + p + ", " + r + ">";
+            var refKind = h.FlowParams[0].RefKind;
+            var isWrite = IsWriteInterface(h.FlowParams[0].Type);
+
+            // Fuse role for a single parameter:
+            //  - out + read (IEnumerator/IConsumator): the node emits a stream → Source;
+            //  - out + write (IProducator): the node hands out a target to be written into → Sink (passive consumer);
+            //  - plain write (IProducator): the node pushes into the supplied target → Source;
+            //  - plain/explicit-in read: the node consumes the supplied source → Sink.
+            return (refKind == RefKind.Out && !isWrite) || (refKind == RefKind.None && isWrite)
+                ? SourceName + "<" + p + ">"
+                : SinkName + "<" + p + ">";
+        }
+
+        if (flowParamCount == 2)
+        {
+            var p1 = h.FlowParams[0].Type.ToDisplayString();
+            var p2 = h.FlowParams[1].Type.ToDisplayString();
+            return PipeName + "<" + p1 + ", " + p2 + ">";
         }
 
         return null;
@@ -379,45 +310,32 @@ namespace " + namespaceName + @";
     /// <summary>Gets a human-readable property name for a handler view.</summary>
     private static string GetViewPropertyName(HandlerInfo h)
     {
-        var isExecute = IsExecuteReturn(h.ReturnType);
-        var prefix = isExecute ? GetKindSimpleName(h.ReturnType) : "";
         var flowParamCount = CountFlowParams(h);
 
-        if (isExecute && flowParamCount == 2)
+        if (flowParamCount == 2)
         {
-            // Pattern: AsyncFlowWithConsumatorToProducator
-            var p1 = GetInterfaceSimpleName(h.FlowParams[0].Type);
-            var p2 = GetInterfaceSimpleName(h.FlowParams[1].Type);
-            return prefix + "FlowWith" + p1 + "To" + p2;
+            // Pattern: FlowEnumToAProd (Fuse pipe: read → write)
+            var p1 = GetInterfaceShortName(h.FlowParams[0].Type);
+            var p2 = GetInterfaceShortName(h.FlowParams[1].Type);
+            return "Flow" + p1 + "To" + p2;
         }
 
-        if (isExecute && flowParamCount == 1)
+        if (flowParamCount == 1)
         {
-            var p = GetInterfaceSimpleName(h.FlowParams[0].Type);
-            return prefix + "FlowWith" + p;
-        }
-
-        if (!isExecute && flowParamCount == 0)
-        {
-            var r = GetInterfaceSimpleName(h.ReturnType);
-            return r;
-        }
-
-        if (!isExecute && flowParamCount == 1)
-        {
-            var p1 = GetInterfaceSimpleName(h.FlowParams[0].Type);
-            var p2 = GetInterfaceSimpleName(h.ReturnType);
-            return p1 + "To" + p2;
+            // Pattern: FlowAProd (source) / FlowEnum (sink)
+            return "Flow" + GetInterfaceShortName(h.FlowParams[0].Type);
         }
 
         return "View";
     }
 
     /// <summary>
-    ///     Extracts the simple name from a flow interface type (e.g., IConsumator, IAsyncEnumerator).
-    ///     Uses the symbol's metadata name, so namespaced type arguments cannot corrupt the result.
+    ///     Extracts the short (abbreviated) name from a flow interface type, e.g.:
+    ///     IEnumerator → "Enum", IAsyncEnumerator → "AEnum",
+    ///     IConsumator → "Cons", IAsyncConsumator → "ACons",
+    ///     IProducator → "Prod", IAsyncProducator → "AProd".
     /// </summary>
-    private static string GetInterfaceSimpleName(ITypeSymbol type)
+    private static string GetInterfaceShortName(ITypeSymbol type)
     {
         var name = type.Name;
 
@@ -425,123 +343,51 @@ namespace " + namespaceName + @";
         if (name.StartsWith("I") && name.Length > 1 && char.IsUpper(name[1]))
             name = name.Substring(1);
 
-        return name;
-    }
-
-    /// <summary>Gets "Sync" or "Async" for a return type.</summary>
-    private static string GetKindSimpleName(ITypeSymbol returnType)
-    {
-        var name = returnType.ToDisplayString();
-        if (name == "void" || name == "System.Void")
-            return "Sync";
-        return "Async";
+        return name switch
+        {
+            "Enumerator" => "Enum",
+            "AsyncEnumerator" => "AEnum",
+            "Consumator" => "Cons",
+            "AsyncConsumator" => "ACons",
+            "Producator" => "Prod",
+            "AsyncProducator" => "AProd",
+            _ => name
+        };
     }
 
     private static string? BuildSingleInterface(HandlerInfo h)
     {
-        var isExecute = IsExecuteReturn(h.ReturnType);
-        var flowParamCount = CountFlowParams(h);
-
-        if (isExecute)
-            return BuildExecuteBasedInterface(h);
-
-        if (flowParamCount == 0)
-            return BuildReturnBased0ParamInterface(h);
-
-        if (flowParamCount == 1)
-            return BuildReturnBased1ParamInterface(h);
-
-        return null;
+        return BuildFuseBasedInterface(h);
     }
 
-    private static string BuildReturnBased0ParamInterface(HandlerInfo h)
+    private static string BuildFuseBasedInterface(HandlerInfo h)
     {
-        var returnTypeStr = h.ReturnType.ToDisplayString();
-        var isWrite = IsWriteInterface(h.ReturnType);
-
-        if (isWrite)
-            return "    : " + FlowInterfaceNs + ".IFlowable<" + SinkName + "<" + returnTypeStr + ">>";
-        return "    : " + FlowInterfaceNs + ".IFlowable<" + SourceName + "<" + returnTypeStr + ">>";
-    }
-
-    private static string BuildReturnBased1ParamInterface(HandlerInfo h)
-    {
-        var paramTypeStr = h.FlowParams[0].Type.ToDisplayString();
-        var returnTypeStr = h.ReturnType.ToDisplayString();
-        return "    : " + FlowInterfaceNs + ".IFlowable<" + PipeName + "<" + paramTypeStr + ", " + returnTypeStr + ">>";
-    }
-
-    private static string BuildExecuteBasedInterface(HandlerInfo h)
-    {
-        var kind = GetKindName(h.ReturnType);
         var flowParamCount = h.FlowParams.Count;
 
         if (flowParamCount == 1)
         {
             var paramTypeStr = h.FlowParams[0].Type.ToDisplayString();
+            var refKind = h.FlowParams[0].RefKind;
             var isWrite = IsWriteInterface(h.FlowParams[0].Type);
 
-            if (isWrite)
-                return "    : " + FlowInterfaceNs + ".IFlowable<" + SourceName + "<" + kind + ", " + paramTypeStr +
-                       ">>";
-            return "    : " + FlowInterfaceNs + ".IFlowable<" + SinkName + "<" + kind + ", " + paramTypeStr + ">>";
+            // For Fuse the node's role is determined by the parameter direction and family:
+            //  - out + read (IEnumerator/IConsumator): the node emits a stream → Source;
+            //  - out + write (IProducator): the node hands out a target to be written into → Sink;
+            //  - plain write (IProducator): the node pushes into the supplied target → Source;
+            //  - plain/explicit-in read: the node consumes the supplied source → Sink.
+            if ((refKind == RefKind.Out && !isWrite) || (refKind == RefKind.None && isWrite))
+                return "    : " + FlowInterfaceNs + ".IFlowable<" + SourceName + "<" + paramTypeStr + ">>";
+            return "    : " + FlowInterfaceNs + ".IFlowable<" + SinkName + "<" + paramTypeStr + ">>";
         }
 
         if (flowParamCount == 2)
         {
             var p1 = h.FlowParams[0].Type.ToDisplayString();
             var p2 = h.FlowParams[1].Type.ToDisplayString();
-            return "    : " + FlowInterfaceNs + ".IFlowable<" + PipeName + "<" + kind + ", " + p1 + ", " + p2 + ">>";
+            return "    : " + FlowInterfaceNs + ".IFlowable<" + PipeName + "<" + p1 + ", " + p2 + ">>";
         }
 
         return "";
-    }
-
-    private static string BuildPipe2Interface(ITypeSymbol left, ITypeSymbol right)
-    {
-        return "    : " + FlowInterfaceNs + ".IFlowable<" + PipeName + "<" + left.ToDisplayString() + ", " +
-               right.ToDisplayString() + ">>";
-    }
-
-    private static string GetKindName(ITypeSymbol returnType)
-    {
-        var name = returnType.ToDisplayString();
-
-        if (name == "void" || name == "System.Void")
-            return SyncName;
-
-        // Task, ValueTask, Task<T>, ValueTask<T>
-        if (name is "System.Threading.Tasks.Task" or "System.Threading.Tasks.ValueTask")
-            return AsyncName;
-
-        // Generic task types
-        if (returnType is INamedTypeSymbol named)
-        {
-            var baseName = named.ConstructedFrom.ToDisplayString();
-            if (baseName is "System.Threading.Tasks.Task<TResult>" or "System.Threading.Tasks.ValueTask<TResult>")
-                return AsyncName;
-        }
-
-        return SyncName;
-    }
-
-    private static bool IsExecuteReturn(ITypeSymbol returnType)
-    {
-        var name = returnType.ToDisplayString();
-        if (name == "void" || name == "System.Void")
-            return true;
-
-        if (name is "System.Threading.Tasks.Task" or "System.Threading.Tasks.ValueTask")
-            return true;
-
-        if (returnType is INamedTypeSymbol named)
-        {
-            var baseName = named.ConstructedFrom.ToDisplayString();
-            if (baseName is "System.Threading.Tasks.Task<TResult>" or "System.Threading.Tasks.ValueTask<TResult>")
-                return true;
-        }
-
-        return false;
     }
 
     private static int CountFlowParams(HandlerInfo h)

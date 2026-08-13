@@ -11,12 +11,14 @@
 [PublicAPI]
 public sealed class FlowSource : IDisposable, IAsyncDisposable
 {
-    private readonly CancellationTokenSource _cts;
+    private readonly List<object> _disposable = [];
+    private readonly List<LazyScheduleTask> _tasks = [];
+    internal readonly CancellationTokenSource Cts;
     private bool _disposed;
 
     private FlowSource(CancellationTokenSource cts)
     {
-        _cts = cts;
+        Cts = cts;
     }
 
     /// <summary>
@@ -42,6 +44,29 @@ public sealed class FlowSource : IDisposable, IAsyncDisposable
     }
 
     /// <summary>
+    ///     Registers a background task that the pipeline starts lazily on execution.
+    /// </summary>
+    /// <param name="handler">The factory that creates the background task.</param>
+    /// <returns>A task that completes when the registered background task finishes.</returns>
+    /// <remarks>
+    ///     The task is not started immediately; it is run when <see cref="ExecuteAsync" /> is called.
+    ///     The returned task surfaces the outcome (including exceptions), so a fault is never silently lost.
+    /// </remarks>
+    [PublicAPI]
+    public Task RegisterBackground(Func<Task> handler)
+    {
+        var lazy = new LazyScheduleTask(handler);
+        _tasks.Add(lazy);
+        return lazy.ExecuteTask;
+    }
+
+    internal void RegisterDisposable(object disposable)
+    {
+        if (disposable is IAsyncDisposable or IDisposable)
+            _disposable.Add(disposable);
+    }
+
+    /// <summary>
     ///     Gets a <see cref="FlowContext" /> for use in pipeline stages.
     /// </summary>
     /// <value>A new flow context backed by this source's cancellation token source.</value>
@@ -52,7 +77,7 @@ public sealed class FlowSource : IDisposable, IAsyncDisposable
         get
         {
             ObjectDisposedException.ThrowIf(_disposed, typeof(FlowSource));
-            return new FlowContext(_cts);
+            return new FlowContext(this);
         }
     }
 
@@ -70,8 +95,8 @@ public sealed class FlowSource : IDisposable, IAsyncDisposable
         if (_disposed)
             return;
 
-        await _cts.CancelAsync();
-        _cts.Dispose();
+        await Cts.CancelAsync();
+        Cts.Dispose();
         _disposed = true;
     }
 
@@ -87,8 +112,72 @@ public sealed class FlowSource : IDisposable, IAsyncDisposable
         if (_disposed)
             return;
 
-        _cts.Cancel();
-        _cts.Dispose();
+        Cts.Cancel();
+        Cts.Dispose();
         _disposed = true;
+    }
+
+    /// <summary>
+    ///     Starts all registered background tasks and waits for them, treating a fault as fatal.
+    /// </summary>
+    /// <returns>A task that completes when all registered tasks finish.</returns>
+    /// <remarks>
+    ///     All registered tasks are started; as soon as one fails or is canceled, the pipeline is canceled
+    ///     and the aggregated exception is rethrown. Background tasks are expected to observe the flow token
+    ///     so cancellation can stop them.
+    /// </remarks>
+    [PublicAPI]
+    public async Task ExecuteAsync()
+    {
+        var tasks = _tasks.ToArray();
+        foreach (var lazy in tasks)
+            lazy.Run();
+
+        List<Exception>? exception = null;
+
+        try
+        {
+            await foreach (var task in Task.WhenEach(tasks.Select(static lazy => lazy.ExecuteTask)))
+            {
+                if (task is { IsCompletedSuccessfully: false })
+                {
+                    await Cts.CancelAsync();
+
+                    exception ??= [];
+
+                    if (task.Exception is not null)
+                        exception.AddRange(task.Exception.InnerExceptions);
+                }
+            }
+        }
+        finally
+        {
+            foreach (var disposable in _disposable)
+            {
+                try
+                {
+                    switch (disposable)
+                    {
+                        case IAsyncDisposable d:
+                            await d.DisposeAsync();
+                            break;
+                        case IDisposable d:
+                            d.Dispose();
+                            break;
+                    }
+                }
+                catch (Exception ex) when (ex is not NotSupportedException)
+                {
+                    exception ??= [];
+                    exception.Add(ex);
+                }
+            }
+            
+            _disposable.Clear();
+            _tasks.Clear();
+        }
+        
+        if (exception is not null && exception.Count > 0)
+            throw new AggregateException(exception);
     }
 }

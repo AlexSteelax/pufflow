@@ -5,13 +5,9 @@ namespace Steelax.Pufflow.Generator.Tests.NoCompilationSources;
 [Flow]
 public partial class MyComposite<T1, T2>
 {
-    public IAsyncProducator<T1> GetAsyncProducator(Steelax.Pufflow.FlowContext ctx)
+    public void Fuse(out IAsyncProducator<T1> input, out IAsyncConsumator<T2> output, Steelax.Pufflow.FlowContext ctx)
     {
-        throw new System.NotImplementedException();
-    }
-
-    public IAsyncConsumator<T2> GetAsyncConsumator(Steelax.Pufflow.FlowContext ctx)
-    {
-        throw new System.NotImplementedException();
+        input = null!;
+        output = null!;
     }
 }

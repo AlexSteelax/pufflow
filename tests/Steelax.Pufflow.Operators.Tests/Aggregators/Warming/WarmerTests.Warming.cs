@@ -1,0 +1,80 @@
+﻿using Steelax.Pufflow.Operators.Common;
+
+namespace Steelax.Pufflow.Operators.Tests.Aggregators.Warming;
+
+public static partial class WarmerTests
+{
+    public sealed class Warming
+    {
+        [Fact]
+        public void Fill_StartsJobSynchronouslyAndSignals()
+        {
+            var callback = new RecordingCallback();
+            using var warmer = Create(onReady: callback.Invoke, segmentCapacity: 2);
+            var sink = new WarmSink();
+
+            AddKeys(warmer, (1, 10), (2, 20));
+
+            // The segment is full — the job started synchronously and raised the readiness signal.
+            Assert.True(callback.Count > 0);
+
+            Assert.True(warmer.WarmNext(sink, out var keys, out var watermark));
+
+            Assert.Equal(new[] { 1, 2 }, keys);
+            Assert.Equal(Watermark.From(20), watermark);
+            Assert.Equal(new[] { (1, "W1"), (2, "W2") }, sink.Items);
+        }
+
+        [Fact]
+        public void PartialSegment_NoJobStarted_UntilLinger()
+        {
+            var factory = new SyncJobFactory();
+            var time = new ManualTimeProvider();
+            using var warmer = Create(factory, timeProvider: time, segmentCapacity: 5);
+            var sink = new WarmSink();
+
+            AddKeys(warmer, (1, 10), (2, 20));
+
+            // A partial segment does not start until linger.
+            Assert.Equal(0, factory.CreatedCount);
+            Assert.False(warmer.WarmNext(sink, out var keys, out var watermark));
+            Assert.Null(keys);
+            Assert.True(watermark.IsNothing);
+            Assert.Empty(sink.Items);
+
+            // Firing linger seals and starts the partial segment.
+            time.Timer.Fire();
+
+            Assert.True(warmer.WarmNext(sink, out keys, out watermark));
+            Assert.Equal(new[] { 1, 2 }, keys);
+            Assert.Equal(Watermark.From(20), watermark);
+            Assert.Equal(new[] { (1, "W1"), (2, "W2") }, sink.Items);
+        }
+
+        [Fact]
+        public void NoCompletedHead_ReturnsFalse()
+        {
+            using var warmer = Create(segmentCapacity: 5);
+            var sink = new WarmSink();
+
+            AddKeys(warmer, (1, 10));
+
+            Assert.False(warmer.WarmNext(sink, out var keys, out var watermark));
+            Assert.Null(keys);
+            Assert.True(watermark.IsNothing);
+            Assert.Empty(sink.Items);
+        }
+
+        [Fact]
+        public void Empty_ReturnsFalse()
+        {
+            using var warmer = Create();
+            var sink = new WarmSink();
+
+            Assert.False(warmer.WarmNext(sink, out var keys, out var watermark));
+            Assert.Null(keys);
+            Assert.True(watermark.IsNothing);
+            Assert.Empty(sink.Items);
+        }
+    }
+}

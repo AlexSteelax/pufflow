@@ -5,8 +5,8 @@ namespace Steelax.Pufflow.Generator.Tests.NoCompilationSources;
 [Flow]
 public partial class MyPipeProducator<T1, T2>
 {
-    public IProducator<T2> GetProducator(IProducator<T1> target, Steelax.Pufflow.FlowContext ctx)
+    public void Fuse(in IProducator<T1> input, out IProducator<T2> output, Steelax.Pufflow.FlowContext ctx)
     {
-        throw new System.NotImplementedException();
+        output = null!;
     }
 }

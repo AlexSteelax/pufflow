@@ -5,8 +5,8 @@ namespace Steelax.Pufflow.Generator.Tests.NoCompilationSources;
 [Flow]
 public partial class MyPipeEnumeratorToAsyncConsumator<T1, T2>
 {
-    public IAsyncConsumator<T2> GetAsyncConsumator(System.Collections.Generic.IEnumerator<T1> source, Steelax.Pufflow.FlowContext ctx)
+    public void Fuse(in System.Collections.Generic.IEnumerator<T1> source, out IAsyncConsumator<T2> target, Steelax.Pufflow.FlowContext ctx)
     {
-        throw new System.NotImplementedException();
+        target = null!;
     }
 }

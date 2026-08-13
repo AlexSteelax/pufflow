@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Steelax.Pufflow.Abstractions;
 
 namespace Steelax.Pufflow.Generator.Tests.NoCompilationSources;
@@ -12,10 +13,8 @@ public interface IBatchFactory<TBatch, T> where TBatch : BatchBase<T>
 [Flow]
 public partial class MyConstrained<T, TBatch> where TBatch : BatchBase<T>, IBatchFactory<TBatch, T>
 {
-    public System.Collections.Generic.IAsyncEnumerator<TBatch> GetAsyncEnumerator(
-        System.Collections.Generic.IAsyncEnumerator<T> source,
-        Steelax.Pufflow.FlowContext ctx)
+    public void Fuse(in IAsyncEnumerator<T> source, out IAsyncEnumerator<TBatch> target, Steelax.Pufflow.FlowContext ctx)
     {
-        throw new System.NotImplementedException();
+        target = null!;
     }
 }

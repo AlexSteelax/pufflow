@@ -1,0 +1,13 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>net10.0</TargetFramework>
+        <RootNamespace>Steelax.Pufflow.Sdk.Test</RootNamespace>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\Steelax.Pufflow.Generator\Steelax.Pufflow.Generator.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false"/>
+        <ProjectReference Include="..\Steelax.Pufflow\Steelax.Pufflow.csproj"/>
+    </ItemGroup>
+
+</Project>

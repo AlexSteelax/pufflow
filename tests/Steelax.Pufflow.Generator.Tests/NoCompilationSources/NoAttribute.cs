@@ -1,9 +1,12 @@
+using System.Collections.Generic;
+using Steelax.Pufflow.Abstractions;
+
 namespace Steelax.Pufflow.Generator.Tests.NoCompilationSources;
 
 public partial class NoAttribute
 {
-    public System.Collections.Generic.IEnumerator<int> GetEnumerator(Steelax.Pufflow.FlowContext ctx)
+    public void Fuse(out IEnumerator<int> source, Steelax.Pufflow.FlowContext ctx)
     {
-        yield break;
+        source = null!;
     }
 }

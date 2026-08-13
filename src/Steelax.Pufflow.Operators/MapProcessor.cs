@@ -15,6 +15,18 @@ namespace Steelax.Pufflow.Operators;
 [Flow]
 public sealed partial class MapProcessor<T1, T2>(Func<T1, T2> transform)
 {
+
+    /// <summary>
+    /// 
+    /// </summary>
+    /// <param name="source"></param>
+    /// <param name="output"></param>
+    /// <param name="context"></param>
+    public void Fuse(IAsyncConsumator<T1> source, out IAsyncConsumator<T2> output, FlowContext context)
+    {
+        output = GetAsyncConsumator(source, context);
+    }
+    
     /// <summary>
     ///     Wraps the upstream source so that each read value is mapped through the configured transform.
     /// </summary>
@@ -29,21 +41,20 @@ public sealed partial class MapProcessor<T1, T2>(Func<T1, T2> transform)
 
     private sealed class Mapper(IAsyncConsumator<T1> source, Func<T1, T2> transform) : IAsyncConsumator<T2>
     {
-        public bool TryRead([MaybeNullWhen(false)] out T2 value, out bool completed)
+        public bool TryRead([MaybeNullWhen(false)] out T2 value)
         {
-            if (source.TryRead(out var original, out completed))
+            if (source.TryRead(out var original))
             {
                 value = transform.Invoke(original);
                 return true;
             }
-
+            
             value = default!;
             return false;
         }
 
-        public ValueTask WaitToReadAsync()
-        {
-            return source.WaitToReadAsync();
-        }
+        public bool IsCompleted => source.IsCompleted;
+
+        public ValueTask<bool> WaitToReadAsync() => source.WaitToReadAsync();
     }
 }

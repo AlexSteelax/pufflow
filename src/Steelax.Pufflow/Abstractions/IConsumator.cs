@@ -12,13 +12,11 @@ public interface IConsumator<T>
 {
     /// <summary>Attempts to read a value without blocking.</summary>
     /// <param name="value">The read value, if available.</param>
-    /// <param name="completed">
-    ///     Set to <see langword="true" /> when the stream has ended; otherwise <see langword="false" />.
-    ///     When the return value is <see langword="false" /> and <paramref name="completed" /> is
-    ///     <see langword="false" />, no value is currently available but the stream is still active.
-    /// </param>
-    bool TryRead([MaybeNullWhen(false)] out T value, out bool completed);
-
-    /// <summary>Blocks until a value is available or the stream ends.</summary>
-    void WaitToRead();
+    /// <returns><see langword="true" /> when a value was read; otherwise <see langword="false" />.</returns>
+    bool TryRead([MaybeNullWhen(false)] out T value);
+    
+    /// <summary>
+    /// 
+    /// </summary>
+    bool IsCompleted { get; }
 }

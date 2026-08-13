@@ -1,4 +1,4 @@
-﻿using Steelax.Pufflow.Abstractions;
+﻿ ﻿using Steelax.Pufflow.Abstractions;
 
 namespace Steelax.Pufflow;
 
@@ -10,42 +10,25 @@ namespace Steelax.Pufflow;
 /// <typeparam name="TRight">The poll output type (e.g., <see cref="IConsumator{T}" />).</typeparam>
 /// <remarks>
 ///     Encodes a two-interface shape: push input → poll output.
-///     Carries the component <see cref="Instance" /> and <see cref="Context" /> for the runtime pipeline builder.
+///     Carries the component <see cref="Meta" /> and <see cref="Context" /> for the runtime pipeline builder.
 /// </remarks>
 [PublicAPI]
-public readonly struct Pipe<TLeft, TRight>(object instance, FlowContext context)
+public readonly struct Pipe<TLeft, TRight>
 {
     /// <summary>
-    ///     The component instance that implements the pipe logic.
+    ///     The node metadata that implements the pipe logic.
     /// </summary>
-    internal readonly object Instance = instance;
+    internal readonly FlowMeta Meta;
 
     /// <summary>
     ///     The flow context providing cancellation support for the pipeline.
     /// </summary>
-    internal readonly FlowContext Context = context;
-}
+    internal readonly FlowContext Context;
 
-/// <summary>
-///     A marker struct that represents a data transformer pipe with an explicit sync/async mode tag.
-/// </summary>
-/// <typeparam name="TKind">A <see cref="Sync" /> or <see cref="Async" /> marker indicating the execution mode.</typeparam>
-/// <typeparam name="TLeft">The push input type (e.g., <see cref="IProducator{T}" />).</typeparam>
-/// <typeparam name="TRight">The poll output type (e.g., <see cref="IConsumator{T}" />).</typeparam>
-/// <remarks>
-///     The <typeparamref name="TKind" /> parameter enables compile-time disambiguation between
-///     synchronous and asynchronous pipeline stages.
-/// </remarks>
-[PublicAPI]
-public readonly struct Pipe<TKind, TLeft, TRight>(object instance, FlowContext context)
-{
-    /// <summary>
-    ///     The component instance that implements the pipe logic.
-    /// </summary>
-    internal readonly object Instance = instance;
-
-    /// <summary>
-    ///     The flow context providing cancellation support for the pipeline.
-    /// </summary>
-    internal readonly FlowContext Context = context;
+    /// <summary>Initializes a pipe marker with its node metadata and flow context.</summary>
+    internal Pipe(FlowMeta meta, FlowContext context)
+    {
+        Meta = meta;
+        Context = context;
+    }
 }

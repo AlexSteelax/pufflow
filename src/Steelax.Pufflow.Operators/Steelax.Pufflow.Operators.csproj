@@ -19,6 +19,7 @@
 
     <ItemGroup>
         <InternalsVisibleTo Include="Steelax.Pufflow.Operators.Tests"/>
+        <InternalsVisibleTo Include="Steelax.Pufflow.Operators.Kafka"/>
     </ItemGroup>
 
     <ItemGroup>

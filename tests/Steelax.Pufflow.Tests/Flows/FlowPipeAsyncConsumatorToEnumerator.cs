@@ -5,10 +5,7 @@ namespace Steelax.Pufflow.Tests.Flows;
 [Flow]
 public partial class FlowPipeAsyncConsumatorToEnumerator<T1, T2>
 {
-    /// <remarks>
-    ///     Тянет данные из source и отдает объект для вытягивания данных
-    /// </remarks>
-    public IEnumerator<T2> GetEnumerator(IAsyncConsumator<T1> source, FlowContext context)
+    public void Fuse(in IAsyncConsumator<T1> source, out IEnumerator<T2> target, FlowContext context)
     {
         throw new NotImplementedException();
     }

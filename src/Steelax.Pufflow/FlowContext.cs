@@ -15,7 +15,7 @@ namespace Steelax.Pufflow;
 [PublicAPI]
 public readonly struct FlowContext
 {
-    private readonly CancellationTokenSource? _cts;
+    private readonly FlowSource? _source;
 
     /// <summary>
     ///     Gets the <see cref="CancellationToken" /> associated with this flow context.
@@ -30,15 +30,17 @@ public readonly struct FlowContext
     {
         get
         {
-            if (_cts is null)
+            var cts = _source?.Cts;
+
+            if (cts is null)
                 return CancellationToken.None;
 
-            if (IsDisposed(_cts))
+            if (IsDisposed(cts))
                 return new CancellationToken(true);
 
             try
             {
-                return _cts.Token;
+                return cts.Token;
             }
             catch (ObjectDisposedException)
             {
@@ -57,17 +59,53 @@ public readonly struct FlowContext
     [PublicAPI]
     public void Cancel()
     {
-        if (_cts is null || IsDisposed(_cts))
+        var cts = _source?.Cts;
+
+        if (cts is null || IsDisposed(cts))
             return;
 
         try
         {
-            _cts.Cancel();
+            cts.Cancel();
         }
         catch (ObjectDisposedException)
         {
             // Nothing
         }
+    }
+
+    /// <summary>
+    ///     Registers a background task for the pipeline, or runs it immediately when no owning
+    ///     <see cref="FlowSource" /> is attached.
+    /// </summary>
+    /// <param name="handler">The factory that creates the background task.</param>
+    /// <returns>A task that completes when the registered background task finishes.</returns>
+    /// <remarks>
+    ///     The task is started lazily by the owning <see cref="FlowSource" /> (see
+    ///     <c>FlowSource.ExecuteAsync</c>); the returned task surfaces its outcome (including exceptions).
+    ///     When no source is attached, the handler is invoked immediately as a fallback.
+    /// </remarks>
+    [PublicAPI]
+    public Task RegisterBackground(Func<Task> handler)
+    {
+        return _source?.RegisterBackground(handler) ?? handler.Invoke();
+    }
+
+    /// <summary>
+    ///     Registers a disposable resource owned by the pipeline, released when the pipeline completes.
+    /// </summary>
+    /// <param name="disposable">
+    ///     The resource to dispose on pipeline completion. Must implement <see cref="IDisposable" /> or
+    ///     <see cref="IAsyncDisposable" />; otherwise the registration is ignored.
+    /// </param>
+    /// <remarks>
+    ///     The resource is released in the owning <see cref="FlowSource" />'s cleanup phase, after the
+    ///     registered background tasks have finished.
+    /// </remarks>
+    [PublicAPI]
+    public void RegisterDisposable(object disposable)
+    {
+        _source?.RegisterDisposable(disposable);
     }
 
     /// <summary>
@@ -81,12 +119,12 @@ public readonly struct FlowContext
     }
 
     /// <summary>
-    ///     Initializes a new flow context backed by the specified cancellation token source.
+    ///     Initializes a new flow context backed by the specified flow source.
     /// </summary>
-    /// <param name="cancellationTokenSource">The source that provides the cancellation token. May be null.</param>
-    internal FlowContext(CancellationTokenSource cancellationTokenSource)
+    /// <param name="source">The flow source that owns cancellation and the registered background tasks.</param>
+    internal FlowContext(FlowSource source)
     {
-        _cts = cancellationTokenSource;
+        _source = source;
     }
 
     /// <summary>
