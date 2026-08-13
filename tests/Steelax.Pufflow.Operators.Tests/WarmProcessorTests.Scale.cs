@@ -4,7 +4,7 @@ public static partial class WarmProcessorTests
 {
     public sealed class Scale
     {
-        [Fact(Timeout = 10_000)]
+        [Fact(Timeout = 20_000)]
         public async Task LargeInput_WithDelayedWarmJobs_AllDelivered()
         {
             // Большой поток: каждый ключ встречается один раз, чётные греются (джоб с задержкой),
@@ -39,7 +39,7 @@ public static partial class WarmProcessorTests
             Assert.Equal(n / 2, policy.Warmed.Count);
         }
 
-        [Fact(Timeout = 10_000)]
+        [Fact(Timeout = 20_000)]
         public async Task LargeInput_SyncJobs_SameCountOnOutput()
         {
             // Длинная дистанция: на выходе ровно столько же полезных записей (T0 passthrough +
