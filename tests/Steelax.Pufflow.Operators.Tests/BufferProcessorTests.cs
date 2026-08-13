@@ -1,8 +1,8 @@
 namespace Steelax.Pufflow.Operators.Tests;
 
 /// <summary>
-/// Unit tests for the <see cref="BufferProcessor{T, TBuffer}"/> class and the
-/// <see cref="BufferedChannel{T}"/> buffer.
+///     Unit tests for the <see cref="BufferProcessor{T, TBuffer}" /> class and the
+///     <see cref="BufferedChannel{T}" /> buffer.
 /// </summary>
 public static partial class BufferProcessorTests
 {

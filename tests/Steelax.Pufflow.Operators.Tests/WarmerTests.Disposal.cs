@@ -8,7 +8,7 @@ public static partial class WarmerTests
         public void Dispose_CancelsAndDisposesRunningJobs()
         {
             var factory = new TcsJobFactory();
-            var warmer = Create(jobFactory: factory, maxConcurrency: 1, maxQueued: 2, segmentCapacity: 1);
+            var warmer = Create(factory, maxConcurrency: 1, maxQueued: 2, segmentCapacity: 1);
 
             AddKeys(warmer, (1, 10));
             var job = factory.Created[0];
@@ -24,7 +24,7 @@ public static partial class WarmerTests
         public async Task DisposeAsync_DoesNotThrow()
         {
             var factory = new TcsJobFactory();
-            var warmer = Create(jobFactory: factory, maxConcurrency: 1, maxQueued: 2, segmentCapacity: 1);
+            var warmer = Create(factory, maxConcurrency: 1, maxQueued: 2, segmentCapacity: 1);
 
             AddKeys(warmer, (1, 10));
 

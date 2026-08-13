@@ -4,24 +4,24 @@ using Steelax.Toolkit.HighPerformance.Concurrency.Primitives;
 namespace Steelax.Pufflow.Operators;
 
 /// <summary>
-/// A pipe component that races each upstream <c>MoveNextAsync</c> against a timeout and emits
-/// <see cref="Unio{T, AwaitTimeout}"/> values downstream: the element when it arrives in time, or
-/// an <see cref="AwaitTimeout"/> marker when the timeout elapses while the source is idle.
+///     A pipe component that races each upstream <c>MoveNextAsync</c> against a timeout and emits
+///     <see cref="Unio{T, AwaitTimeout}" /> values downstream: the element when it arrives in time, or
+///     an <see cref="AwaitTimeout" /> marker when the timeout elapses while the source is idle.
 /// </summary>
 /// <typeparam name="T">The type of elements flowing through the timeout.</typeparam>
 /// <remarks>
-/// <para>
-/// Every wait for the source is given its own timeout window. The window is armed just before the
-/// wait and re-armed after each yielded element or timeout marker, so the consumer may spend an
-/// unbounded amount of time processing a value without tripping the timeout.
-/// </para>
-/// <para>
-/// The race is implemented by multiplexing the source's <c>MoveNextAsync</c> and a timeout timer
-/// through a <see cref="FanInSlim"/> (slot 0 = source, slot 1 = timer), mirroring
-/// <see cref="ChunkProcessor{T}"/>. When the source completes, the enumerator closes normally;
-/// when it faults or is canceled, the fault or <see cref="OperationCanceledException"/> propagates
-/// downstream.
-/// </para>
+///     <para>
+///         Every wait for the source is given its own timeout window. The window is armed just before the
+///         wait and re-armed after each yielded element or timeout marker, so the consumer may spend an
+///         unbounded amount of time processing a value without tripping the timeout.
+///     </para>
+///     <para>
+///         The race is implemented by multiplexing the source's <c>MoveNextAsync</c> and a timeout timer
+///         through a <see cref="FanInSlim" /> (slot 0 = source, slot 1 = timer), mirroring
+///         <see cref="ChunkProcessor{T}" />. When the source completes, the enumerator closes normally;
+///         when it faults or is canceled, the fault or <see cref="OperationCanceledException" /> propagates
+///         downstream.
+///     </para>
 /// </remarks>
 [Flow]
 public sealed partial class TimeoutProcessor<T>
@@ -33,16 +33,16 @@ public sealed partial class TimeoutProcessor<T>
     private readonly TimeProvider _timeProvider;
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="TimeoutProcessor{T}"/> class.
+    ///     Initializes a new instance of the <see cref="TimeoutProcessor{T}" /> class.
     /// </summary>
     /// <param name="timeout">
-    /// The maximum time to wait for an element before emitting an <see cref="AwaitTimeout"/> marker.
+    ///     The maximum time to wait for an element before emitting an <see cref="AwaitTimeout" /> marker.
     /// </param>
     /// <param name="timeProvider">
-    /// The time provider used to schedule the timeout timer; defaults to <see cref="TimeProvider.System"/>.
+    ///     The time provider used to schedule the timeout timer; defaults to <see cref="TimeProvider.System" />.
     /// </param>
     /// <exception cref="ArgumentOutOfRangeException">
-    /// Thrown when <paramref name="timeout"/> is not positive.
+    ///     Thrown when <paramref name="timeout" /> is not positive.
     /// </exception>
     public TimeoutProcessor(TimeSpan timeout, TimeProvider? timeProvider = null)
     {
@@ -55,10 +55,12 @@ public sealed partial class TimeoutProcessor<T>
 
     /// <summary>Starts the one-shot timeout timer.</summary>
     private static void StartTimeout(ITimer timer, TimeSpan timeout)
-        => timer.Change(timeout, Timeout.InfiniteTimeSpan);
+    {
+        timer.Change(timeout, Timeout.InfiniteTimeSpan);
+    }
 
     /// <summary>
-    /// Stops the timeout timer and clears any pending timer signal.
+    ///     Stops the timeout timer and clears any pending timer signal.
     /// </summary>
     private static void StopTimeout(ITimer timer, FanInSlim fanIn)
     {
@@ -67,26 +69,28 @@ public sealed partial class TimeoutProcessor<T>
     }
 
     /// <summary>
-    /// Returns an async enumerator that wraps <paramref name="source"/> with a per-wait timeout.
+    ///     Returns an async enumerator that wraps <paramref name="source" /> with a per-wait timeout.
     /// </summary>
     /// <param name="source">The upstream async enumerator to time out.</param>
     /// <param name="context">The flow context providing cancellation for the pipeline.</param>
     /// <returns>
-    /// An async enumerator yielding <see cref="Unio{T, AwaitTimeout}"/> values; <c>T0</c> holds an
-    /// element delivered in time, <c>T1</c> holds an <see cref="AwaitTimeout"/> marker.
+    ///     An async enumerator yielding <see cref="Unio{T, AwaitTimeout}" /> values; <c>T0</c> holds an
+    ///     element delivered in time, <c>T1</c> holds an <see cref="AwaitTimeout" /> marker.
     /// </returns>
     /// <exception cref="OperationCanceledException">
-    /// Thrown when the source operation is canceled.
+    ///     Thrown when the source operation is canceled.
     /// </exception>
     /// <exception cref="Exception">
-    /// Rethrown when the source enumerator faults.
+    ///     Rethrown when the source enumerator faults.
     /// </exception>
-    public async IAsyncEnumerator<Unio<T, AwaitTimeout>> GetAsyncEnumerator(IAsyncEnumerator<T> source, FlowContext context)
+    public async IAsyncEnumerator<Unio<T, AwaitTimeout>> GetAsyncEnumerator(IAsyncEnumerator<T> source,
+        FlowContext context)
     {
         var fanIn = new FanInSlim();
         var adapter = source.AsNonBlocking();
         adapter.OnReady += () => fanIn.Signal(SourceSlot);
-        var timer = _timeProvider.CreateTimer(_ => fanIn.Signal(TimerSlot), null, Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
+        var timer = _timeProvider.CreateTimer(_ => fanIn.Signal(TimerSlot), null, Timeout.InfiniteTimeSpan,
+            Timeout.InfiniteTimeSpan);
 
         try
         {
@@ -101,7 +105,7 @@ public sealed partial class TimeoutProcessor<T>
                 if (slots.IsSet(SourceSlot))
                 {
                     var state = adapter.GetState();
-                    
+
                     TryFastWay:
 
                     if (state.IsCompletedSuccessfully)

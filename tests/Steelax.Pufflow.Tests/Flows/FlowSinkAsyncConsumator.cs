@@ -6,7 +6,7 @@ namespace Steelax.Pufflow.Tests.Flows;
 public partial class FlowSinkAsyncConsumator<T>
 {
     /// <remarks>
-    /// Вытягивает данные из source
+    ///     Вытягивает данные из source
     /// </remarks>
     public Task ExecuteAsync(IAsyncConsumator<T> source, FlowContext context)
     {

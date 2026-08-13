@@ -9,7 +9,9 @@ public static partial class AsyncProducatorToAsyncEnumeratorTests
         [Theory]
         [InlineData(0)]
         [InlineData(-1)]
-        public void NonPositiveLimit_Throws(int limit) =>
+        public void NonPositiveLimit_Throws(int limit)
+        {
             Assert.Throws<ArgumentOutOfRangeException>(() => new AsyncProducatorToAsyncEnumerator<int>(limit));
+        }
     }
 }

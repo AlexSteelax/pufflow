@@ -6,15 +6,15 @@ namespace Steelax.Pufflow.Tests.Flows;
 public partial class FlowSourceProducator<T>
 {
     /// <remarks>
-    /// Толкает данные в target
+    ///     Толкает данные в target
     /// </remarks>
     public void Execute(IProducator<T> target, FlowContext context)
     {
         throw new NotImplementedException();
     }
-    
+
     /// <remarks>
-    /// Толкает данные в target
+    ///     Толкает данные в target
     /// </remarks>
     public void Execute(IAsyncProducator<T> target, FlowContext context)
     {

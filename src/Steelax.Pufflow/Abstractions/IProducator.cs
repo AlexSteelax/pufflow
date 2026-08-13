@@ -1,7 +1,7 @@
 ﻿namespace Steelax.Pufflow.Abstractions;
 
 /// <summary>
-/// Defines a synchronous push producer. The input (write) side of a dataflow component.
+///     Defines a synchronous push producer. The input (write) side of a dataflow component.
 /// </summary>
 /// <typeparam name="T">The type of values to produce.</typeparam>
 [PublicAPI]
@@ -13,8 +13,8 @@ public interface IProducator<in T>
 
     /// <summary>Blocks until the value can be written.</summary>
     /// <remarks>
-    /// The producer is the single writer: it signals completion itself through <see cref="Complete"/>
-    /// and then no longer calls <see cref="TryWrite"/>. A completion carrying a fault is rethrown here.
+    ///     The producer is the single writer: it signals completion itself through <see cref="Complete" />
+    ///     and then no longer calls <see cref="TryWrite" />. A completion carrying a fault is rethrown here.
     /// </remarks>
     void WaitToWrite();
 

@@ -28,7 +28,7 @@ public static partial class WarmerTests
         {
             var factory = new SyncJobFactory();
             var time = new ManualTimeProvider();
-            using var warmer = Create(jobFactory: factory, timeProvider: time, segmentCapacity: 5);
+            using var warmer = Create(factory, timeProvider: time, segmentCapacity: 5);
             var sink = new WarmSink();
 
             AddKeys(warmer, (1, 10), (2, 20));

@@ -1,6 +1,5 @@
 ﻿using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
-using System.Threading;
 
 namespace Steelax.Pufflow.Operators.Tests;
 
@@ -40,9 +39,9 @@ public static partial class WarmerTests
     }
 
     /// <summary>
-    /// Прогоняет большой объём данных через <see cref="Warmer{TKey,TWarm}"/> и проверяет,
-    /// что каждое значение выдано ровно один раз и в строгом порядке поступления —
-    /// по образцу <c>EventQueueTests.Concurrency.ConcurrentProducerConsumer_InputMatchesOutput</c>.
+    ///     Прогоняет большой объём данных через <see cref="Warmer{TKey,TWarm}" /> и проверяет,
+    ///     что каждое значение выдано ровно один раз и в строгом порядке поступления —
+    ///     по образцу <c>EventQueueTests.Concurrency.ConcurrentProducerConsumer_InputMatchesOutput</c>.
     /// </summary>
     public sealed class LargeVolume(ITestOutputHelper output)
     {
@@ -52,10 +51,12 @@ public static partial class WarmerTests
         [InlineData(250_000, 8, 64, 8)]
         [InlineData(100_000, 32, 256, 32)]
         [SuppressMessage("ReSharper", "AccessToDisposedClosure")]
-        public async Task AddAndDrain_NoLossNoDuplicates(int count, int maxConcurrency, int maxQueued, int segmentCapacity)
+        public async Task AddAndDrain_NoLossNoDuplicates(int count, int maxConcurrency, int maxQueued,
+            int segmentCapacity)
         {
             var watch = Stopwatch.StartNew();
-            await using var warmer = Create(maxConcurrency: maxConcurrency, maxQueued: maxQueued, segmentCapacity: segmentCapacity);
+            await using var warmer = Create(maxConcurrency: maxConcurrency, maxQueued: maxQueued,
+                segmentCapacity: segmentCapacity);
             var sink = new WarmSink();
             using var ready = new ManualResetEventSlim();
 
@@ -68,7 +69,9 @@ public static partial class WarmerTests
                 while (i < count)
                 {
                     // Дреним готовые сегменты (освобождаем ring под backpressure).
-                    while (warmer.WarmNext(sink, out _, out _)) { }
+                    while (warmer.WarmNext(sink, out _, out _))
+                    {
+                    }
 
                     if (warmer.CanAdd)
                     {
@@ -88,7 +91,9 @@ public static partial class WarmerTests
 
                 while (!warmer.IsEmpty)
                 {
-                    while (warmer.WarmNext(sink, out _, out _)) { }
+                    while (warmer.WarmNext(sink, out _, out _))
+                    {
+                    }
 
                     if (!warmer.IsEmpty)
                     {
@@ -106,7 +111,9 @@ public static partial class WarmerTests
             Assert.Equal(count, sink.Items.Count);
             Assert.Equal(Enumerable.Range(0, count).Select(i => (i, "W" + i)), sink.Items);
 
-            output.WriteLine(watch.ElapsedMilliseconds is var elapsed && elapsed != 0 ? $"Time elapsed: {1m * count / elapsed:F3} item/ms" : "Time elapsed: - item/ms");
+            output.WriteLine(watch.ElapsedMilliseconds is var elapsed && elapsed != 0
+                ? $"Time elapsed: {1m * count / elapsed:F3} item/ms"
+                : "Time elapsed: - item/ms");
         }
 
         [Fact(Timeout = 15000)]
@@ -117,7 +124,8 @@ public static partial class WarmerTests
             const int delayMs = 2;
 
             var watch = Stopwatch.StartNew();
-            await using var warmer = Create(jobFactory: new DelayedJobFactory(delayMs), maxConcurrency: 8, maxQueued: 32, segmentCapacity: 32);
+            await using var warmer = Create(new DelayedJobFactory(delayMs), maxConcurrency: 8, maxQueued: 32,
+                segmentCapacity: 32);
             var sink = new WarmSink();
 
             var worker = Task.Factory.StartNew(() =>
@@ -130,7 +138,9 @@ public static partial class WarmerTests
                 {
                     // Голову выгружаем всегда: готовые сегменты за головой могут не сигналить
                     // (edge-triggered OnReady), если очередь забита готовыми задачами.
-                    while (warmer.WarmNext(sink, out _, out _)) { }
+                    while (warmer.WarmNext(sink, out _, out _))
+                    {
+                    }
 
                     if (warmer.CanAdd)
                     {
@@ -145,7 +155,8 @@ public static partial class WarmerTests
                     spin.SpinOnce();
 
                     if (++spinCount % 1_000_000 == 0)
-                        output.WriteLine($"SPIN-STUCK: i={i}, canAdd={warmer.CanAdd}, queueFilled={warmer.QueueFilled}, isEmpty={warmer.IsEmpty}");
+                        output.WriteLine(
+                            $"SPIN-STUCK: i={i}, canAdd={warmer.CanAdd}, queueFilled={warmer.QueueFilled}, isEmpty={warmer.IsEmpty}");
                 }
 
                 // Источник исчерпан — запечатываем хвостовой сегмент и доедаем всё.
@@ -153,7 +164,9 @@ public static partial class WarmerTests
 
                 while (!warmer.IsEmpty)
                 {
-                    while (warmer.WarmNext(sink, out _, out _)) { }
+                    while (warmer.WarmNext(sink, out _, out _))
+                    {
+                    }
 
                     if (!warmer.IsEmpty)
                         spin.SpinOnce();
@@ -167,7 +180,9 @@ public static partial class WarmerTests
             Assert.Equal(count, sink.Items.Count);
             Assert.Equal(Enumerable.Range(0, count).Select(i => (i, "W" + i)), sink.Items);
 
-            output.WriteLine(watch.ElapsedMilliseconds is var elapsed && elapsed != 0 ? $"Time elapsed: {1m * count / elapsed:F3} item/ms" : "Time elapsed: - item/ms");
+            output.WriteLine(watch.ElapsedMilliseconds is var elapsed && elapsed != 0
+                ? $"Time elapsed: {1m * count / elapsed:F3} item/ms"
+                : "Time elapsed: - item/ms");
         }
     }
 }

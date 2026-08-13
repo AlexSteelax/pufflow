@@ -3,12 +3,66 @@ using Unio;
 namespace Steelax.Pufflow.Operators.Tests;
 
 /// <summary>
-/// Black-box tests for <see cref="WarmProcessor{TKey,TValue,TGroup,TWarm}"/>: a source enumerator is
-/// pushed through the processor and the resulting <see cref="Unio{T0,T1,T2}"/> stream is observed.
+///     Black-box tests for <see cref="WarmProcessor{TKey,TValue,TGroup,TWarm}" />: a source enumerator is
+///     pushed through the processor and the resulting <see cref="Unio{T0,T1,T2}" /> stream is observed.
 /// </summary>
 public static partial class WarmProcessorTests
 {
     private const int NoLingerMs = 60_000;
+
+    private static Warmer<int, string> CreateWarmer(IJobFactory<int, string> factory)
+    {
+        return new Warmer<int, string>(
+            1,
+            8,
+            4,
+            TimeSpan.FromMilliseconds(NoLingerMs),
+            factory);
+    }
+
+    private static WarmProcessor<int, int, string, string> CreateProcessor(
+        Warmer<int, string> warmer,
+        TestPolicy policy,
+        IWarmAccumulatorFactory<int, int, string> accumulatorFactory,
+        TimeSpan? watchdogPeriod = null)
+    {
+        return new WarmProcessor<int, int, string, string>(warmer, static (in v) => v, policy, accumulatorFactory, 1000,
+            watchdogPeriod ?? Timeout.InfiniteTimeSpan);
+    }
+
+    private static async Task<List<Unio<int, string, Watermark>>> RunAsync(
+        Warmer<int, string> warmer,
+        TestPolicy policy,
+        IWarmAccumulatorFactory<int, int, string> accumulatorFactory,
+        IReadOnlyList<Watermarked<int>> input,
+        FlowContext context,
+        TimeSpan? watchdogPeriod = null)
+    {
+        var processor = CreateProcessor(warmer, policy, accumulatorFactory, watchdogPeriod);
+        var output = processor.GetAsyncConsumator(new ListAsyncEnumerator<Watermarked<int>>(input), context);
+
+        var results = new List<Unio<int, string, Watermark>>();
+        while (true)
+            if (output.TryRead(out var item, out var completed))
+            {
+                results.Add(item);
+            }
+            else
+            {
+                if (completed)
+                    break;
+
+                await output.WaitToReadAsync();
+            }
+
+        return results;
+    }
+
+    private static async Task WaitUntilAsync(Func<bool> condition, CancellationToken token)
+    {
+        while (!condition() && !token.IsCancellationRequested)
+            await Task.Delay(10, token);
+    }
 
     // Источник: простой IAsyncEnumerator над готовым списком.
     private sealed class ListAsyncEnumerator<T>(IReadOnlyList<T> items) : IAsyncEnumerator<T>
@@ -17,9 +71,15 @@ public static partial class WarmProcessorTests
 
         public T Current => items[_index];
 
-        public ValueTask<bool> MoveNextAsync() => ValueTask.FromResult(++_index < items.Count);
+        public ValueTask<bool> MoveNextAsync()
+        {
+            return ValueTask.FromResult(++_index < items.Count);
+        }
 
-        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+        public ValueTask DisposeAsync()
+        {
+            return ValueTask.CompletedTask;
+        }
     }
 
     // Аккумулятор: копит int-значения и отдаёт одну группу-строку при потреблении.
@@ -28,7 +88,10 @@ public static partial class WarmProcessorTests
         private readonly List<int> _values = new();
         private int _consumed;
 
-        protected override void Add(int value) => _values.Add(value);
+        protected override void Add(int value)
+        {
+            _values.Add(value);
+        }
 
         protected override bool TryConsume(out string group, out int weight)
         {
@@ -48,19 +111,28 @@ public static partial class WarmProcessorTests
 
     private sealed class ListAccumulatorFactory : IWarmAccumulatorFactory<int, int, string>
     {
-        public WarmAccumulator<int, string> Create(int key) => new ListAccumulator();
+        public WarmAccumulator<int, string> Create(int key)
+        {
+            return new ListAccumulator();
+        }
     }
 
     // Политика: по умолчанию греем чётные ключи; OnWarmed собирает результаты.
     private sealed class TestPolicy : IWarmPolicy<int, string>
     {
-        public bool WarmEvenOnly { get; init; } = true;
+        public bool WarmEvenOnly { get; } = true;
 
         public List<(int Key, string Warm)> Warmed { get; } = new();
 
-        public bool ShouldWarm(int key) => WarmEvenOnly ? key % 2 == 0 : key % 2 != 0;
+        public bool ShouldWarm(int key)
+        {
+            return WarmEvenOnly ? key % 2 == 0 : key % 2 != 0;
+        }
 
-        public void OnWarmed(int key, string warm) => Warmed.Add((key, warm));
+        public void OnWarmed(int key, string warm)
+        {
+            Warmed.Add((key, warm));
+        }
     }
 
     // Джоб: мгновенный warm «W» + key.
@@ -74,16 +146,26 @@ public static partial class WarmProcessorTests
             return Task.CompletedTask;
         }
 
-        public ReadOnlySpan<KeyValuePair<int, string>> GetResult() => _results.AsSpan();
+        public ReadOnlySpan<KeyValuePair<int, string>> GetResult()
+        {
+            return _results.AsSpan();
+        }
 
-        public void SynchronousComplete() { }
+        public void SynchronousComplete()
+        {
+        }
 
-        public void Dispose() { }
+        public void Dispose()
+        {
+        }
     }
 
     private sealed class SyncJobFactory : IJobFactory<int, string>
     {
-        public IAsyncJob<int, string> CreateAsyncJob() => new SyncJob();
+        public IAsyncJob<int, string> CreateAsyncJob()
+        {
+            return new SyncJob();
+        }
     }
 
     // Джоб с задержкой: эмулирует «реальную» тёплую задачу, выполняемую некоторое время.
@@ -97,24 +179,32 @@ public static partial class WarmProcessorTests
             _results = keys.Select(k => new KeyValuePair<int, string>(k, "W" + k)).ToArray();
         }
 
-        public ReadOnlySpan<KeyValuePair<int, string>> GetResult() => _results.AsSpan();
+        public ReadOnlySpan<KeyValuePair<int, string>> GetResult()
+        {
+            return _results.AsSpan();
+        }
 
-        public void SynchronousComplete() { }
+        public void SynchronousComplete()
+        {
+        }
 
-        public void Dispose() { }
+        public void Dispose()
+        {
+        }
     }
 
     private sealed class DelayedJobFactory(int delayMs) : IJobFactory<int, string>
     {
-        public IAsyncJob<int, string> CreateAsyncJob() => new DelayedJob(delayMs);
+        public IAsyncJob<int, string> CreateAsyncJob()
+        {
+            return new DelayedJob(delayMs);
+        }
     }
 
     // Джоб с управляемым завершением (детерминизм для теста отмены).
     private sealed class TcsJob : IAsyncJob<int, string>
     {
-        private readonly TaskCompletionSource _tcs = new(TaskCreationOptions.RunContinuationsAsynchronously);
-
-        public TaskCompletionSource Tcs => _tcs;
+        public TaskCompletionSource Tcs { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
         public int[]? Keys { get; private set; }
 
@@ -127,70 +217,28 @@ public static partial class WarmProcessorTests
             Keys = keys;
             CancellationToken = cancellationToken;
             Started = true;
-            return _tcs.Task;
+            return Tcs.Task;
         }
 
-        public ReadOnlySpan<KeyValuePair<int, string>> GetResult() =>
-            Keys!.Select(k => new KeyValuePair<int, string>(k, "W" + k)).ToArray().AsSpan();
+        public ReadOnlySpan<KeyValuePair<int, string>> GetResult()
+        {
+            return Keys!.Select(k => new KeyValuePair<int, string>(k, "W" + k)).ToArray().AsSpan();
+        }
 
-        public void SynchronousComplete() { }
+        public void SynchronousComplete()
+        {
+        }
 
-        public void Dispose() { }
+        public void Dispose()
+        {
+        }
     }
 
     private sealed class TcsJobFactory(TcsJob job) : IJobFactory<int, string>
     {
-        public IAsyncJob<int, string> CreateAsyncJob() => job;
-    }
-
-    private static Warmer<int, string> CreateWarmer(IJobFactory<int, string> factory) =>
-        new(
-            maxConcurrency: 1,
-            maxQueued: 8,
-            segmentCapacity: 4,
-            segmentLinger: TimeSpan.FromMilliseconds(NoLingerMs),
-            jobFactory: factory);
-
-    private static WarmProcessor<int, int, string, string> CreateProcessor(
-        Warmer<int, string> warmer,
-        TestPolicy policy,
-        IWarmAccumulatorFactory<int, int, string> accumulatorFactory,
-        TimeSpan? watchdogPeriod = null) =>
-        new(warmer, static (in int v) => v, policy, accumulatorFactory, queueWeightLimit: 1000, watchdogPeriod ?? Timeout.InfiniteTimeSpan);
-
-    private static async Task<List<Unio<int, string, Watermark>>> RunAsync(
-        Warmer<int, string> warmer,
-        TestPolicy policy,
-        IWarmAccumulatorFactory<int, int, string> accumulatorFactory,
-        IReadOnlyList<Watermarked<int>> input,
-        FlowContext context,
-        TimeSpan? watchdogPeriod = null)
-    {
-        var processor = CreateProcessor(warmer, policy, accumulatorFactory, watchdogPeriod);
-        var output = processor.GetAsyncConsumator(new ListAsyncEnumerator<Watermarked<int>>(input), context);
-
-        var results = new List<Unio<int, string, Watermark>>();
-        while (true)
+        public IAsyncJob<int, string> CreateAsyncJob()
         {
-            if (output.TryRead(out var item, out var completed))
-            {
-                results.Add(item);
-            }
-            else
-            {
-                if (completed)
-                    break;
-                
-                await output.WaitToReadAsync();
-            }
+            return job;
         }
-
-        return results;
-    }
-
-    private static async Task WaitUntilAsync(Func<bool> condition, CancellationToken token)
-    {
-        while (!condition() && !token.IsCancellationRequested)
-            await Task.Delay(10, token);
     }
 }

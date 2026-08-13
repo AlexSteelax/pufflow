@@ -7,7 +7,7 @@ public partial class FlowPipeAsyncConsumatorToAsyncProducator<T1, T2>
     // IFlowable<Pipe<Task, IAsyncConsumator<T1>, IAsyncProducator<T2>>>
 {
     /// <remarks>
-    /// Тянет данные из source и толкает данные в target
+    ///     Тянет данные из source и толкает данные в target
     /// </remarks>
     public Task ExecuteAsync(IAsyncConsumator<T1> source, IAsyncProducator<T2> target, FlowContext context)
     {

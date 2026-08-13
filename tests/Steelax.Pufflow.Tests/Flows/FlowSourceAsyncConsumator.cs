@@ -6,7 +6,7 @@ namespace Steelax.Pufflow.Tests.Flows;
 public partial class FlowSourceAsyncConsumator<T>
 {
     /// <remarks>
-    /// Отдает объект для вытягивания данных
+    ///     Отдает объект для вытягивания данных
     /// </remarks>
     public IAsyncConsumator<T> GetAsyncConsumator(FlowContext context)
     {

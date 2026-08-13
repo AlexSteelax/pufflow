@@ -13,15 +13,19 @@ public static partial class ChunkProcessorTests
         [Fact]
         public void NonPositiveSize_ThrowsArgumentOutOfRangeException()
         {
-            Assert.Throws<ArgumentOutOfRangeException>(() => new ChunkProcessor<int>(new Chunker<int>(), 0, TimeSpan.FromSeconds(1)));
-            Assert.Throws<ArgumentOutOfRangeException>(() => new ChunkProcessor<int>(new Chunker<int>(), -1, TimeSpan.FromSeconds(1)));
+            Assert.Throws<ArgumentOutOfRangeException>(() =>
+                new ChunkProcessor<int>(new Chunker<int>(), 0, TimeSpan.FromSeconds(1)));
+            Assert.Throws<ArgumentOutOfRangeException>(() =>
+                new ChunkProcessor<int>(new Chunker<int>(), -1, TimeSpan.FromSeconds(1)));
         }
 
         [Fact]
         public void NonPositiveLinger_ThrowsArgumentOutOfRangeException()
         {
-            Assert.Throws<ArgumentOutOfRangeException>(() => new ChunkProcessor<int>(new Chunker<int>(), 3, TimeSpan.Zero));
-            Assert.Throws<ArgumentOutOfRangeException>(() => new ChunkProcessor<int>(new Chunker<int>(), 3, TimeSpan.FromMilliseconds(-1)));
+            Assert.Throws<ArgumentOutOfRangeException>(() =>
+                new ChunkProcessor<int>(new Chunker<int>(), 3, TimeSpan.Zero));
+            Assert.Throws<ArgumentOutOfRangeException>(() =>
+                new ChunkProcessor<int>(new Chunker<int>(), 3, TimeSpan.FromMilliseconds(-1)));
         }
 
         [Fact]

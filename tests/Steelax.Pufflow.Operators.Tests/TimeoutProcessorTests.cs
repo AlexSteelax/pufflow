@@ -3,7 +3,7 @@ using Unio;
 namespace Steelax.Pufflow.Operators.Tests;
 
 /// <summary>
-/// Unit tests for the <see cref="TimeoutProcessor{T}"/> class.
+///     Unit tests for the <see cref="TimeoutProcessor{T}" /> class.
 /// </summary>
 public static partial class TimeoutProcessorTests
 {

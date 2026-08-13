@@ -16,10 +16,8 @@ public static partial class AsyncProducatorToAsyncEnumeratorTests
             var producer = Task.Run(async () =>
             {
                 for (var i = 0; i < count; i++)
-                {
                     while (!bridge.TryWrite(i))
                         await bridge.WaitToWriteAsync();
-                }
 
                 bridge.Complete();
             }, TestContext.Current.CancellationToken);
@@ -43,10 +41,8 @@ public static partial class AsyncProducatorToAsyncEnumeratorTests
             var producer = Task.Run(async () =>
             {
                 for (var i = 0; i < count; i++)
-                {
                     while (!bridge.TryWrite(i))
                         await bridge.WaitToWriteAsync();
-                }
 
                 bridge.Complete();
             }, TestContext.Current.CancellationToken);
@@ -80,10 +76,8 @@ public static partial class AsyncProducatorToAsyncEnumeratorTests
                 var producer = Task.Run(async () =>
                 {
                     for (var i = 0; i < count; i++)
-                    {
                         while (!bridge.TryWrite(i))
                             await bridge.WaitToWriteAsync();
-                    }
 
                     bridge.Complete();
                 }, TestContext.Current.CancellationToken);

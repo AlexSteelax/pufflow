@@ -6,27 +6,27 @@
     </PropertyGroup>
 
     <ItemGroup>
-      <ProjectReference Include="..\..\src\Steelax.Pufflow.Generator\Steelax.Pufflow.Generator.csproj" />
-      <ProjectReference Include="..\..\src\Steelax.Pufflow\Steelax.Pufflow.csproj" />
+        <ProjectReference Include="..\..\src\Steelax.Pufflow.Generator\Steelax.Pufflow.Generator.csproj"/>
+        <ProjectReference Include="..\..\src\Steelax.Pufflow\Steelax.Pufflow.csproj"/>
     </ItemGroup>
 
     <ItemGroup>
-      <Compile Remove="NoCompilationSources\**\*.cs" />
-      <EmbeddedResource Include="NoCompilationSources\**\*.cs" />
+        <Compile Remove="NoCompilationSources\**\*.cs"/>
+        <EmbeddedResource Include="NoCompilationSources\**\*.cs"/>
     </ItemGroup>
 
     <ItemGroup>
-      <PackageReference Include="Microsoft.CodeAnalysis.Analyzers">
-        <PrivateAssets>all</PrivateAssets>
-        <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
-      </PackageReference>
-      <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" />
-      <PackageReference Include="Microsoft.NET.Test.Sdk" />
-      <PackageReference Include="xunit.runner.visualstudio">
-        <PrivateAssets>all</PrivateAssets>
-        <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
-      </PackageReference>
-      <PackageReference Include="xunit.v3" />
+        <PackageReference Include="Microsoft.CodeAnalysis.Analyzers">
+            <PrivateAssets>all</PrivateAssets>
+            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+        </PackageReference>
+        <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces"/>
+        <PackageReference Include="Microsoft.NET.Test.Sdk"/>
+        <PackageReference Include="xunit.runner.visualstudio">
+            <PrivateAssets>all</PrivateAssets>
+            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+        </PackageReference>
+        <PackageReference Include="xunit.v3"/>
     </ItemGroup>
 
 </Project>

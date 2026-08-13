@@ -1,7 +1,5 @@
-using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Diagnostics;
-using System.Linq;
 using System.Text;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
@@ -11,16 +9,16 @@ using Microsoft.CodeAnalysis.Text;
 namespace Steelax.Pufflow.Generator;
 
 /// <summary>
-/// An incremental Roslyn source generator that produces IFlowable interface implementations
-/// implementations for classes annotated with the <c>[Flow]</c> attribute.
+///     An incremental Roslyn source generator that produces IFlowable interface implementations
+///     implementations for classes annotated with the <c>[Flow]</c> attribute.
 /// </summary>
 /// <remarks>
-/// The generator inspects the public, non-static handler methods of a flow-annotated class
-/// (<c>GetEnumerator</c>, <c>GetAsyncEnumerator</c>, <c>Handle</c>, <c>GetConsumator</c>,
-/// <c>GetAsyncConsumator</c>, <c>GetProducator</c>, <c>GetAsyncProducator</c>, <c>Execute</c>,
-/// <c>ExecuteAsync</c>) and emits a partial class implementing the appropriate
-/// IFlowable (Source, Sink, or Pipe) interface, plus disambiguation view properties.
-/// It also supports composing two single-interface handlers into a composite pipe shape.
+///     The generator inspects the public, non-static handler methods of a flow-annotated class
+///     (<c>GetEnumerator</c>, <c>GetAsyncEnumerator</c>, <c>Handle</c>, <c>GetConsumator</c>,
+///     <c>GetAsyncConsumator</c>, <c>GetProducator</c>, <c>GetAsyncProducator</c>, <c>Execute</c>,
+///     <c>ExecuteAsync</c>) and emits a partial class implementing the appropriate
+///     IFlowable (Source, Sink, or Pipe) interface, plus disambiguation view properties.
+///     It also supports composing two single-interface handlers into a composite pipe shape.
 /// </remarks>
 [Generator]
 public class GetFlowGenerator : IIncrementalGenerator
@@ -28,6 +26,12 @@ public class GetFlowGenerator : IIncrementalGenerator
     private const string FlowContextName = "Steelax.Pufflow.FlowContext";
     private const string FlowInterfaceNs = "Steelax.Pufflow.Abstractions";
     private const string ReadInterfacesNs = "System.Collections.Generic";
+
+    private const string SourceName = "Steelax.Pufflow.Source";
+    private const string SinkName = "Steelax.Pufflow.Sink";
+    private const string PipeName = "Steelax.Pufflow.Pipe";
+    private const string SyncName = "Steelax.Pufflow.Abstractions.Sync";
+    private const string AsyncName = "Steelax.Pufflow.Abstractions.Async";
 
     private static readonly string[] HandlerNames =
     [
@@ -58,20 +62,14 @@ public class GetFlowGenerator : IIncrementalGenerator
         "Steelax.Pufflow.Abstractions.IAsyncProducator"
     ];
 
-    private const string SourceName = "Steelax.Pufflow.Source";
-    private const string SinkName = "Steelax.Pufflow.Sink";
-    private const string PipeName = "Steelax.Pufflow.Pipe";
-    private const string SyncName = "Steelax.Pufflow.Abstractions.Sync";
-    private const string AsyncName = "Steelax.Pufflow.Abstractions.Async";
-
     /// <summary>
-    /// Initializes the incremental generator pipeline.
+    ///     Initializes the incremental generator pipeline.
     /// </summary>
     /// <param name="context">The incremental generator initialization context.</param>
     /// <remarks>
-    /// Registers a syntax provider that filters class declarations with attributes
-    /// and produces the <c>[Flow]</c>-annotated class symbols, then combines them
-    /// with the compilation to emit the generated source.
+    ///     Registers a syntax provider that filters class declarations with attributes
+    ///     and produces the <c>[Flow]</c>-annotated class symbols, then combines them
+    ///     with the compilation to emit the generated source.
     /// </remarks>
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
@@ -102,7 +100,8 @@ public class GetFlowGenerator : IIncrementalGenerator
         if (classSymbol is null)
             return null;
 
-        var flowAttributeType = semanticModel.Compilation.GetTypeByMetadataName("Steelax.Pufflow.Abstractions.FlowAttribute");
+        var flowAttributeType =
+            semanticModel.Compilation.GetTypeByMetadataName("Steelax.Pufflow.Abstractions.FlowAttribute");
 
         if (flowAttributeType is null)
             return null;
@@ -135,12 +134,11 @@ public class GetFlowGenerator : IIncrementalGenerator
         ImmutableArray<INamedTypeSymbol> classSymbols)
     {
         foreach (var classSymbol in classSymbols)
-        {
             try
             {
                 GenerateForClass(context, classSymbol);
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
                 context.ReportDiagnostic(
                     Diagnostic.Create(
@@ -150,12 +148,11 @@ public class GetFlowGenerator : IIncrementalGenerator
                             "Error generating GetFlow for {0}: {1}",
                             "GetFlowGenerator",
                             DiagnosticSeverity.Warning,
-                            isEnabledByDefault: true),
+                            true),
                         classSymbol.Locations.FirstOrDefault(),
                         classSymbol.Name,
                         ex.Message));
             }
-        }
     }
 
     private static void GenerateForClass(SourceProductionContext context, INamedTypeSymbol classSymbol)
@@ -204,17 +201,10 @@ public class GetFlowGenerator : IIncrementalGenerator
             var flowParamCount = CountFlowParams(handler);
 
             if (isExecute)
-            {
                 interfaceLines.Add(BuildExecuteBasedInterface(handler));
-            }
             else if (flowParamCount == 0)
-            {
                 interfaceLines.Add(BuildReturnBased0ParamInterface(handler));
-            }
-            else if (flowParamCount == 1)
-            {
-                interfaceLines.Add(BuildReturnBased1ParamInterface(handler));
-            }
+            else if (flowParamCount == 1) interfaceLines.Add(BuildReturnBased1ParamInterface(handler));
         }
 
         if (interfaceLines.Count == 0)
@@ -222,7 +212,7 @@ public class GetFlowGenerator : IIncrementalGenerator
 
         // Build combined interface declaration
         var interfaceLine = interfaceLines[0];
-        for (int i = 1; i < interfaceLines.Count; i++)
+        for (var i = 1; i < interfaceLines.Count; i++)
         {
             var line = interfaceLines[i].TrimStart();
             if (line.StartsWith(": "))
@@ -230,7 +220,8 @@ public class GetFlowGenerator : IIncrementalGenerator
             interfaceLine += ",\n      " + line;
         }
 
-        Trace.WriteLine($"[GetFlowGenerator] GenerateForClass: class='{classSymbol.ToDisplayString()}', typeParams={classSymbol.TypeParameters.Length}");
+        Trace.WriteLine(
+            $"[GetFlowGenerator] GenerateForClass: class='{classSymbol.ToDisplayString()}', typeParams={classSymbol.TypeParameters.Length}");
 
         var namespaceName = classSymbol.ContainingNamespace.ToDisplayString();
         var className = classSymbol.Name;
@@ -250,38 +241,42 @@ public class GetFlowGenerator : IIncrementalGenerator
             // Collect type parameter names; constraints are declared by the user-authored partial
             // and must not be duplicated in the generated declaration.
             if (currentSymbol.TypeParameters.Length > 0)
-            {
                 currentTypeParams = "<" + string.Join(", ", currentSymbol.TypeParameters.Select(tp => tp.Name)) + ">";
-            }
 
             var currentRecord = currentSymbol.IsRecord ? " record" : "";
-            var currentPartial = currentSymbol.DeclaredAccessibility == Accessibility.Public ? "public partial" : "partial";
+            var currentPartial = currentSymbol.DeclaredAccessibility == Accessibility.Public
+                ? "public partial"
+                : "partial";
 
             // First (innermost) gets the interface + view properties, rest are containers
             if (first)
             {
-                classDecl = currentPartial + currentRecord + " class " + currentName + currentTypeParams + "\n" + interfaceLine + "\n{\n";
-                
+                classDecl = currentPartial + currentRecord + " class " + currentName + currentTypeParams + "\n" +
+                            interfaceLine + "\n{\n";
+
                 // Add view properties for disambiguation (skip composite handlers)
                 foreach (var handler in handlers)
                 {
                     if (compositeHandlers.Contains(handler))
                         continue;
-                    
+
                     var propType = GetHandlerTFlowTypeName(handler);
                     if (propType is not null)
                     {
                         var propName = GetViewPropertyName(handler);
-                        classDecl += "    /// <summary>Gets the " + propName + " view of the flow for typed chaining.</summary>\n";
-                        classDecl += "    public " + FlowInterfaceNs + ".IFlowable<" + propType + "> " + propName + " => this;\n";
+                        classDecl += "    /// <summary>Gets the " + propName +
+                                     " view of the flow for typed chaining.</summary>\n";
+                        classDecl += "    public " + FlowInterfaceNs + ".IFlowable<" + propType + "> " + propName +
+                                     " => this;\n";
                     }
                 }
-                
+
                 first = false;
             }
             else
             {
-                classDecl = currentPartial + currentRecord + " class " + currentName + currentTypeParams + "\n{\n" + classDecl;
+                classDecl = currentPartial + currentRecord + " class " + currentName + currentTypeParams + "\n{\n" +
+                            classDecl;
             }
 
             classDecl += "}\n";
@@ -321,13 +316,8 @@ namespace " + namespaceName + @";
                 var paramType = param.Type.ToDisplayString();
 
                 if (paramType == FlowContextName || paramType == FlowContextName + "?")
-                {
                     hasFlowContext = true;
-                }
-                else if (IsFlowInterfaceType(param.Type))
-                {
-                    flowParams.Add(param);
-                }
+                else if (IsFlowInterfaceType(param.Type)) flowParams.Add(param);
             }
 
             if (!hasFlowContext)
@@ -359,10 +349,10 @@ namespace " + namespaceName + @";
                 var isWrite = IsWriteInterface(h.FlowParams[0].Type);
                 if (isWrite)
                     return SourceName + "<" + kind + ", " + p + ">";
-                else
-                    return SinkName + "<" + kind + ", " + p + ">";
+                return SinkName + "<" + kind + ", " + p + ">";
             }
-            else if (flowParamCount == 2)
+
+            if (flowParamCount == 2)
             {
                 var p1 = h.FlowParams[0].Type.ToDisplayString();
                 var p2 = h.FlowParams[1].Type.ToDisplayString();
@@ -374,8 +364,7 @@ namespace " + namespaceName + @";
             var returnTypeStr = h.ReturnType.ToDisplayString();
             if (IsWriteInterface(h.ReturnType))
                 return SinkName + "<" + returnTypeStr + ">";
-            else
-                return SourceName + "<" + returnTypeStr + ">";
+            return SourceName + "<" + returnTypeStr + ">";
         }
         else if (flowParamCount == 1)
         {
@@ -401,17 +390,20 @@ namespace " + namespaceName + @";
             var p2 = GetInterfaceSimpleName(h.FlowParams[1].Type);
             return prefix + "FlowWith" + p1 + "To" + p2;
         }
-        else if (isExecute && flowParamCount == 1)
+
+        if (isExecute && flowParamCount == 1)
         {
             var p = GetInterfaceSimpleName(h.FlowParams[0].Type);
             return prefix + "FlowWith" + p;
         }
-        else if (!isExecute && flowParamCount == 0)
+
+        if (!isExecute && flowParamCount == 0)
         {
             var r = GetInterfaceSimpleName(h.ReturnType);
             return r;
         }
-        else if (!isExecute && flowParamCount == 1)
+
+        if (!isExecute && flowParamCount == 1)
         {
             var p1 = GetInterfaceSimpleName(h.FlowParams[0].Type);
             var p2 = GetInterfaceSimpleName(h.ReturnType);
@@ -422,8 +414,8 @@ namespace " + namespaceName + @";
     }
 
     /// <summary>
-    /// Extracts the simple name from a flow interface type (e.g., IConsumator, IAsyncEnumerator).
-    /// Uses the symbol's metadata name, so namespaced type arguments cannot corrupt the result.
+    ///     Extracts the simple name from a flow interface type (e.g., IConsumator, IAsyncEnumerator).
+    ///     Uses the symbol's metadata name, so namespaced type arguments cannot corrupt the result.
     /// </summary>
     private static string GetInterfaceSimpleName(ITypeSymbol type)
     {
@@ -469,8 +461,7 @@ namespace " + namespaceName + @";
 
         if (isWrite)
             return "    : " + FlowInterfaceNs + ".IFlowable<" + SinkName + "<" + returnTypeStr + ">>";
-        else
-            return "    : " + FlowInterfaceNs + ".IFlowable<" + SourceName + "<" + returnTypeStr + ">>";
+        return "    : " + FlowInterfaceNs + ".IFlowable<" + SourceName + "<" + returnTypeStr + ">>";
     }
 
     private static string BuildReturnBased1ParamInterface(HandlerInfo h)
@@ -491,11 +482,12 @@ namespace " + namespaceName + @";
             var isWrite = IsWriteInterface(h.FlowParams[0].Type);
 
             if (isWrite)
-                return "    : " + FlowInterfaceNs + ".IFlowable<" + SourceName + "<" + kind + ", " + paramTypeStr + ">>";
-            else
-                return "    : " + FlowInterfaceNs + ".IFlowable<" + SinkName + "<" + kind + ", " + paramTypeStr + ">>";
+                return "    : " + FlowInterfaceNs + ".IFlowable<" + SourceName + "<" + kind + ", " + paramTypeStr +
+                       ">>";
+            return "    : " + FlowInterfaceNs + ".IFlowable<" + SinkName + "<" + kind + ", " + paramTypeStr + ">>";
         }
-        else if (flowParamCount == 2)
+
+        if (flowParamCount == 2)
         {
             var p1 = h.FlowParams[0].Type.ToDisplayString();
             var p2 = h.FlowParams[1].Type.ToDisplayString();
@@ -507,7 +499,8 @@ namespace " + namespaceName + @";
 
     private static string BuildPipe2Interface(ITypeSymbol left, ITypeSymbol right)
     {
-        return "    : " + FlowInterfaceNs + ".IFlowable<" + PipeName + "<" + left.ToDisplayString() + ", " + right.ToDisplayString() + ">>";
+        return "    : " + FlowInterfaceNs + ".IFlowable<" + PipeName + "<" + left.ToDisplayString() + ", " +
+               right.ToDisplayString() + ">>";
     }
 
     private static string GetKindName(ITypeSymbol returnType)
@@ -564,16 +557,12 @@ namespace " + namespaceName + @";
         var baseType = namedType.ConstructedFrom.ToDisplayString();
 
         foreach (var fi in ReadInterfaceNames)
-        {
             if (baseType == fi || baseType.StartsWith(fi + "<"))
                 return true;
-        }
 
         foreach (var fi in WriteInterfaceNames)
-        {
             if (baseType == fi || baseType.StartsWith(fi + "<"))
                 return true;
-        }
 
         return false;
     }
@@ -586,10 +575,8 @@ namespace " + namespaceName + @";
         var baseType = namedType.ConstructedFrom.ToDisplayString();
 
         foreach (var fi in ReadInterfaceNames)
-        {
             if (baseType == fi || baseType.StartsWith(fi + "<"))
                 return true;
-        }
 
         return false;
     }
@@ -602,10 +589,8 @@ namespace " + namespaceName + @";
         var baseType = namedType.ConstructedFrom.ToDisplayString();
 
         foreach (var fi in WriteInterfaceNames)
-        {
             if (baseType == fi || baseType.StartsWith(fi + "<"))
                 return true;
-        }
 
         return false;
     }

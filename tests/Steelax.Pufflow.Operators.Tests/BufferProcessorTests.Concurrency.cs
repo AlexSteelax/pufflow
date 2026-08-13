@@ -32,7 +32,8 @@ public static partial class BufferProcessorTests
             }, TestContext.Current.CancellationToken);
 
             var processor = new BufferProcessor<int>(1);
-            var collected = await CollectAsync(processor, channel.Reader.ReadAllAsync(TestContext.Current.CancellationToken));
+            var collected = await CollectAsync(processor,
+                channel.Reader.ReadAllAsync(TestContext.Current.CancellationToken));
 
             await producer.WaitAsync(TimeSpan.FromSeconds(8), TestContext.Current.CancellationToken);
 
@@ -49,7 +50,8 @@ public static partial class BufferProcessorTests
         [InlineData(1_000, 32, false)]
         [InlineData(1_000_000, 128, true)]
         [InlineData(1_000, 128, false)]
-        public async Task ConcurrentProducerConsumer_InputMatchesOutput(int count, int capacity, bool allowSynchronousContinuations)
+        public async Task ConcurrentProducerConsumer_InputMatchesOutput(int count, int capacity,
+            bool allowSynchronousContinuations)
         {
             var watch = Stopwatch.StartNew();
             var channel = CreateChannel(capacity, allowSynchronousContinuations);
@@ -66,7 +68,8 @@ public static partial class BufferProcessorTests
 
             try
             {
-                var collected = await CollectAsync(processor, channel.Reader.ReadAllAsync(TestContext.Current.CancellationToken));
+                var collected = await CollectAsync(processor,
+                    channel.Reader.ReadAllAsync(TestContext.Current.CancellationToken));
 
                 await producer.WaitAsync(TestContext.Current.CancellationToken);
 
@@ -77,7 +80,9 @@ public static partial class BufferProcessorTests
             {
                 watch.Stop();
 
-                output.WriteLine(watch.ElapsedMilliseconds is var elapsed && elapsed != 0 ? $"Time elapsed: {1m * count / elapsed:F3} item/ms" : "Time elapsed: - item/ms");
+                output.WriteLine(watch.ElapsedMilliseconds is var elapsed && elapsed != 0
+                    ? $"Time elapsed: {1m * count / elapsed:F3} item/ms"
+                    : "Time elapsed: - item/ms");
             }
         }
 
@@ -90,7 +95,8 @@ public static partial class BufferProcessorTests
             var consumer = Task.Run(async () =>
             {
                 var processor = new BufferProcessor<int>(4);
-                await using var sourceEnumerator = channel.Reader.ReadAllAsync().GetAsyncEnumerator(TestContext.Current.CancellationToken);
+                await using var sourceEnumerator = channel.Reader.ReadAllAsync()
+                    .GetAsyncEnumerator(TestContext.Current.CancellationToken);
                 await using var enumerator = processor.GetAsyncEnumerator(sourceEnumerator, default);
 
                 var result = new List<int>();

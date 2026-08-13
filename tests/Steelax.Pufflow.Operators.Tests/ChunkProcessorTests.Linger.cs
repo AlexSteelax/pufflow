@@ -49,7 +49,8 @@ public static partial class ChunkProcessorTests
         public async Task CountAndLinger_AlternateWithinSingleStream()
         {
             var processor = new ChunkProcessor<int>(new Chunker<int>(), 2, TimeSpan.FromMilliseconds(30));
-            var chunks = await CollectAsync(processor, SegmentedSourceAsync((new[] { 1, 2 }, 0), (new[] { 3 }, 120), (new[] { 4, 5 }, 0)));
+            var chunks = await CollectAsync(processor,
+                SegmentedSourceAsync((new[] { 1, 2 }, 0), (new[] { 3 }, 120), (new[] { 4, 5 }, 0)));
 
             // [1,2] flushed by count → [3] partial flushed by linger → [4,5] flushed by count.
             AssertChunks(chunks, [1, 2], [3], [4, 5]);

@@ -1,7 +1,7 @@
 namespace Steelax.Pufflow.Operators.Tests;
 
 /// <summary>
-/// Unit tests for the <see cref="ChunkProcessor{T}"/> class.
+///     Unit tests for the <see cref="ChunkProcessor{T}" /> class.
 /// </summary>
 public static partial class ChunkProcessorTests
 {
@@ -41,8 +41,8 @@ public static partial class ChunkProcessorTests
     }
 
     /// <summary>
-    /// Yields each segment's values back-to-back, then waits <paramref name="segments"/>' gap
-    /// before advancing to the next segment.
+    ///     Yields each segment's values back-to-back, then waits <paramref name="segments" />' gap
+    ///     before advancing to the next segment.
     /// </summary>
     private static async IAsyncEnumerable<int> SegmentedSourceAsync(params (int[] Values, int GapMs)[] segments)
     {

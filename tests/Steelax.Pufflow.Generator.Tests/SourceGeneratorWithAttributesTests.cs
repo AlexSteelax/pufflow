@@ -1,4 +1,3 @@
-using System.Linq;
 using static Steelax.Pufflow.Generator.Tests.TestMarshal;
 
 namespace Steelax.Pufflow.Generator.Tests;
@@ -23,8 +22,11 @@ public class GetFlowGeneratorTests
         var source = GetNoCompilationSource("MyTransform");
         var runResult = RunGenerator(source);
         var f = runResult.GeneratedTrees.FirstOrDefault(t => t.FilePath.EndsWith("MyTransform.g.cs"));
-        Assert.NotNull(f); var c = f.GetText(TestContext.Current.CancellationToken).ToString();
-        Assert.Contains("IFlowable<Steelax.Pufflow.Pipe<System.Collections.Generic.IEnumerator<T1>, System.Collections.Generic.IEnumerator<T2>>>", c);
+        Assert.NotNull(f);
+        var c = f.GetText(TestContext.Current.CancellationToken).ToString();
+        Assert.Contains(
+            "IFlowable<Steelax.Pufflow.Pipe<System.Collections.Generic.IEnumerator<T1>, System.Collections.Generic.IEnumerator<T2>>>",
+            c);
         Assert.DoesNotContain("GetFlow", c);
     }
 
@@ -34,8 +36,11 @@ public class GetFlowGeneratorTests
         var source = GetNoCompilationSource("MyAsyncTransform");
         var runResult = RunGenerator(source);
         var f = runResult.GeneratedTrees.FirstOrDefault(t => t.FilePath.EndsWith("MyAsyncTransform.g.cs"));
-        Assert.NotNull(f); var c = f.GetText(TestContext.Current.CancellationToken).ToString();
-        Assert.Contains("IFlowable<Steelax.Pufflow.Pipe<System.Collections.Generic.IAsyncEnumerator<T1>, System.Collections.Generic.IAsyncEnumerator<T2>>>", c);
+        Assert.NotNull(f);
+        var c = f.GetText(TestContext.Current.CancellationToken).ToString();
+        Assert.Contains(
+            "IFlowable<Steelax.Pufflow.Pipe<System.Collections.Generic.IAsyncEnumerator<T1>, System.Collections.Generic.IAsyncEnumerator<T2>>>",
+            c);
         Assert.DoesNotContain("GetFlow", c);
     }
 
@@ -45,7 +50,8 @@ public class GetFlowGeneratorTests
         var source = GetNoCompilationSource("MyAsyncSource");
         var runResult = RunGenerator(source);
         var f = runResult.GeneratedTrees.FirstOrDefault(t => t.FilePath.EndsWith("MyAsyncSource.g.cs"));
-        Assert.NotNull(f); var c = f.GetText(TestContext.Current.CancellationToken).ToString();
+        Assert.NotNull(f);
+        var c = f.GetText(TestContext.Current.CancellationToken).ToString();
         Assert.Contains("IFlowable<Steelax.Pufflow.Source<System.Collections.Generic.IAsyncEnumerator<T>>>", c);
         Assert.DoesNotContain("GetFlow", c);
     }
@@ -56,7 +62,8 @@ public class GetFlowGeneratorTests
         var source = GetNoCompilationSource("MyConsumator");
         var runResult = RunGenerator(source);
         var f = runResult.GeneratedTrees.FirstOrDefault(t => t.FilePath.EndsWith("MyConsumator.g.cs"));
-        Assert.NotNull(f); var c = f.GetText(TestContext.Current.CancellationToken).ToString();
+        Assert.NotNull(f);
+        var c = f.GetText(TestContext.Current.CancellationToken).ToString();
         Assert.Contains("IFlowable<Steelax.Pufflow.Source<Steelax.Pufflow.Abstractions.IConsumator<T>>>", c);
         Assert.DoesNotContain("GetFlow", c);
     }
@@ -67,8 +74,11 @@ public class GetFlowGeneratorTests
         var source = GetNoCompilationSource("MySourcePush");
         var runResult = RunGenerator(source);
         var f = runResult.GeneratedTrees.FirstOrDefault(t => t.FilePath.EndsWith("MySourcePush.g.cs"));
-        Assert.NotNull(f); var c = f.GetText(TestContext.Current.CancellationToken).ToString();
-        Assert.Contains("IFlowable<Steelax.Pufflow.Source<Steelax.Pufflow.Abstractions.Sync, Steelax.Pufflow.Abstractions.IProducator<T>>>", c);
+        Assert.NotNull(f);
+        var c = f.GetText(TestContext.Current.CancellationToken).ToString();
+        Assert.Contains(
+            "IFlowable<Steelax.Pufflow.Source<Steelax.Pufflow.Abstractions.Sync, Steelax.Pufflow.Abstractions.IProducator<T>>>",
+            c);
         Assert.DoesNotContain("GetFlow", c);
     }
 
@@ -78,8 +88,11 @@ public class GetFlowGeneratorTests
         var source = GetNoCompilationSource("MySourcePushAsync");
         var runResult = RunGenerator(source);
         var f = runResult.GeneratedTrees.FirstOrDefault(t => t.FilePath.EndsWith("MySourcePushAsync.g.cs"));
-        Assert.NotNull(f); var c = f.GetText(TestContext.Current.CancellationToken).ToString();
-        Assert.Contains("IFlowable<Steelax.Pufflow.Source<Steelax.Pufflow.Abstractions.Async, Steelax.Pufflow.Abstractions.IAsyncProducator<T>>>", c);
+        Assert.NotNull(f);
+        var c = f.GetText(TestContext.Current.CancellationToken).ToString();
+        Assert.Contains(
+            "IFlowable<Steelax.Pufflow.Source<Steelax.Pufflow.Abstractions.Async, Steelax.Pufflow.Abstractions.IAsyncProducator<T>>>",
+            c);
         Assert.DoesNotContain("GetFlow", c);
     }
 
@@ -89,8 +102,11 @@ public class GetFlowGeneratorTests
         var source = GetNoCompilationSource("MySinkPull");
         var runResult = RunGenerator(source);
         var f = runResult.GeneratedTrees.FirstOrDefault(t => t.FilePath.EndsWith("MySinkPull.g.cs"));
-        Assert.NotNull(f); var c = f.GetText(TestContext.Current.CancellationToken).ToString();
-        Assert.Contains("IFlowable<Steelax.Pufflow.Sink<Steelax.Pufflow.Abstractions.Sync, System.Collections.Generic.IEnumerator<T>>>", c);
+        Assert.NotNull(f);
+        var c = f.GetText(TestContext.Current.CancellationToken).ToString();
+        Assert.Contains(
+            "IFlowable<Steelax.Pufflow.Sink<Steelax.Pufflow.Abstractions.Sync, System.Collections.Generic.IEnumerator<T>>>",
+            c);
         Assert.DoesNotContain("GetFlow", c);
     }
 
@@ -100,7 +116,8 @@ public class GetFlowGeneratorTests
         var source = GetNoCompilationSource("MySinkPush");
         var runResult = RunGenerator(source);
         var f = runResult.GeneratedTrees.FirstOrDefault(t => t.FilePath.EndsWith("MySinkPush.g.cs"));
-        Assert.NotNull(f); var c = f.GetText(TestContext.Current.CancellationToken).ToString();
+        Assert.NotNull(f);
+        var c = f.GetText(TestContext.Current.CancellationToken).ToString();
         Assert.Contains("IFlowable<Steelax.Pufflow.Sink<Steelax.Pufflow.Abstractions.IProducator<T>>>", c);
         Assert.DoesNotContain("GetFlow", c);
     }
@@ -111,8 +128,11 @@ public class GetFlowGeneratorTests
         var source = GetNoCompilationSource("MyPipePush");
         var runResult = RunGenerator(source);
         var f = runResult.GeneratedTrees.FirstOrDefault(t => t.FilePath.EndsWith("MyPipePush.g.cs"));
-        Assert.NotNull(f); var c = f.GetText(TestContext.Current.CancellationToken).ToString();
-        Assert.Contains("IFlowable<Steelax.Pufflow.Pipe<Steelax.Pufflow.Abstractions.Sync, System.Collections.Generic.IEnumerator<T1>, Steelax.Pufflow.Abstractions.IProducator<T2>>>", c);
+        Assert.NotNull(f);
+        var c = f.GetText(TestContext.Current.CancellationToken).ToString();
+        Assert.Contains(
+            "IFlowable<Steelax.Pufflow.Pipe<Steelax.Pufflow.Abstractions.Sync, System.Collections.Generic.IEnumerator<T1>, Steelax.Pufflow.Abstractions.IProducator<T2>>>",
+            c);
         Assert.DoesNotContain("GetFlow", c);
     }
 
@@ -122,8 +142,11 @@ public class GetFlowGeneratorTests
         var source = GetNoCompilationSource("MyPipeConsumator");
         var runResult = RunGenerator(source);
         var f = runResult.GeneratedTrees.FirstOrDefault(t => t.FilePath.EndsWith("MyPipeConsumator.g.cs"));
-        Assert.NotNull(f); var c = f.GetText(TestContext.Current.CancellationToken).ToString();
-        Assert.Contains("IFlowable<Steelax.Pufflow.Pipe<System.Collections.Generic.IEnumerator<T1>, Steelax.Pufflow.Abstractions.IConsumator<T2>>>", c);
+        Assert.NotNull(f);
+        var c = f.GetText(TestContext.Current.CancellationToken).ToString();
+        Assert.Contains(
+            "IFlowable<Steelax.Pufflow.Pipe<System.Collections.Generic.IEnumerator<T1>, Steelax.Pufflow.Abstractions.IConsumator<T2>>>",
+            c);
         Assert.DoesNotContain("GetFlow", c);
     }
 
@@ -133,8 +156,11 @@ public class GetFlowGeneratorTests
         var source = GetNoCompilationSource("MyComposite");
         var runResult = RunGenerator(source);
         var f = runResult.GeneratedTrees.FirstOrDefault(t => t.FilePath.EndsWith("MyComposite.g.cs"));
-        Assert.NotNull(f); var c = f.GetText(TestContext.Current.CancellationToken).ToString();
-        Assert.Contains("IFlowable<Steelax.Pufflow.Pipe<Steelax.Pufflow.Abstractions.IAsyncProducator<T1>, Steelax.Pufflow.Abstractions.IAsyncConsumator<T2>>>", c);
+        Assert.NotNull(f);
+        var c = f.GetText(TestContext.Current.CancellationToken).ToString();
+        Assert.Contains(
+            "IFlowable<Steelax.Pufflow.Pipe<Steelax.Pufflow.Abstractions.IAsyncProducator<T1>, Steelax.Pufflow.Abstractions.IAsyncConsumator<T2>>>",
+            c);
         Assert.DoesNotContain("GetFlow", c);
     }
 
@@ -144,8 +170,11 @@ public class GetFlowGeneratorTests
         var source = GetNoCompilationSource("MySinkAsyncPull");
         var runResult = RunGenerator(source);
         var f = runResult.GeneratedTrees.FirstOrDefault(t => t.FilePath.EndsWith("MySinkAsyncPull.g.cs"));
-        Assert.NotNull(f); var c = f.GetText(TestContext.Current.CancellationToken).ToString();
-        Assert.Contains("IFlowable<Steelax.Pufflow.Sink<Steelax.Pufflow.Abstractions.Async, System.Collections.Generic.IAsyncEnumerator<T>>>", c);
+        Assert.NotNull(f);
+        var c = f.GetText(TestContext.Current.CancellationToken).ToString();
+        Assert.Contains(
+            "IFlowable<Steelax.Pufflow.Sink<Steelax.Pufflow.Abstractions.Async, System.Collections.Generic.IAsyncEnumerator<T>>>",
+            c);
         Assert.DoesNotContain("GetFlow", c);
     }
 
@@ -155,8 +184,11 @@ public class GetFlowGeneratorTests
         var source = GetNoCompilationSource("MyPipePushAsync");
         var runResult = RunGenerator(source);
         var f = runResult.GeneratedTrees.FirstOrDefault(t => t.FilePath.EndsWith("MyPipePushAsync.g.cs"));
-        Assert.NotNull(f); var c = f.GetText(TestContext.Current.CancellationToken).ToString();
-        Assert.Contains("IFlowable<Steelax.Pufflow.Pipe<Steelax.Pufflow.Abstractions.Async, System.Collections.Generic.IAsyncEnumerator<T1>, Steelax.Pufflow.Abstractions.IAsyncProducator<T2>>>", c);
+        Assert.NotNull(f);
+        var c = f.GetText(TestContext.Current.CancellationToken).ToString();
+        Assert.Contains(
+            "IFlowable<Steelax.Pufflow.Pipe<Steelax.Pufflow.Abstractions.Async, System.Collections.Generic.IAsyncEnumerator<T1>, Steelax.Pufflow.Abstractions.IAsyncProducator<T2>>>",
+            c);
         Assert.DoesNotContain("GetFlow", c);
     }
 
@@ -166,8 +198,11 @@ public class GetFlowGeneratorTests
         var source = GetNoCompilationSource("MyPipeProducator");
         var runResult = RunGenerator(source);
         var f = runResult.GeneratedTrees.FirstOrDefault(t => t.FilePath.EndsWith("MyPipeProducator.g.cs"));
-        Assert.NotNull(f); var c = f.GetText(TestContext.Current.CancellationToken).ToString();
-        Assert.Contains("IFlowable<Steelax.Pufflow.Pipe<Steelax.Pufflow.Abstractions.IProducator<T1>, Steelax.Pufflow.Abstractions.IProducator<T2>>>", c);
+        Assert.NotNull(f);
+        var c = f.GetText(TestContext.Current.CancellationToken).ToString();
+        Assert.Contains(
+            "IFlowable<Steelax.Pufflow.Pipe<Steelax.Pufflow.Abstractions.IProducator<T1>, Steelax.Pufflow.Abstractions.IProducator<T2>>>",
+            c);
         Assert.DoesNotContain("GetFlow", c);
     }
 
@@ -177,9 +212,14 @@ public class GetFlowGeneratorTests
         var source = GetNoCompilationSource("MyMultiExecute");
         var runResult = RunGenerator(source);
         var f = runResult.GeneratedTrees.FirstOrDefault(t => t.FilePath.EndsWith("MyMultiExecute.g.cs"));
-        Assert.NotNull(f); var c = f.GetText(TestContext.Current.CancellationToken).ToString();
-        Assert.Contains("IFlowable<Steelax.Pufflow.Pipe<Steelax.Pufflow.Abstractions.Sync, System.Collections.Generic.IEnumerator<T1>, Steelax.Pufflow.Abstractions.IProducator<T2>>>", c);
-        Assert.Contains("IFlowable<Steelax.Pufflow.Pipe<Steelax.Pufflow.Abstractions.Async, System.Collections.Generic.IEnumerator<T1>, Steelax.Pufflow.Abstractions.IProducator<T2>>>", c);
+        Assert.NotNull(f);
+        var c = f.GetText(TestContext.Current.CancellationToken).ToString();
+        Assert.Contains(
+            "IFlowable<Steelax.Pufflow.Pipe<Steelax.Pufflow.Abstractions.Sync, System.Collections.Generic.IEnumerator<T1>, Steelax.Pufflow.Abstractions.IProducator<T2>>>",
+            c);
+        Assert.Contains(
+            "IFlowable<Steelax.Pufflow.Pipe<Steelax.Pufflow.Abstractions.Async, System.Collections.Generic.IEnumerator<T1>, Steelax.Pufflow.Abstractions.IProducator<T2>>>",
+            c);
         Assert.DoesNotContain("GetFlow", c);
     }
 
@@ -189,7 +229,8 @@ public class GetFlowGeneratorTests
         var source = GetNoCompilationSource("MySourceAsyncConsumator");
         var runResult = RunGenerator(source);
         var f = runResult.GeneratedTrees.FirstOrDefault(t => t.FilePath.EndsWith("MySourceAsyncConsumator.g.cs"));
-        Assert.NotNull(f); var c = f.GetText(TestContext.Current.CancellationToken).ToString();
+        Assert.NotNull(f);
+        var c = f.GetText(TestContext.Current.CancellationToken).ToString();
         Assert.Contains("IFlowable<Steelax.Pufflow.Source<Steelax.Pufflow.Abstractions.IAsyncConsumator<T>>>", c);
         Assert.DoesNotContain("GetFlow", c);
     }
@@ -200,8 +241,11 @@ public class GetFlowGeneratorTests
         var source = GetNoCompilationSource("MySinkConsumator");
         var runResult = RunGenerator(source);
         var f = runResult.GeneratedTrees.FirstOrDefault(t => t.FilePath.EndsWith("MySinkConsumator.g.cs"));
-        Assert.NotNull(f); var c = f.GetText(TestContext.Current.CancellationToken).ToString();
-        Assert.Contains("IFlowable<Steelax.Pufflow.Sink<Steelax.Pufflow.Abstractions.Sync, Steelax.Pufflow.Abstractions.IConsumator<T>>>", c);
+        Assert.NotNull(f);
+        var c = f.GetText(TestContext.Current.CancellationToken).ToString();
+        Assert.Contains(
+            "IFlowable<Steelax.Pufflow.Sink<Steelax.Pufflow.Abstractions.Sync, Steelax.Pufflow.Abstractions.IConsumator<T>>>",
+            c);
         Assert.DoesNotContain("GetFlow", c);
     }
 
@@ -210,9 +254,13 @@ public class GetFlowGeneratorTests
     {
         var source = GetNoCompilationSource("MyPipeEnumeratorToAsyncConsumator");
         var runResult = RunGenerator(source);
-        var f = runResult.GeneratedTrees.FirstOrDefault(t => t.FilePath.EndsWith("MyPipeEnumeratorToAsyncConsumator.g.cs"));
-        Assert.NotNull(f); var c = f.GetText(TestContext.Current.CancellationToken).ToString();
-        Assert.Contains("IFlowable<Steelax.Pufflow.Pipe<System.Collections.Generic.IEnumerator<T1>, Steelax.Pufflow.Abstractions.IAsyncConsumator<T2>>>", c);
+        var f = runResult.GeneratedTrees.FirstOrDefault(t =>
+            t.FilePath.EndsWith("MyPipeEnumeratorToAsyncConsumator.g.cs"));
+        Assert.NotNull(f);
+        var c = f.GetText(TestContext.Current.CancellationToken).ToString();
+        Assert.Contains(
+            "IFlowable<Steelax.Pufflow.Pipe<System.Collections.Generic.IEnumerator<T1>, Steelax.Pufflow.Abstractions.IAsyncConsumator<T2>>>",
+            c);
         Assert.DoesNotContain("GetFlow", c);
     }
 
@@ -222,8 +270,11 @@ public class GetFlowGeneratorTests
         var source = GetNoCompilationSource("MyPipeConsumatorToEnumerator");
         var runResult = RunGenerator(source);
         var f = runResult.GeneratedTrees.FirstOrDefault(t => t.FilePath.EndsWith("MyPipeConsumatorToEnumerator.g.cs"));
-        Assert.NotNull(f); var c = f.GetText(TestContext.Current.CancellationToken).ToString();
-        Assert.Contains("IFlowable<Steelax.Pufflow.Pipe<Steelax.Pufflow.Abstractions.IConsumator<T1>, System.Collections.Generic.IEnumerator<T2>>>", c);
+        Assert.NotNull(f);
+        var c = f.GetText(TestContext.Current.CancellationToken).ToString();
+        Assert.Contains(
+            "IFlowable<Steelax.Pufflow.Pipe<Steelax.Pufflow.Abstractions.IConsumator<T1>, System.Collections.Generic.IEnumerator<T2>>>",
+            c);
         Assert.DoesNotContain("GetFlow", c);
     }
 
@@ -232,9 +283,12 @@ public class GetFlowGeneratorTests
     {
         var source = GetNoCompilationSource("MyPipeEnumeratorToAsyncEnumerator");
         var runResult = RunGenerator(source);
-        var f = runResult.GeneratedTrees.FirstOrDefault(t => t.FilePath.EndsWith("MyPipeEnumeratorToAsyncEnumerator.g.cs"));
+        var f = runResult.GeneratedTrees.FirstOrDefault(t =>
+            t.FilePath.EndsWith("MyPipeEnumeratorToAsyncEnumerator.g.cs"));
         Assert.NotNull(f);
-        Assert.Contains("IFlowable<Steelax.Pufflow.Pipe<System.Collections.Generic.IEnumerator<T1>, System.Collections.Generic.IAsyncEnumerator<T2>>>", f.GetText(TestContext.Current.CancellationToken).ToString());
+        Assert.Contains(
+            "IFlowable<Steelax.Pufflow.Pipe<System.Collections.Generic.IEnumerator<T1>, System.Collections.Generic.IAsyncEnumerator<T2>>>",
+            f.GetText(TestContext.Current.CancellationToken).ToString());
     }
 
     [Fact]
@@ -244,7 +298,9 @@ public class GetFlowGeneratorTests
         var runResult = RunGenerator(source);
         var f = runResult.GeneratedTrees.FirstOrDefault(t => t.FilePath.EndsWith("MyPipeConsumatorToConsumator.g.cs"));
         Assert.NotNull(f);
-        Assert.Contains("IFlowable<Steelax.Pufflow.Pipe<Steelax.Pufflow.Abstractions.IConsumator<T1>, Steelax.Pufflow.Abstractions.IConsumator<T2>>>", f.GetText(TestContext.Current.CancellationToken).ToString());
+        Assert.Contains(
+            "IFlowable<Steelax.Pufflow.Pipe<Steelax.Pufflow.Abstractions.IConsumator<T1>, Steelax.Pufflow.Abstractions.IConsumator<T2>>>",
+            f.GetText(TestContext.Current.CancellationToken).ToString());
     }
 
     [Fact]
@@ -252,9 +308,12 @@ public class GetFlowGeneratorTests
     {
         var source = GetNoCompilationSource("MyPipeConsumatorToAsyncConsumator");
         var runResult = RunGenerator(source);
-        var f = runResult.GeneratedTrees.FirstOrDefault(t => t.FilePath.EndsWith("MyPipeConsumatorToAsyncConsumator.g.cs"));
+        var f = runResult.GeneratedTrees.FirstOrDefault(t =>
+            t.FilePath.EndsWith("MyPipeConsumatorToAsyncConsumator.g.cs"));
         Assert.NotNull(f);
-        Assert.Contains("IFlowable<Steelax.Pufflow.Pipe<Steelax.Pufflow.Abstractions.IConsumator<T1>, Steelax.Pufflow.Abstractions.IAsyncConsumator<T2>>>", f.GetText(TestContext.Current.CancellationToken).ToString());
+        Assert.Contains(
+            "IFlowable<Steelax.Pufflow.Pipe<Steelax.Pufflow.Abstractions.IConsumator<T1>, Steelax.Pufflow.Abstractions.IAsyncConsumator<T2>>>",
+            f.GetText(TestContext.Current.CancellationToken).ToString());
     }
 
     [Fact]
@@ -262,9 +321,12 @@ public class GetFlowGeneratorTests
     {
         var source = GetNoCompilationSource("MyPipeConsumatorToAsyncEnumerator");
         var runResult = RunGenerator(source);
-        var f = runResult.GeneratedTrees.FirstOrDefault(t => t.FilePath.EndsWith("MyPipeConsumatorToAsyncEnumerator.g.cs"));
+        var f = runResult.GeneratedTrees.FirstOrDefault(t =>
+            t.FilePath.EndsWith("MyPipeConsumatorToAsyncEnumerator.g.cs"));
         Assert.NotNull(f);
-        Assert.Contains("IFlowable<Steelax.Pufflow.Pipe<Steelax.Pufflow.Abstractions.IConsumator<T1>, System.Collections.Generic.IAsyncEnumerator<T2>>>", f.GetText(TestContext.Current.CancellationToken).ToString());
+        Assert.Contains(
+            "IFlowable<Steelax.Pufflow.Pipe<Steelax.Pufflow.Abstractions.IConsumator<T1>, System.Collections.Generic.IAsyncEnumerator<T2>>>",
+            f.GetText(TestContext.Current.CancellationToken).ToString());
     }
 
     [Fact]
@@ -272,9 +334,12 @@ public class GetFlowGeneratorTests
     {
         var source = GetNoCompilationSource("MyPipeAsyncConsumatorToAsyncConsumator");
         var runResult = RunGenerator(source);
-        var f = runResult.GeneratedTrees.FirstOrDefault(t => t.FilePath.EndsWith("MyPipeAsyncConsumatorToAsyncConsumator.g.cs"));
+        var f = runResult.GeneratedTrees.FirstOrDefault(t =>
+            t.FilePath.EndsWith("MyPipeAsyncConsumatorToAsyncConsumator.g.cs"));
         Assert.NotNull(f);
-        Assert.Contains("IFlowable<Steelax.Pufflow.Pipe<Steelax.Pufflow.Abstractions.IAsyncConsumator<T1>, Steelax.Pufflow.Abstractions.IAsyncConsumator<T2>>>", f.GetText(TestContext.Current.CancellationToken).ToString());
+        Assert.Contains(
+            "IFlowable<Steelax.Pufflow.Pipe<Steelax.Pufflow.Abstractions.IAsyncConsumator<T1>, Steelax.Pufflow.Abstractions.IAsyncConsumator<T2>>>",
+            f.GetText(TestContext.Current.CancellationToken).ToString());
     }
 
     [Fact]
@@ -282,9 +347,12 @@ public class GetFlowGeneratorTests
     {
         var source = GetNoCompilationSource("MyPipeAsyncConsumatorToAsyncEnumerator");
         var runResult = RunGenerator(source);
-        var f = runResult.GeneratedTrees.FirstOrDefault(t => t.FilePath.EndsWith("MyPipeAsyncConsumatorToAsyncEnumerator.g.cs"));
+        var f = runResult.GeneratedTrees.FirstOrDefault(t =>
+            t.FilePath.EndsWith("MyPipeAsyncConsumatorToAsyncEnumerator.g.cs"));
         Assert.NotNull(f);
-        Assert.Contains("IFlowable<Steelax.Pufflow.Pipe<Steelax.Pufflow.Abstractions.IAsyncConsumator<T1>, System.Collections.Generic.IAsyncEnumerator<T2>>>", f.GetText(TestContext.Current.CancellationToken).ToString());
+        Assert.Contains(
+            "IFlowable<Steelax.Pufflow.Pipe<Steelax.Pufflow.Abstractions.IAsyncConsumator<T1>, System.Collections.Generic.IAsyncEnumerator<T2>>>",
+            f.GetText(TestContext.Current.CancellationToken).ToString());
     }
 
     [Fact]
@@ -292,9 +360,12 @@ public class GetFlowGeneratorTests
     {
         var source = GetNoCompilationSource("MyPipeAsyncConsumatorToConsumator");
         var runResult = RunGenerator(source);
-        var f = runResult.GeneratedTrees.FirstOrDefault(t => t.FilePath.EndsWith("MyPipeAsyncConsumatorToConsumator.g.cs"));
+        var f = runResult.GeneratedTrees.FirstOrDefault(t =>
+            t.FilePath.EndsWith("MyPipeAsyncConsumatorToConsumator.g.cs"));
         Assert.NotNull(f);
-        Assert.Contains("IFlowable<Steelax.Pufflow.Pipe<Steelax.Pufflow.Abstractions.IAsyncConsumator<T1>, Steelax.Pufflow.Abstractions.IConsumator<T2>>>", f.GetText(TestContext.Current.CancellationToken).ToString());
+        Assert.Contains(
+            "IFlowable<Steelax.Pufflow.Pipe<Steelax.Pufflow.Abstractions.IAsyncConsumator<T1>, Steelax.Pufflow.Abstractions.IConsumator<T2>>>",
+            f.GetText(TestContext.Current.CancellationToken).ToString());
     }
 
     [Fact]
@@ -302,9 +373,12 @@ public class GetFlowGeneratorTests
     {
         var source = GetNoCompilationSource("MyPipeAsyncConsumatorToEnumerator");
         var runResult = RunGenerator(source);
-        var f = runResult.GeneratedTrees.FirstOrDefault(t => t.FilePath.EndsWith("MyPipeAsyncConsumatorToEnumerator.g.cs"));
+        var f = runResult.GeneratedTrees.FirstOrDefault(t =>
+            t.FilePath.EndsWith("MyPipeAsyncConsumatorToEnumerator.g.cs"));
         Assert.NotNull(f);
-        Assert.Contains("IFlowable<Steelax.Pufflow.Pipe<Steelax.Pufflow.Abstractions.IAsyncConsumator<T1>, System.Collections.Generic.IEnumerator<T2>>>", f.GetText(TestContext.Current.CancellationToken).ToString());
+        Assert.Contains(
+            "IFlowable<Steelax.Pufflow.Pipe<Steelax.Pufflow.Abstractions.IAsyncConsumator<T1>, System.Collections.Generic.IEnumerator<T2>>>",
+            f.GetText(TestContext.Current.CancellationToken).ToString());
     }
 
     [Fact]
@@ -314,7 +388,9 @@ public class GetFlowGeneratorTests
         var runResult = RunGenerator(source);
         var f = runResult.GeneratedTrees.FirstOrDefault(t => t.FilePath.EndsWith("MySinkAsyncConsumator.g.cs"));
         Assert.NotNull(f);
-        Assert.Contains("IFlowable<Steelax.Pufflow.Sink<Steelax.Pufflow.Abstractions.Async, Steelax.Pufflow.Abstractions.IAsyncConsumator<T>>>", f.GetText(TestContext.Current.CancellationToken).ToString());
+        Assert.Contains(
+            "IFlowable<Steelax.Pufflow.Sink<Steelax.Pufflow.Abstractions.Async, Steelax.Pufflow.Abstractions.IAsyncConsumator<T>>>",
+            f.GetText(TestContext.Current.CancellationToken).ToString());
     }
 
     [Fact]
@@ -324,7 +400,9 @@ public class GetFlowGeneratorTests
         var runResult = RunGenerator(source);
         var f = runResult.GeneratedTrees.FirstOrDefault(t => t.FilePath.EndsWith("MyPipeEnumToAsyncProducator.g.cs"));
         Assert.NotNull(f);
-        Assert.Contains("IFlowable<Steelax.Pufflow.Pipe<Steelax.Pufflow.Abstractions.Async, System.Collections.Generic.IEnumerator<T1>, Steelax.Pufflow.Abstractions.IAsyncProducator<T2>>>", f.GetText(TestContext.Current.CancellationToken).ToString());
+        Assert.Contains(
+            "IFlowable<Steelax.Pufflow.Pipe<Steelax.Pufflow.Abstractions.Async, System.Collections.Generic.IEnumerator<T1>, Steelax.Pufflow.Abstractions.IAsyncProducator<T2>>>",
+            f.GetText(TestContext.Current.CancellationToken).ToString());
     }
 
     [Fact]
@@ -332,9 +410,12 @@ public class GetFlowGeneratorTests
     {
         var source = GetNoCompilationSource("MyPipeAsyncEnumToAsyncProducator");
         var runResult = RunGenerator(source);
-        var f = runResult.GeneratedTrees.FirstOrDefault(t => t.FilePath.EndsWith("MyPipeAsyncEnumToAsyncProducator.g.cs"));
+        var f = runResult.GeneratedTrees.FirstOrDefault(t =>
+            t.FilePath.EndsWith("MyPipeAsyncEnumToAsyncProducator.g.cs"));
         Assert.NotNull(f);
-        Assert.Contains("IFlowable<Steelax.Pufflow.Pipe<Steelax.Pufflow.Abstractions.Async, System.Collections.Generic.IAsyncEnumerator<T1>, Steelax.Pufflow.Abstractions.IAsyncProducator<T2>>>", f.GetText(TestContext.Current.CancellationToken).ToString());
+        Assert.Contains(
+            "IFlowable<Steelax.Pufflow.Pipe<Steelax.Pufflow.Abstractions.Async, System.Collections.Generic.IAsyncEnumerator<T1>, Steelax.Pufflow.Abstractions.IAsyncProducator<T2>>>",
+            f.GetText(TestContext.Current.CancellationToken).ToString());
     }
 
     [Fact]
@@ -344,7 +425,9 @@ public class GetFlowGeneratorTests
         var runResult = RunGenerator(source);
         var f = runResult.GeneratedTrees.FirstOrDefault(t => t.FilePath.EndsWith("MyPipeAsyncEnumToProducator.g.cs"));
         Assert.NotNull(f);
-        Assert.Contains("IFlowable<Steelax.Pufflow.Pipe<Steelax.Pufflow.Abstractions.Async, System.Collections.Generic.IAsyncEnumerator<T1>, Steelax.Pufflow.Abstractions.IProducator<T2>>>", f.GetText(TestContext.Current.CancellationToken).ToString());
+        Assert.Contains(
+            "IFlowable<Steelax.Pufflow.Pipe<Steelax.Pufflow.Abstractions.Async, System.Collections.Generic.IAsyncEnumerator<T1>, Steelax.Pufflow.Abstractions.IProducator<T2>>>",
+            f.GetText(TestContext.Current.CancellationToken).ToString());
     }
 
     [Fact]
@@ -352,9 +435,12 @@ public class GetFlowGeneratorTests
     {
         var source = GetNoCompilationSource("MyPipeConsumatorToAsyncProducator");
         var runResult = RunGenerator(source);
-        var f = runResult.GeneratedTrees.FirstOrDefault(t => t.FilePath.EndsWith("MyPipeConsumatorToAsyncProducator.g.cs"));
+        var f = runResult.GeneratedTrees.FirstOrDefault(t =>
+            t.FilePath.EndsWith("MyPipeConsumatorToAsyncProducator.g.cs"));
         Assert.NotNull(f);
-        Assert.Contains("IFlowable<Steelax.Pufflow.Pipe<Steelax.Pufflow.Abstractions.Async, Steelax.Pufflow.Abstractions.IConsumator<T1>, Steelax.Pufflow.Abstractions.IAsyncProducator<T2>>>", f.GetText(TestContext.Current.CancellationToken).ToString());
+        Assert.Contains(
+            "IFlowable<Steelax.Pufflow.Pipe<Steelax.Pufflow.Abstractions.Async, Steelax.Pufflow.Abstractions.IConsumator<T1>, Steelax.Pufflow.Abstractions.IAsyncProducator<T2>>>",
+            f.GetText(TestContext.Current.CancellationToken).ToString());
     }
 
     [Fact]
@@ -362,9 +448,12 @@ public class GetFlowGeneratorTests
     {
         var source = GetNoCompilationSource("MyPipeAsyncConsumatorToProducator");
         var runResult = RunGenerator(source);
-        var f = runResult.GeneratedTrees.FirstOrDefault(t => t.FilePath.EndsWith("MyPipeAsyncConsumatorToProducator.g.cs"));
+        var f = runResult.GeneratedTrees.FirstOrDefault(t =>
+            t.FilePath.EndsWith("MyPipeAsyncConsumatorToProducator.g.cs"));
         Assert.NotNull(f);
-        Assert.Contains("IFlowable<Steelax.Pufflow.Pipe<Steelax.Pufflow.Abstractions.Async, Steelax.Pufflow.Abstractions.IAsyncConsumator<T1>, Steelax.Pufflow.Abstractions.IProducator<T2>>>", f.GetText(TestContext.Current.CancellationToken).ToString());
+        Assert.Contains(
+            "IFlowable<Steelax.Pufflow.Pipe<Steelax.Pufflow.Abstractions.Async, Steelax.Pufflow.Abstractions.IAsyncConsumator<T1>, Steelax.Pufflow.Abstractions.IProducator<T2>>>",
+            f.GetText(TestContext.Current.CancellationToken).ToString());
     }
 
     [Fact]
@@ -372,9 +461,12 @@ public class GetFlowGeneratorTests
     {
         var source = GetNoCompilationSource("MyPipeAsyncConsumatorToAsyncProducator");
         var runResult = RunGenerator(source);
-        var f = runResult.GeneratedTrees.FirstOrDefault(t => t.FilePath.EndsWith("MyPipeAsyncConsumatorToAsyncProducator.g.cs"));
+        var f = runResult.GeneratedTrees.FirstOrDefault(t =>
+            t.FilePath.EndsWith("MyPipeAsyncConsumatorToAsyncProducator.g.cs"));
         Assert.NotNull(f);
-        Assert.Contains("IFlowable<Steelax.Pufflow.Pipe<Steelax.Pufflow.Abstractions.Async, Steelax.Pufflow.Abstractions.IAsyncConsumator<T1>, Steelax.Pufflow.Abstractions.IAsyncProducator<T2>>>", f.GetText(TestContext.Current.CancellationToken).ToString());
+        Assert.Contains(
+            "IFlowable<Steelax.Pufflow.Pipe<Steelax.Pufflow.Abstractions.Async, Steelax.Pufflow.Abstractions.IAsyncConsumator<T1>, Steelax.Pufflow.Abstractions.IAsyncProducator<T2>>>",
+            f.GetText(TestContext.Current.CancellationToken).ToString());
     }
 
     [Fact]
@@ -385,8 +477,12 @@ public class GetFlowGeneratorTests
         var f = runResult.GeneratedTrees.FirstOrDefault(t => t.FilePath.EndsWith("MyPipeConsumatorToProducator.g.cs"));
         Assert.NotNull(f);
         var c = f.GetText(TestContext.Current.CancellationToken).ToString();
-        Assert.Contains("IFlowable<Steelax.Pufflow.Pipe<Steelax.Pufflow.Abstractions.Sync, Steelax.Pufflow.Abstractions.IConsumator<T1>, Steelax.Pufflow.Abstractions.IProducator<T2>>>", c);
-        Assert.Contains("IFlowable<Steelax.Pufflow.Pipe<Steelax.Pufflow.Abstractions.Async, Steelax.Pufflow.Abstractions.IConsumator<T1>, Steelax.Pufflow.Abstractions.IProducator<T2>>>", c);
+        Assert.Contains(
+            "IFlowable<Steelax.Pufflow.Pipe<Steelax.Pufflow.Abstractions.Sync, Steelax.Pufflow.Abstractions.IConsumator<T1>, Steelax.Pufflow.Abstractions.IProducator<T2>>>",
+            c);
+        Assert.Contains(
+            "IFlowable<Steelax.Pufflow.Pipe<Steelax.Pufflow.Abstractions.Async, Steelax.Pufflow.Abstractions.IConsumator<T1>, Steelax.Pufflow.Abstractions.IProducator<T2>>>",
+            c);
     }
 
     [Fact]

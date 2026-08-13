@@ -1,7 +1,4 @@
-﻿using System.Collections.Generic;
-using System.IO;
-using System.Linq;
-using System.Reflection;
+﻿using System.Reflection;
 using JetBrains.Annotations;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
@@ -19,15 +16,15 @@ public static class TestMarshal
         var resourceName = $"{typeof(TestMarshal).Namespace}.NoCompilationSources.{name}.cs";
 
         using var stream = assembly.GetManifestResourceStream(resourceName);
-        
+
         if (stream == null)
             throw new FileNotFoundException($"Resource '{resourceName}' not found.");
 
         using var reader = new StreamReader(stream);
-        
+
         return reader.ReadToEnd();
     }
-    
+
     [PublicAPI]
     public static GeneratorDriverRunResult RunGenerator(string sourceCode)
     {

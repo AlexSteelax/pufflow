@@ -24,7 +24,8 @@ public static partial class WarmProcessorTests
             context.Cancel();
 
             // Буфер должен быть завершён (в finally) — ожидание завершается, TryRead даёт Completed.
-            await output.WaitToReadAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(2), TestContext.Current.CancellationToken);
+            await output.WaitToReadAsync().AsTask()
+                .WaitAsync(TimeSpan.FromSeconds(2), TestContext.Current.CancellationToken);
             _ = output.TryRead(out _, out var completed);
             Assert.True(completed);
         }

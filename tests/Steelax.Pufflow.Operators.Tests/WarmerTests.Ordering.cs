@@ -8,7 +8,7 @@ public static partial class WarmerTests
         public void EmitsHeadOfLine_DespiteOutOfOrderCompletion()
         {
             var factory = new TcsJobFactory();
-            using var warmer = Create(jobFactory: factory, maxConcurrency: 3, maxQueued: 3, segmentCapacity: 1);
+            using var warmer = Create(factory, maxConcurrency: 3, maxQueued: 3, segmentCapacity: 1);
             var sink = new WarmSink();
 
             AddKeys(warmer, (1, 10), (2, 20), (3, 30));
@@ -53,7 +53,7 @@ public static partial class WarmerTests
         {
             const int segments = 10;
             var factory = new TcsJobFactory();
-            using var warmer = Create(jobFactory: factory, maxConcurrency: segments, maxQueued: segments, segmentCapacity: 1);
+            using var warmer = Create(factory, maxConcurrency: segments, maxQueued: segments, segmentCapacity: 1);
             var sink = new WarmSink();
 
             for (var i = 1; i <= segments; i++)

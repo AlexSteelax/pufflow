@@ -11,7 +11,7 @@ public static partial class WarmProcessorTests
             {
                 new(1, Watermark.From(10)),
                 new(3, Watermark.From(30)),
-                new(5, Watermark.From(50)),
+                new(5, Watermark.From(50))
             };
 
             await using var flow = new FlowSource();

@@ -5,7 +5,7 @@ using System.Runtime.CompilerServices;
 namespace Steelax.Pufflow.Operators;
 
 /// <summary>
-/// Defines how a rented buffer is used to size a chunk.
+///     Defines how a rented buffer is used to size a chunk.
 /// </summary>
 [PublicAPI]
 public enum ChunkCapacityStrategy
@@ -18,32 +18,13 @@ public enum ChunkCapacityStrategy
 }
 
 /// <summary>
-/// Provides a reusable builder that accumulates elements into chunks.
+///     Provides a reusable builder that accumulates elements into chunks.
 /// </summary>
 /// <typeparam name="T">The type of the accumulated elements.</typeparam>
 /// <typeparam name="TChunk">The type of the produced chunk.</typeparam>
 [PublicAPI]
 public interface IChunkBuilder<in T, TChunk>
 {
-    /// <summary>
-    /// Starts a fresh buffer for the next chunk.
-    /// </summary>
-    /// <param name="minimumSize">The minimum number of elements the buffer must hold.</param>
-    /// <remarks>
-    /// Must be called before the first chunk and after each <see cref="TryComplete"/> when continuing.
-    /// </remarks>
-    void Rent(int minimumSize);
-
-    /// <summary>
-    /// Attempts to add an element to the current chunk.
-    /// </summary>
-    /// <param name="item">The element to add.</param>
-    /// <returns>
-    /// <see langword="true"/> if the element was added; otherwise, <see langword="false"/> when the
-    /// chunk is full or no buffer has been rented.
-    /// </returns>
-    bool TryAdd(T item);
-
     /// <summary>Gets a value indicating whether the current chunk contains no elements.</summary>
     bool IsEmpty { get; }
 
@@ -51,22 +32,41 @@ public interface IChunkBuilder<in T, TChunk>
     bool IsCompleted { get; }
 
     /// <summary>
-    /// Hands off the current chunk without renting a new buffer.
+    ///     Starts a fresh buffer for the next chunk.
+    /// </summary>
+    /// <param name="minimumSize">The minimum number of elements the buffer must hold.</param>
+    /// <remarks>
+    ///     Must be called before the first chunk and after each <see cref="TryComplete" /> when continuing.
+    /// </remarks>
+    void Rent(int minimumSize);
+
+    /// <summary>
+    ///     Attempts to add an element to the current chunk.
+    /// </summary>
+    /// <param name="item">The element to add.</param>
+    /// <returns>
+    ///     <see langword="true" /> if the element was added; otherwise, <see langword="false" /> when the
+    ///     chunk is full or no buffer has been rented.
+    /// </returns>
+    bool TryAdd(T item);
+
+    /// <summary>
+    ///     Hands off the current chunk without renting a new buffer.
     /// </summary>
     /// <param name="chunk">The completed chunk, if any.</param>
     /// <returns>
-    /// <see langword="true"/> if a non-empty chunk was handed off; otherwise, <see langword="false"/>.
+    ///     <see langword="true" /> if a non-empty chunk was handed off; otherwise, <see langword="false" />.
     /// </returns>
     bool TryComplete([MaybeNullWhen(false)] out TChunk chunk);
 }
 
 /// <summary>
-/// A pool-backed chunk builder that produces <see cref="Chunk{T}"/> instances.
+///     A pool-backed chunk builder that produces <see cref="Chunk{T}" /> instances.
 /// </summary>
 /// <typeparam name="T">The type of the accumulated elements.</typeparam>
 /// <remarks>
-/// Rents buffers from <see cref="ArrayPool{T}.Shared"/> and returns them when chunks are completed
-/// or the builder is disposed. This type is not thread-safe.
+///     Rents buffers from <see cref="ArrayPool{T}.Shared" /> and returns them when chunks are completed
+///     or the builder is disposed. This type is not thread-safe.
 /// </remarks>
 [PublicAPI]
 public sealed class Chunker<T> : IChunkBuilder<T, Chunk<T>>, IDisposable
@@ -75,14 +75,14 @@ public sealed class Chunker<T> : IChunkBuilder<T, Chunk<T>>, IDisposable
 
     private readonly ChunkCapacityStrategy _strategy;
     private T[]? _buffer;
-    private int _count;
     private int _capacity;
+    private int _count;
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="Chunker{T}"/> class.
+    ///     Initializes a new instance of the <see cref="Chunker{T}" /> class.
     /// </summary>
     /// <param name="strategy">
-    /// The strategy that determines how the rented buffer sizes a chunk.
+    ///     The strategy that determines how the rented buffer sizes a chunk.
     /// </param>
     public Chunker(ChunkCapacityStrategy strategy = ChunkCapacityStrategy.Exact)
     {
@@ -145,7 +145,7 @@ public sealed class Chunker<T> : IChunkBuilder<T, Chunk<T>>, IDisposable
     }
 
     /// <summary>
-    /// Returns the current buffer to the pool, if it has not been completed.
+    ///     Returns the current buffer to the pool, if it has not been completed.
     /// </summary>
     public void Dispose()
     {
@@ -164,11 +164,11 @@ public sealed class Chunker<T> : IChunkBuilder<T, Chunk<T>>, IDisposable
 }
 
 /// <summary>
-/// A pool-backed chunk that exposes the accumulated elements as a span.
+///     A pool-backed chunk that exposes the accumulated elements as a span.
 /// </summary>
 /// <typeparam name="T">The type of the accumulated elements.</typeparam>
 /// <remarks>
-/// The chunk must be disposed exactly once to return the underlying buffer to the pool.
+///     The chunk must be disposed exactly once to return the underlying buffer to the pool.
 /// </remarks>
 [PublicAPI]
 public readonly struct Chunk<T> : IDisposable

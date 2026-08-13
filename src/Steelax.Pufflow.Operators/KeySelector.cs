@@ -1,7 +1,7 @@
 namespace Steelax.Pufflow.Operators;
 
 /// <summary>
-/// Extracts a key from a source value.
+///     Extracts a key from a source value.
 /// </summary>
 /// <typeparam name="TValue">WarmSource type. Contravariant.</typeparam>
 /// <typeparam name="TKey">Key type. Covariant.</typeparam>

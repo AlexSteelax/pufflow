@@ -6,7 +6,7 @@ namespace Steelax.Pufflow.Tests.Flows;
 public partial class FlowSourceEnumerator<T>
 {
     /// <remarks>
-    /// Отдает объект для вытягивания данных
+    ///     Отдает объект для вытягивания данных
     /// </remarks>
     public IEnumerator<T> GetEnumerator(FlowContext context)
     {

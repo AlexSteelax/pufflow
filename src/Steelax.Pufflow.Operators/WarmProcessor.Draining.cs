@@ -1,9 +1,9 @@
 ﻿namespace Steelax.Pufflow.Operators;
 
 /// <summary>
-/// Draining of warmed segments for the <see cref="WarmProcessor{TKey,TValue,TGroup,TWarm}"/>: extracts
-/// completed segments from the warmer (head-of-line) and pushes their accumulated groups and watermark
-/// markers into the output channel, retaining any undrained remainder when the output is full.
+///     Draining of warmed segments for the <see cref="WarmProcessor{TKey,TValue,TGroup,TWarm}" />: extracts
+///     completed segments from the warmer (head-of-line) and pushes their accumulated groups and watermark
+///     markers into the output channel, retaining any undrained remainder when the output is full.
 /// </summary>
 public sealed partial class WarmProcessor<TKey, TValue, TGroup, TWarm>
 {
@@ -11,15 +11,15 @@ public sealed partial class WarmProcessor<TKey, TValue, TGroup, TWarm>
     private PendingSegment _pending;
 
     /// <summary>
-    /// Drains warmed segments into the output: a retained (partially drained) segment is finished
-    /// first (one-shot), then freshly completed segments are extracted from the warmer head-of-line.
-    /// Stops when the output is full, leaving the undrained remainder in <see cref="_pending"/> for the
-    /// next call (the caller waits for output capacity, then retries).
+    ///     Drains warmed segments into the output: a retained (partially drained) segment is finished
+    ///     first (one-shot), then freshly completed segments are extracted from the warmer head-of-line.
+    ///     Stops when the output is full, leaving the undrained remainder in <see cref="_pending" /> for the
+    ///     next call (the caller waits for output capacity, then retries).
     /// </summary>
     /// <returns>
-    /// <see cref="FlowResult.OutputBlocked"/> when the output is full (the remainder stays in
-    /// <see cref="_pending"/>); <see cref="FlowResult.Success"/> when at least one segment was drained
-    /// (the loop may retry immediately); <see cref="FlowResult.Idle"/> when there was nothing to drain.
+    ///     <see cref="FlowResult.OutputBlocked" /> when the output is full (the remainder stays in
+    ///     <see cref="_pending" />); <see cref="FlowResult.Success" /> when at least one segment was drained
+    ///     (the loop may retry immediately); <see cref="FlowResult.Idle" /> when there was nothing to drain.
     /// </returns>
     private FlowResult DrainWarm()
     {
@@ -53,16 +53,16 @@ public sealed partial class WarmProcessor<TKey, TValue, TGroup, TWarm>
     }
 
     /// <summary>
-    /// Drains one warmed segment into the writer: pushes each key's groups (peek → write → advance)
-    /// and finally the covering watermark. The segment is consumed through <paramref name="segment"/>:
-    /// on a full drain it is cleared, on a blocked output it is replaced with the undrained remainder
-    /// (the keys from the current position plus the watermark).
+    ///     Drains one warmed segment into the writer: pushes each key's groups (peek → write → advance)
+    ///     and finally the covering watermark. The segment is consumed through <paramref name="segment" />:
+    ///     on a full drain it is cleared, on a blocked output it is replaced with the undrained remainder
+    ///     (the keys from the current position plus the watermark).
     /// </summary>
     /// <param name="segment">The segment being drained; updated in place.</param>
     /// <returns>
-    /// <see langword="false"/> when the output was full and the remainder was retained in
-    /// <paramref name="segment"/>; otherwise <see langword="true"/> when the whole segment (including
-    /// the watermark) was drained.
+    ///     <see langword="false" /> when the output was full and the remainder was retained in
+    ///     <paramref name="segment" />; otherwise <see langword="true" /> when the whole segment (including
+    ///     the watermark) was drained.
     /// </returns>
     private bool DrainSegment(ref PendingSegment segment)
     {
@@ -87,7 +87,8 @@ public sealed partial class WarmProcessor<TKey, TValue, TGroup, TWarm>
                 if (!_buffer.TryWrite(group))
                 {
                     // Output is full — retain the rest of this segment (from this key plus the watermark).
-                    segment = new PendingSegment(new ArraySegment<TKey>(keys.Array!, keys.Offset + i, keys.Count - i), watermark);
+                    segment = new PendingSegment(new ArraySegment<TKey>(keys.Array!, keys.Offset + i, keys.Count - i),
+                        watermark);
                     return false;
                 }
 
@@ -110,8 +111,8 @@ public sealed partial class WarmProcessor<TKey, TValue, TGroup, TWarm>
     }
 
     /// <summary>
-    /// A warmed segment (a slice of extracted keys plus the covering watermark) that could not be fully
-    /// drained because the output was full; retained until it can be pushed downstream.
+    ///     A warmed segment (a slice of extracted keys plus the covering watermark) that could not be fully
+    ///     drained because the output was full; retained until it can be pushed downstream.
     /// </summary>
     private readonly struct PendingSegment(ArraySegment<TKey> keys, Watermark watermark)
     {

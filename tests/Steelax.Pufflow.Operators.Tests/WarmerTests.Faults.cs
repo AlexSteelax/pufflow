@@ -7,7 +7,7 @@ public static partial class WarmerTests
         [Fact]
         public void FaultedHead_RethrowsOnExtraction()
         {
-            using var warmer = Create(jobFactory: new FaultingJobFactory(), maxConcurrency: 1, maxQueued: 2, segmentCapacity: 1);
+            using var warmer = Create(new FaultingJobFactory(), maxConcurrency: 1, maxQueued: 2, segmentCapacity: 1);
             var sink = new WarmSink();
 
             AddKeys(warmer, (1, 10));
@@ -20,7 +20,7 @@ public static partial class WarmerTests
         public void FaultedNonHead_DeferredUntilItBecomesHead()
         {
             var factory = new TcsJobFactory();
-            using var warmer = Create(jobFactory: factory, maxConcurrency: 2, maxQueued: 2, segmentCapacity: 1);
+            using var warmer = Create(factory, maxConcurrency: 2, maxQueued: 2, segmentCapacity: 1);
             var sink = new WarmSink();
 
             AddKeys(warmer, (1, 10), (2, 20));
@@ -42,7 +42,7 @@ public static partial class WarmerTests
         [Fact]
         public void CanceledHead_PropagatesTaskCanceled()
         {
-            using var warmer = Create(jobFactory: new CanceledJobFactory(), maxConcurrency: 1, maxQueued: 2, segmentCapacity: 1);
+            using var warmer = Create(new CanceledJobFactory(), maxConcurrency: 1, maxQueued: 2, segmentCapacity: 1);
             var sink = new WarmSink();
 
             AddKeys(warmer, (1, 10));

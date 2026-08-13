@@ -6,7 +6,7 @@ namespace Steelax.Pufflow.Tests.Flows;
 public partial class FlowPipeAsyncConsumatorToEnumerator<T1, T2>
 {
     /// <remarks>
-    /// Тянет данные из source и отдает объект для вытягивания данных
+    ///     Тянет данные из source и отдает объект для вытягивания данных
     /// </remarks>
     public IEnumerator<T2> GetEnumerator(IAsyncConsumator<T1> source, FlowContext context)
     {

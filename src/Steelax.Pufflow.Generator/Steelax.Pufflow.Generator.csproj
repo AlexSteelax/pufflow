@@ -1,37 +1,37 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
-  <PropertyGroup>
-    <TargetFramework>netstandard2.0</TargetFramework>
-    <LangVersion>12</LangVersion>
-    <IncludeBuildOutput>false</IncludeBuildOutput>
-    <IsPackable>true</IsPackable>
-    <EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
-    <IsRoslynComponent>true</IsRoslynComponent>
-    <NoWarn>$(NoWarn);NU5128</NoWarn>
+    <PropertyGroup>
+        <TargetFramework>netstandard2.0</TargetFramework>
+        <LangVersion>12</LangVersion>
+        <IncludeBuildOutput>false</IncludeBuildOutput>
+        <IsPackable>true</IsPackable>
+        <EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
+        <IsRoslynComponent>true</IsRoslynComponent>
+        <NoWarn>$(NoWarn);NU5128</NoWarn>
 
-    <!-- NuGet package metadata (project-specific; shared metadata lives in Directory.Build.props) -->
-    <PackageId>Steelax.Pufflow.Generator</PackageId>
-    <Description>Source generator for Steelax.Pufflow dataflow pipelines. Generates IFlowable implementation from [Flow]-annotated classes.</Description>
-    <PackageTags>dataflow;pipeline;poll;push;source-generator;roslyn</PackageTags>
+        <!-- NuGet package metadata (project-specific; shared metadata lives in Directory.Build.props) -->
+        <PackageId>Steelax.Pufflow.Generator</PackageId>
+        <Description>Source generator for Steelax.Pufflow dataflow pipelines. Generates IFlowable implementation from [Flow]-annotated classes.</Description>
+        <PackageTags>dataflow;pipeline;poll;push;source-generator;roslyn</PackageTags>
 
-    <!-- Documentation -->
-    <GenerateDocumentationFile>true</GenerateDocumentationFile>
-  </PropertyGroup>
+        <!-- Documentation -->
+        <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    </PropertyGroup>
 
-  <!-- Enforce custom packaging layouts -->
-  <ItemGroup>
-    <None Include="$(OutputPath)\$(AssemblyName).dll"
-          Pack="true"
-          PackagePath="analyzers/dotnet/cs"
-          Visible="false" />
-  </ItemGroup>
+    <!-- Enforce custom packaging layouts -->
+    <ItemGroup>
+        <None Include="$(OutputPath)\$(AssemblyName).dll"
+              Pack="true"
+              PackagePath="analyzers/dotnet/cs"
+              Visible="false"/>
+    </ItemGroup>
 
-  <ItemGroup>
-    <PackageReference Include="Microsoft.CodeAnalysis.Analyzers">
-      <PrivateAssets>all</PrivateAssets>
-      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
-    </PackageReference>
-    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
-  </ItemGroup>
+    <ItemGroup>
+        <PackageReference Include="Microsoft.CodeAnalysis.Analyzers">
+            <PrivateAssets>all</PrivateAssets>
+            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+        </PackageReference>
+        <PackageReference Include="Microsoft.CodeAnalysis.CSharp"/>
+    </ItemGroup>
 
 </Project>

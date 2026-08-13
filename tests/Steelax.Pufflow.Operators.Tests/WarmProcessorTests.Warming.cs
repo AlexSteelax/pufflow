@@ -10,7 +10,7 @@ public static partial class WarmProcessorTests
             var input = new List<Watermarked<int>>
             {
                 new(2, Watermark.From(20)),
-                new(4, Watermark.From(40)),
+                new(4, Watermark.From(40))
             };
 
             await using var flow = new FlowSource();
@@ -38,7 +38,7 @@ public static partial class WarmProcessorTests
                 new(1, Watermark.From(10)), // passthrough
                 new(2, Watermark.From(20)), // warm
                 new(3, Watermark.From(30)), // passthrough
-                new(4, Watermark.From(40)), // warm
+                new(4, Watermark.From(40)) // warm
             };
 
             await using var flow = new FlowSource();

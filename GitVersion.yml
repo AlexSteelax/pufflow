@@ -9,7 +9,7 @@ branches:
     prevent-increment:
       of-merged-branch: true
     track-merge-target: false
-    source-branches: []
+    source-branches: [ ]
     commit-message-incrementing: Enabled
     is-release-branch: false
     pre-release-weight: 55000
@@ -21,10 +21,10 @@ branches:
     prevent-increment:
       of-merged-branch: false
     track-merge-target: false
-    source-branches: ['main']
+    source-branches: [ 'main' ]
     commit-message-incrementing: Enabled
     is-release-branch: false
     pre-release-weight: 30000
 ignore:
-  sha: []
-merge-message-formats: {}
+  sha: [ ]
+merge-message-formats: { }

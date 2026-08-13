@@ -41,7 +41,8 @@ public static partial class TimeoutProcessorTests
             // armed only while waiting for the source (and a stale timer signal is cleared on the
             // next item), no marker is emitted.
             var processor = new TimeoutProcessor<int>(TimeSpan.FromMilliseconds(30));
-            await using var sourceEnumerator = new[] { 1, 2 }.ToAsyncEnumerable().GetAsyncEnumerator(TestContext.Current.CancellationToken);
+            await using var sourceEnumerator = new[] { 1, 2 }.ToAsyncEnumerable()
+                .GetAsyncEnumerator(TestContext.Current.CancellationToken);
             await using var enumerator = processor.GetAsyncEnumerator(sourceEnumerator, default);
 
             Assert.True(await enumerator.MoveNextAsync());

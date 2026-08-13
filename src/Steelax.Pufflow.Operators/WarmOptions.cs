@@ -1,13 +1,13 @@
 ﻿namespace Steelax.Pufflow.Operators;
 
 /// <summary>
-/// Numeric and timing configuration for the <c>Warming</c> operator. Behavioural dependencies
-/// (the job factory, key selector, policy and accumulator factory) are passed directly to the
-/// <c>Warming</c> extension method — this type holds only tuning values.
+///     Numeric and timing configuration for the <c>Warming</c> operator. Behavioural dependencies
+///     (the job factory, key selector, policy and accumulator factory) are passed directly to the
+///     <c>Warming</c> extension method — this type holds only tuning values.
 /// </summary>
 /// <remarks>
-/// Defaults are chosen to be safe for small pipelines: single warm worker, a modest segment size
-/// and a one-second linger. Adjust per deployment.
+///     Defaults are chosen to be safe for small pipelines: single warm worker, a modest segment size
+///     and a one-second linger. Adjust per deployment.
 /// </remarks>
 [PublicAPI]
 public sealed record WarmOptions
@@ -33,9 +33,9 @@ public sealed record WarmOptions
     public long QueueWeightLimit { get; init; } = 100_000;
 
     /// <summary>
-    /// The period of the recurring watchdog timer that periodically wakes a sleeping consumer loop so
-    /// it re-checks the state (a safety net against a missed readiness signal). <see langword="null"/>
-    /// or <see cref="Timeout.InfiniteTimeSpan"/> disables the watchdog.
+    ///     The period of the recurring watchdog timer that periodically wakes a sleeping consumer loop so
+    ///     it re-checks the state (a safety net against a missed readiness signal). <see langword="null" />
+    ///     or <see cref="Timeout.InfiniteTimeSpan" /> disables the watchdog.
     /// </summary>
     [PublicAPI]
     public TimeSpan WatchdogPeriod { get; init; } = Timeout.InfiniteTimeSpan;

@@ -10,7 +10,8 @@ public static partial class BufferProcessorTests
             var ex = new InvalidOperationException("source error");
             var processor = new BufferProcessor<int>(4);
 
-            await using var sourceEnumerator = FaultySourceAsync(ex).GetAsyncEnumerator(TestContext.Current.CancellationToken);
+            await using var sourceEnumerator =
+                FaultySourceAsync(ex).GetAsyncEnumerator(TestContext.Current.CancellationToken);
             await using var enumerator = processor.GetAsyncEnumerator(sourceEnumerator, default);
 
             var thrown = await Assert.ThrowsAsync<InvalidOperationException>(async () =>

@@ -18,12 +18,12 @@ public static partial class WarmProcessorTests
             var policy = new TestPolicy(); // греем чётные
 
             var results = await RunAsync(
-                CreateWarmer(new DelayedJobFactory(delayMs: 2)),
+                CreateWarmer(new DelayedJobFactory(2)),
                 policy,
                 new ListAccumulatorFactory(),
                 input,
                 flow.Context,
-                watchdogPeriod: TimeSpan.FromMilliseconds(10));
+                TimeSpan.FromMilliseconds(10));
 
             var values = results.Where(static r => r.IsT0).Select(static r => r.AsT0).ToArray();
             var groups = results.Where(static r => r.IsT1).Select(static r => r.AsT1).ToArray();
@@ -63,7 +63,7 @@ public static partial class WarmProcessorTests
                 new ListAccumulatorFactory(),
                 [],
                 flow.Context,
-                watchdogPeriod: Timeout.InfiniteTimeSpan);
+                Timeout.InfiniteTimeSpan);
 
             Assert.Empty(results);
         }

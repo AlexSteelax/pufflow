@@ -37,7 +37,8 @@ public static partial class BufferProcessorTests
         {
             var processor = new BufferProcessor<int>(2);
 
-            await using var sourceEnumerator = Enumerable.Range(0, 20).ToAsyncEnumerable().GetAsyncEnumerator(TestContext.Current.CancellationToken);
+            await using var sourceEnumerator = Enumerable.Range(0, 20).ToAsyncEnumerable()
+                .GetAsyncEnumerator(TestContext.Current.CancellationToken);
             await using var enumerator = processor.GetAsyncEnumerator(sourceEnumerator, default);
 
             var result = new List<int>();

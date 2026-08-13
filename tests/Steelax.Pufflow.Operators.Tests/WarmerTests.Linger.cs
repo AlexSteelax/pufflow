@@ -26,7 +26,7 @@ public static partial class WarmerTests
         {
             var time = new ManualTimeProvider();
             var factory = new TcsJobFactory();
-            using var warmer = Create(jobFactory: factory, timeProvider: time, maxConcurrency: 1, maxQueued: 2, segmentCapacity: 2);
+            using var warmer = Create(factory, timeProvider: time, maxConcurrency: 1, maxQueued: 2, segmentCapacity: 2);
             var sink = new WarmSink();
 
             // A заполнен и занимает единственный слот; B — частичный tail.
@@ -62,10 +62,10 @@ public static partial class WarmerTests
         {
             var sink = new WarmSink();
             using var warmer = new Warmer<int, string>(
-                maxConcurrency: 2,
-                maxQueued: 4,
-                segmentCapacity: 5,
-                segmentLinger: TimeSpan.FromMilliseconds(200),
+                2,
+                4,
+                5,
+                TimeSpan.FromMilliseconds(200),
                 new SyncJobFactory(),
                 TimeProvider.System);
 

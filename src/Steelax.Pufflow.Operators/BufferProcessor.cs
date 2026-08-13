@@ -1,27 +1,25 @@
-﻿using System.Diagnostics.CodeAnalysis;
-using System.Threading.Channels;
-using Steelax.Toolkit.HighPerformance.Concurrency.Primitives;
+﻿using Steelax.Toolkit.HighPerformance.Concurrency.Primitives;
 
 namespace Steelax.Pufflow.Operators;
 
 /// <summary>
-/// A pipe component that decouples the upstream source from the downstream consumer by pumping
-/// elements through a bounded in-memory buffer in a background task.
+///     A pipe component that decouples the upstream source from the downstream consumer by pumping
+///     elements through a bounded in-memory buffer in a background task.
 /// </summary>
 /// <typeparam name="T">The type of elements flowing through the buffer.</typeparam>
 /// <remarks>
-/// <para>
-/// The enumerator starts a background worker that reads the source and writes elements into the
-/// buffer, honoring backpressure through the buffer's write side. The enumerator itself reads
-/// elements from the buffer and yields them downstream, so a slow consumer does not stall the source
-/// and a fast source does not overwhelm the consumer beyond the buffer's capacity.
-/// </para>
-/// <para>
-/// When the source is exhausted, the worker completes the buffer, ending the consumer. If the source
-/// faults, the fault is propagated through the buffer and rethrown downstream. Canceling the flow
-/// context (or disposing the enumerator early) completes the buffer so both the worker and the
-/// consumer stop.
-/// </para>
+///     <para>
+///         The enumerator starts a background worker that reads the source and writes elements into the
+///         buffer, honoring backpressure through the buffer's write side. The enumerator itself reads
+///         elements from the buffer and yields them downstream, so a slow consumer does not stall the source
+///         and a fast source does not overwhelm the consumer beyond the buffer's capacity.
+///     </para>
+///     <para>
+///         When the source is exhausted, the worker completes the buffer, ending the consumer. If the source
+///         faults, the fault is propagated through the buffer and rethrown downstream. Canceling the flow
+///         context (or disposing the enumerator early) completes the buffer so both the worker and the
+///         consumer stop.
+///     </para>
 /// </remarks>
 [Flow]
 public sealed partial class BufferProcessor<T>
@@ -30,16 +28,16 @@ public sealed partial class BufferProcessor<T>
     private readonly FanInSlim _fan;
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="BufferProcessor{T}"/> class.
+    ///     Initializes a new instance of the <see cref="BufferProcessor{T}" /> class.
     /// </summary>
     /// <param name="capacity">The maximum number of elements buffered before backpressure is applied.</param>
     /// <exception cref="ArgumentOutOfRangeException">
-    /// Thrown when <paramref name="capacity"/> is not positive.
+    ///     Thrown when <paramref name="capacity" /> is not positive.
     /// </exception>
     public BufferProcessor(int capacity)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(capacity);
-        
+
         _buffer = new InternalEventQueue<T>(capacity);
         _fan = new FanInSlim();
 
@@ -47,17 +45,17 @@ public sealed partial class BufferProcessor<T>
     }
 
     /// <summary>
-    /// Returns an async enumerator that reads <paramref name="source"/> in the background and yields
-    /// buffered elements downstream.
+    ///     Returns an async enumerator that reads <paramref name="source" /> in the background and yields
+    ///     buffered elements downstream.
     /// </summary>
     /// <param name="source">The upstream async enumerator to buffer.</param>
     /// <param name="context">The flow context providing cancellation for the pipeline.</param>
     /// <returns>An async enumerator yielding elements from the buffer.</returns>
     /// <exception cref="OperationCanceledException">
-    /// Thrown when the pipeline is canceled.
+    ///     Thrown when the pipeline is canceled.
     /// </exception>
     /// <exception cref="Exception">
-    /// Rethrown when the source enumerator faults.
+    ///     Rethrown when the source enumerator faults.
     /// </exception>
     public async IAsyncEnumerator<T> GetAsyncEnumerator(IAsyncEnumerator<T> source, FlowContext context)
     {
@@ -69,7 +67,6 @@ public sealed partial class BufferProcessor<T>
         try
         {
             while (true)
-            {
                 // Drain whatever is already buffered, then wait only if the buffer is empty.
                 if (_buffer.TryRead(out var item, out var completed))
                 {
@@ -79,10 +76,9 @@ public sealed partial class BufferProcessor<T>
                 {
                     if (completed)
                         break; // the worker completed the buffer
-                    
+
                     await _buffer.WaitToReadAsync();
                 }
-            }
 
             // The worker completed the buffer; propagate its outcome (a source fault, if any).
             // WaitAsync with the flow token turns a canceled pipeline into OperationCanceledException
@@ -98,8 +94,8 @@ public sealed partial class BufferProcessor<T>
     }
 
     /// <summary>
-    /// Pumps elements from <paramref name="source"/> into the internal buffer until the source
-    /// is exhausted or the buffer is completed, propagating faults through the buffer completion.
+    ///     Pumps elements from <paramref name="source" /> into the internal buffer until the source
+    ///     is exhausted or the buffer is completed, propagating faults through the buffer completion.
     /// </summary>
     private async Task BackgroundWorker(IAsyncEnumerator<T> source, FlowContext context)
     {

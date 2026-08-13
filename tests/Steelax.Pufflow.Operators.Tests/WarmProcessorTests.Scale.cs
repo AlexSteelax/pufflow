@@ -18,7 +18,7 @@ public static partial class WarmProcessorTests
             var policy = new TestPolicy(); // греем чётные
 
             var results = await RunAsync(
-                CreateWarmer(new DelayedJobFactory(delayMs: 15)),
+                CreateWarmer(new DelayedJobFactory(15)),
                 policy,
                 new ListAccumulatorFactory(),
                 input,

@@ -145,7 +145,7 @@ public static class FlowContextTests
         {
             var source = new FlowSource();
             var ctx = source.Context;
-            
+
             await source.DisposeAsync();
             // Source is disposed; ctx still holds reference to the CTS
 
@@ -157,7 +157,7 @@ public static class FlowContextTests
         {
             var source = new FlowSource();
             var ctx = source.Context;
-            
+
             await source.DisposeAsync();
             // Source disposed, ctx should still be safe
 
@@ -175,7 +175,7 @@ public static class FlowContextTests
 
             var actions = Enumerable
                 .Range(0, 10)
-                .Select(_ => (Action)(ctx.Cancel))
+                .Select(_ => (Action)ctx.Cancel)
                 .ToArray();
 
             Assert.Multiple(actions);
@@ -187,10 +187,13 @@ public static class FlowContextTests
             using var source = new FlowSource();
             var ctx = source.Context;
 
-            static void ReadToken(FlowContext c) => _ = c.Token;
+            static void ReadToken(FlowContext c)
+            {
+                _ = c.Token;
+            }
 
             var actions = new Action[10];
-            
+
             for (var i = 0; i < actions.Length; i++)
                 actions[i] = () => ReadToken(ctx);
 

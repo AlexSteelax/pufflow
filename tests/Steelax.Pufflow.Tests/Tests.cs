@@ -11,17 +11,17 @@ public class Tests
 
         var sourceFlow = new FlowSourceAsyncEnumerator<int>(Enumerable.Range(1, 5));
         var ret = new Queue<int>();
-        
+
         await sourceFlow
             .Attach(source)
             .Next(new FlowPipeAsyncEnumeratorToAsyncEnumerator<int, int>(static v => v))
             .Next(new FlowPipeAsyncEnumeratorToAsyncEnumerator<int, int>(static v => v))
             .Next(new FlowSinkAsyncEnumerator<int>(ret))
             .ExecuteAsync();
-        
+
         Assert.Equal(Enumerable.Range(1, 5), ret);
     }
-    
+
     [Fact]
     public async Task Test2()
     {

@@ -5,8 +5,8 @@ namespace Steelax.Pufflow.Tests.Bridges;
 public static partial class AsyncProducatorToAsyncEnumeratorTests
 {
     /// <summary>
-    /// A single concurrent SPSC producer/consumer test exercising the tightest backpressure path
-    /// (limit = 1): every write blocks until the consumer drains the slot.
+    ///     A single concurrent SPSC producer/consumer test exercising the tightest backpressure path
+    ///     (limit = 1): every write blocks until the consumer drains the slot.
     /// </summary>
     public sealed class Debug
     {
@@ -20,10 +20,8 @@ public static partial class AsyncProducatorToAsyncEnumeratorTests
             var producer = Task.Run(async () =>
             {
                 for (var i = 0; i < count; i++)
-                {
                     while (!bridge.TryWrite(i))
                         await bridge.WaitToWriteAsync();
-                }
 
                 bridge.Complete();
             }, TestContext.Current.CancellationToken);

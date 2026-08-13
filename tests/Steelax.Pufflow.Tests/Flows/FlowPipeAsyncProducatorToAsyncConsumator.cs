@@ -6,7 +6,7 @@ namespace Steelax.Pufflow.Tests.Flows;
 public partial class FlowPipeAsyncProducatorToAsyncConsumator<T1, T2>
 {
     /// <remarks>
-    /// Объект для проталкивания данных в этот блок
+    ///     Объект для проталкивания данных в этот блок
     /// </remarks>
     public IAsyncProducator<T1> GetAsyncProducator(FlowContext context)
     {
@@ -14,7 +14,7 @@ public partial class FlowPipeAsyncProducatorToAsyncConsumator<T1, T2>
     }
 
     /// <remarks>
-    /// Объект для вытягивания данных из этого блока
+    ///     Объект для вытягивания данных из этого блока
     /// </remarks>
     public IAsyncConsumator<T2> GetAsyncConsumator(FlowContext context)
     {

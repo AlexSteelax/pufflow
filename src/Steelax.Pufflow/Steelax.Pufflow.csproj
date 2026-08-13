@@ -16,17 +16,17 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <InternalsVisibleTo Include="Steelax.Pufflow.Tests" />
+        <InternalsVisibleTo Include="Steelax.Pufflow.Tests"/>
     </ItemGroup>
 
     <!-- Reference the source generator as a NuGet dependency of this package -->
     <ItemGroup>
-        <ProjectReference Include="..\Steelax.Pufflow.Generator\Steelax.Pufflow.Generator.csproj" />
+        <ProjectReference Include="..\Steelax.Pufflow.Generator\Steelax.Pufflow.Generator.csproj"/>
     </ItemGroup>
     
     <ItemGroup>
-      <PackageReference Include="JetBrains.Annotations" />
-      <PackageReference Include="Steelax.Toolkit.HighPerformance" />
+        <PackageReference Include="JetBrains.Annotations"/>
+        <PackageReference Include="Steelax.Toolkit.HighPerformance"/>
     </ItemGroup>
-    
+
 </Project>

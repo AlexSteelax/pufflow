@@ -6,7 +6,7 @@ namespace Steelax.Pufflow.Tests.Flows;
 public partial class FlowSourceAsyncProducator<T>(IEnumerable<T> items)
 {
     /// <remarks>
-    /// Толкает данные в target
+    ///     Толкает данные в target
     /// </remarks>
     public async Task ExecuteAsync(IAsyncProducator<T> target, FlowContext context)
     {
@@ -28,9 +28,9 @@ public partial class FlowSourceAsyncProducator<T>(IEnumerable<T> items)
             target.Complete();
         }
     }
-    
+
     /// <remarks>
-    /// Толкает данные в target
+    ///     Толкает данные в target
     /// </remarks>
     public async Task ExecuteAsync(IProducator<T> target, FlowContext context)
     {
@@ -39,7 +39,7 @@ public partial class FlowSourceAsyncProducator<T>(IEnumerable<T> items)
             foreach (var item in items)
             {
                 context.Token.ThrowIfCancellationRequested();
-    
+
                 while (!target.TryWrite(item))
                 {
                     context.Token.ThrowIfCancellationRequested();

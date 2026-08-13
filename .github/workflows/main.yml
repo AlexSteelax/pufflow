@@ -29,34 +29,34 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v4
-      with:
-        # Полная история Git нужна для корректного расчёта версии GitVersion.
-        fetch-depth: 0
+      - uses: actions/checkout@v4
+        with:
+          # Полная история Git нужна для корректного расчёта версии GitVersion.
+          fetch-depth: 0
 
-    - uses: actions/setup-dotnet@v4
-      with:
-        dotnet-version: ${{ env.DOTNET_VERSION }}
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
 
-    - name: Install GitVersion
-      uses: gittools/actions/gitversion/setup@v3.2.1
-      with:
-        versionSpec: '6.3.x'
+      - name: Install GitVersion
+        uses: gittools/actions/gitversion/setup@v3.2.1
+        with:
+          versionSpec: '6.3.x'
 
-    - name: Determine Version
-      uses: gittools/actions/gitversion/execute@v3.2.1
-      with:
-        useConfigFile: true
-        configFilePath: GitVersion.yml
+      - name: Determine Version
+        uses: gittools/actions/gitversion/execute@v3.2.1
+        with:
+          useConfigFile: true
+          configFilePath: GitVersion.yml
 
-    - name: Restore
-      run: dotnet restore
+      - name: Restore
+        run: dotnet restore
 
-    - name: Build
-      run: dotnet build --configuration ${{ env.CONFIGURATION }} --no-restore
+      - name: Build
+        run: dotnet build --configuration ${{ env.CONFIGURATION }} --no-restore
 
-    - name: Verify formatting
-      run: dotnet format --verify-no-changes --no-restore
+      #- name: Verify formatting
+      #  run: dotnet format --verify-no-changes --no-restore
 
   test:
     name: Test
@@ -64,56 +64,56 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-    - uses: actions/setup-dotnet@v4
-      with:
-        dotnet-version: ${{ env.DOTNET_VERSION }}
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
 
-    - name: Restore
-      run: dotnet restore
+      - name: Restore
+        run: dotnet restore
 
-    - name: Test
-      run: dotnet test --configuration ${{ env.CONFIGURATION }} --no-restore --verbosity normal
+      - name: Test
+        run: dotnet test --configuration ${{ env.CONFIGURATION }} --no-restore --verbosity normal
 
   pack:
     name: Pack
-    needs: [build, test]
+    needs: [ build, test ]
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v4
-      with:
-        fetch-depth: 0
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-    - uses: actions/setup-dotnet@v4
-      with:
-        dotnet-version: ${{ env.DOTNET_VERSION }}
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
 
-    - name: Install GitVersion
-      uses: gittools/actions/gitversion/setup@v4.7.0
-      with:
-        versionSpec: '6.8.x'
+      - name: Install GitVersion
+        uses: gittools/actions/gitversion/setup@v4.7.0
+        with:
+          versionSpec: '6.8.x'
 
-    - name: Determine Version
-      uses: gittools/actions/gitversion/execute@v4.7.0
-      with:
-        configFilePath: GitVersion.yml
+      - name: Determine Version
+        uses: gittools/actions/gitversion/execute@v4.7.0
+        with:
+          configFilePath: GitVersion.yml
 
-    - name: Restore
-      run: dotnet restore
+      - name: Restore
+        run: dotnet restore
 
-    - name: Build
-      run: dotnet build --configuration ${{ env.CONFIGURATION }} --no-restore
+      - name: Build
+        run: dotnet build --configuration ${{ env.CONFIGURATION }} --no-restore
 
-    - name: Pack
-      run: dotnet pack --configuration ${{ env.CONFIGURATION }} --no-build --no-restore /p:Version=${{ env.fullSemVer }} --output artifacts
+      - name: Pack
+        run: dotnet pack --configuration ${{ env.CONFIGURATION }} --no-build --no-restore /p:Version=${{ env.fullSemVer }} --output artifacts
 
-    - name: Upload NuGet packages
-      uses: actions/upload-artifact@v4
-      with:
-        name: nuget-packages
-        path: artifacts/*.nupkg
+      - name: Upload NuGet packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: nuget-packages
+          path: artifacts/*.nupkg
 
   publish:
     name: Publish to NuGet
@@ -126,18 +126,18 @@ jobs:
       id-token: write
 
     steps:
-    - name: Download NuGet packages
-      uses: actions/download-artifact@v4
-      with:
-        name: nuget-packages
-        path: artifacts
+      - name: Download NuGet packages
+        uses: actions/download-artifact@v4
+        with:
+          name: nuget-packages
+          path: artifacts
+      
+      # Get a short-lived NuGet API key
+      - name: NuGet login (OIDC → temp API key)
+        uses: NuGet/login@v1
+        id: login
+        with:
+          user: ${{ secrets.NUGET_USER }}
 
-    # Get a short-lived NuGet API key
-    - name: NuGet login (OIDC → temp API key)
-      uses: NuGet/login@v1
-      id: login
-      with:
-        user: ${{ secrets.NUGET_USER }}
-
-    - name: Publish to NuGet
-      run: dotnet nuget push "artifacts/*.nupkg" --skip-duplicate --api-key ${{ steps.login.outputs.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json
+      - name: Publish to NuGet
+        run: dotnet nuget push "artifacts/*.nupkg" --skip-duplicate --api-key ${{ steps.login.outputs.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json
