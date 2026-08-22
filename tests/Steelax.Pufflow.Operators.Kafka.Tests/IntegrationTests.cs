@@ -106,12 +106,12 @@ public class IntegrationTests(ApplicationFixture application, ITestOutputHelper 
         consumer.Subscribe(topic);
 
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
-        await using var flow = new FlowSource(cts.Token);
+        await using var flow = new FlowSource();
         flow
-            .OnKafkaSource(consumer, DefaultOptions, KafkaErrorPolicy.Default)
+            .OnKafkaSource(consumer, DefaultOptions, out _, KafkaErrorPolicy.Default)
             .Consume(out var reader);
 
-        var runTask = flow.ExecuteAsync(); // background: the Kafka source has no end-of-stream
+        var runTask = flow.ExecuteAsync(cts.Token); // background: the Kafka source has no end-of-stream
 
         try
         {
@@ -149,12 +149,12 @@ public class IntegrationTests(ApplicationFixture application, ITestOutputHelper 
         consumer.Subscribe(topic);
 
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
-        await using var flow = new FlowSource(cts.Token);
+        await using var flow = new FlowSource();
         flow
-            .OnKafkaSource(consumer, DefaultOptions, KafkaErrorPolicy.Default)
+            .OnKafkaSource(consumer, DefaultOptions, out _, KafkaErrorPolicy.Default)
             .Consume(out var reader);
 
-        var runTask = flow.ExecuteAsync(); // background: the Kafka source has no end-of-stream
+        var runTask = flow.ExecuteAsync(cts.Token); // background: the Kafka source has no end-of-stream
 
         try
         {
@@ -207,12 +207,12 @@ public class IntegrationTests(ApplicationFixture application, ITestOutputHelper 
         };
 
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
-        await using var flow = new FlowSource(cts.Token);
+        await using var flow = new FlowSource();
         flow
-            .OnKafkaSource(consumer, options, KafkaErrorPolicy.Default)
+            .OnKafkaSource(consumer, options, out _, KafkaErrorPolicy.Default)
             .Consume(out var reader);
 
-        var runTask = flow.ExecuteAsync(); // background: the Kafka source has no end-of-stream
+        var runTask = flow.ExecuteAsync(cts.Token); // background: the Kafka source has no end-of-stream
 
         try
         {

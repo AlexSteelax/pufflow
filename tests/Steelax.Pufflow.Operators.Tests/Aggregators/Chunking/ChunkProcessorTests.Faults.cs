@@ -12,13 +12,13 @@ public static partial class ChunkProcessorTests
         {
             var ex = new InvalidOperationException("source error");
 
-            await using var flow = new FlowSource(TestContext.Current.CancellationToken);
+            await using var flow = new FlowSource();
             flow
                 .OnAsyncConsumatorSource(out ChannelWriter<int> writer)
                 .Chunking(10, TimeSpan.FromSeconds(1))
                 .Consume(out var reader);
 
-            var runTask = flow.ExecuteAsync();
+            var runTask = flow.ExecuteAsync(TestContext.Current.CancellationToken);
 
             writer.TryWrite(1);
             writer.TryComplete(ex);

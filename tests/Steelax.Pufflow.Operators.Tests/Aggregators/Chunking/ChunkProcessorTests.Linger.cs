@@ -16,13 +16,13 @@ public static partial class ChunkProcessorTests
             const int chunkSize = 64;
             const int items = 256;
 
-            await using var flow = new FlowSource(TestContext.Current.CancellationToken);
+            await using var flow = new FlowSource();
             flow
                 .OnAsyncConsumatorSource(out ChannelWriter<int> writer)
                 .Chunking(chunkSize, TimeSpan.FromMilliseconds(20))
                 .Consume(out var reader);
 
-            var runTask = flow.ExecuteAsync();
+            var runTask = flow.ExecuteAsync(TestContext.Current.CancellationToken);
 
             // Write with a spin-wait delay on a separate thread to emulate a slow producer.
             var producer = Task.Run(() =>
@@ -58,12 +58,13 @@ public static partial class ChunkProcessorTests
         [Fact(Timeout = TimeoutMs)]
         public async Task PartialChunk_FlushedAfterLinger()
         {
-            await using var flow = new FlowSource(TestContext.Current.CancellationToken);
+            await using var flow = new FlowSource();
             var chunks = await RunTimedAsync(
                 flow,
                 size: 100,
                 TimeSpan.FromMilliseconds(30),
-                writer => FillDelayedAsync(writer, gapMs: 120, 1, 2, 3));
+                writer => FillDelayedAsync(writer, gapMs: 120, 1, 2, 3),
+                TestContext.Current.CancellationToken);
 
             // linger=30ms fires during each 120ms idle gap → each item is flushed on its own.
             AssertChunks(chunks, [1], [2], [3]);
@@ -72,8 +73,8 @@ public static partial class ChunkProcessorTests
         [Fact(Timeout = TimeoutMs)]
         public async Task FastSource_FillsByCount_BeforeLinger()
         {
-            await using var flow = new FlowSource(TestContext.Current.CancellationToken);
-            var chunks = await RunAsync([1, 2, 3, 4, 5, 6], size: 3, TimeSpan.FromSeconds(5), flow);
+            await using var flow = new FlowSource();
+            var chunks = await RunAsync([1, 2, 3, 4, 5, 6], size: 3, TimeSpan.FromSeconds(5), flow, TestContext.Current.CancellationToken);
 
             AssertChunks(chunks, [1, 2, 3], [4, 5, 6]);
         }
@@ -81,12 +82,13 @@ public static partial class ChunkProcessorTests
         [Fact(Timeout = TimeoutMs)]
         public async Task LingerFlush_ThenCountFlush_ContinuesOnFreshChunk()
         {
-            await using var flow = new FlowSource(TestContext.Current.CancellationToken);
+            await using var flow = new FlowSource();
             var chunks = await RunTimedAsync(
                 flow,
                 size: 2,
                 TimeSpan.FromMilliseconds(30),
-                writer => FillSegmentedAsync(writer, ([1], 120), ([2, 3], 0)));
+                writer => FillSegmentedAsync(writer, ([1], 120), ([2, 3], 0)),
+                TestContext.Current.CancellationToken);
 
             // [1] is flushed by linger while the source is idle; the fresh chunk then
             // accumulates 2 and 3 and is flushed by the count trigger.
@@ -96,12 +98,13 @@ public static partial class ChunkProcessorTests
         [Fact(Timeout = TimeoutMs)]
         public async Task ItemsWithinWindow_AccumulateIntoOneChunk()
         {
-            await using var flow = new FlowSource(TestContext.Current.CancellationToken);
+            await using var flow = new FlowSource();
             var chunks = await RunTimedAsync(
                 flow,
                 size: 10,
                 TimeSpan.FromMilliseconds(30),
-                writer => FillSegmentedAsync(writer, ([1, 2], 120), ([3], 0)));
+                writer => FillSegmentedAsync(writer, ([1, 2], 120), ([3], 0)),
+                TestContext.Current.CancellationToken);
 
             // Items arriving inside the linger window accumulate into a single chunk:
             // the window starts on the first element of the chunk, not on every element.
@@ -111,12 +114,13 @@ public static partial class ChunkProcessorTests
         [Fact(Timeout = TimeoutMs)]
         public async Task CountAndLinger_AlternateWithinSingleStream()
         {
-            await using var flow = new FlowSource(TestContext.Current.CancellationToken);
+            await using var flow = new FlowSource();
             var chunks = await RunTimedAsync(
                 flow,
                 size: 2,
                 TimeSpan.FromMilliseconds(30),
-                writer => FillSegmentedAsync(writer, ([1, 2], 0), ([3], 120), ([4, 5], 0)));
+                writer => FillSegmentedAsync(writer, ([1, 2], 0), ([3], 120), ([4, 5], 0)),
+                TestContext.Current.CancellationToken);
 
             // [1,2] flushed by count → [3] partial flushed by linger → [4,5] flushed by count.
             AssertChunks(chunks, [1, 2], [3], [4, 5]);

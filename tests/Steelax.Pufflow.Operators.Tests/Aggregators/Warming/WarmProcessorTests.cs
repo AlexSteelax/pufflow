@@ -19,7 +19,8 @@ public static partial class WarmProcessorTests
         IWarmAccumulatorFactory<int, int, TGroup> accumulatorFactory,
         IReadOnlyList<Watermarked<int>> input,
         FlowSource flow,
-        TimeSpan? watchdogPeriod = null)
+        TimeSpan? watchdogPeriod,
+        CancellationToken cancellationToken)
     {
         var options = new WarmOptions
         {
@@ -41,7 +42,7 @@ public static partial class WarmProcessorTests
                 accumulatorFactory)
             .Consume(out var reader);
 
-        await flow.ExecuteAsync();
+        await flow.ExecuteAsync(cancellationToken);
 
         return await reader.ReadAllAsync(TestContext.Current.CancellationToken)
             .ToListAsync(TestContext.Current.CancellationToken);

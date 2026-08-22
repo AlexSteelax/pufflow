@@ -15,7 +15,7 @@ public static partial class WarmProcessorTests
             var job = new TcsJob();
             var policy = new TestPolicy(); // warms key 2
 
-            await using var flow = new FlowSource();
+            var flow = new FlowSource();
 
             var options = new WarmOptions
             {
@@ -38,7 +38,7 @@ public static partial class WarmProcessorTests
 
             // Start the pipeline: background tasks begin (WarmProcessor via Task.Run and sink via
             // RegisterBackground). ExecuteAsync waits for their completion, so keep it in the background.
-            var execution = flow.ExecuteAsync();
+            var execution = flow.ExecuteAsync(TestContext.Current.CancellationToken);
 
             // Wait for the warm job to start — by then the loop is asleep waiting.
             await WaitUntilAsync(() => job.Started, flow.Context.Token);

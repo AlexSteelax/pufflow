@@ -11,7 +11,7 @@ public class TransitionTests
         // Hybrid chain: a pull source (consumator) → a consumator→producator pipe (delayed binding:
         // the pipe needs the upstream consumator from the source and the target producator from the
         // sink) → a push sink (producator).
-        await using var source = new FlowSource(TestContext.Current.CancellationToken);
+        await using var source = new FlowSource();
 
         var sourceFlow = source
             .OnAsyncConsumatorSource(Enumerable.Range(1, 5))
@@ -19,7 +19,7 @@ public class TransitionTests
             .Next(new FlowPipeAsyncProducatorToAsyncProducator<int, int>(static v => v))
             .Consume(out var reader);
 
-        await source.ExecuteAsync();
+        await source.ExecuteAsync(TestContext.Current.CancellationToken);
 
         var ret = await reader.ReadAllAsync(TestContext.Current.CancellationToken).ToListAsync(TestContext.Current.CancellationToken);
 

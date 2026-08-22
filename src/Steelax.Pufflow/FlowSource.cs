@@ -13,36 +13,9 @@ public sealed class FlowSource : IDisposable, IAsyncDisposable
 {
     private readonly List<object> _disposable = [];
     private readonly List<LazyScheduleTask> _tasks = [];
-    internal readonly CancellationTokenSource Cts;
+    internal readonly CancellationTokenSource Cts = new();
     private bool _disposed;
-
-    private FlowSource(CancellationTokenSource cts)
-    {
-        Cts = cts;
-    }
-
-    /// <summary>
-    ///     Initializes a new <see cref="FlowSource" /> linked to an external cancellation token.
-    /// </summary>
-    /// <param name="cancellationToken">
-    ///     An external token that can cancel the pipeline.
-    ///     A linked token source is created so that disposing <see cref="FlowSource" />
-    ///     does not affect the original token source.
-    /// </param>
-    [PublicAPI]
-    public FlowSource(CancellationToken cancellationToken)
-        : this(CancellationTokenSource.CreateLinkedTokenSource(cancellationToken))
-    {
-    }
-
-    /// <summary>
-    ///     Initializes a new <see cref="FlowSource" /> with its own cancellation token source.
-    /// </summary>
-    [PublicAPI]
-    public FlowSource() : this(new CancellationTokenSource())
-    {
-    }
-
+    
     /// <summary>
     ///     Registers a background task that the pipeline starts lazily on execution.
     /// </summary>
@@ -127,7 +100,7 @@ public sealed class FlowSource : IDisposable, IAsyncDisposable
     ///     so cancellation can stop them.
     /// </remarks>
     [PublicAPI]
-    public async Task ExecuteAsync()
+    public async Task ExecuteAsync(CancellationToken cancellationToken)
     {
         var tasks = _tasks.ToArray();
         foreach (var lazy in tasks)
@@ -135,23 +108,33 @@ public sealed class FlowSource : IDisposable, IAsyncDisposable
 
         List<Exception>? exception = null;
 
+        // The external token cancels the flow: cancelling either stops the registered tasks. The wait
+        // itself observes only the external token so a normal stop (via DisposeAsync → Cts.Cancel) does
+        // not surface as an exception here.
+        await using var ctr = cancellationToken.Register(() => Cts.Cancel());
+
         try
         {
-            await foreach (var task in Task.WhenEach(tasks.Select(static lazy => lazy.ExecuteTask)))
+            await foreach (var task in Task.WhenEach(tasks.Select(static lazy => lazy.ExecuteTask)).WithCancellation(cancellationToken))
             {
                 if (task is { IsCompletedSuccessfully: false })
                 {
                     await Cts.CancelAsync();
 
-                    exception ??= [];
-
+                    // A canceled task is a normal pipeline stop (e.g. DisposeAsync), not a fault — it is
+                    // not surfaced. Only real faults (task.Exception) are aggregated and rethrown.
                     if (task.Exception is not null)
+                    {
+                        exception ??= [];
                         exception.AddRange(task.Exception.InnerExceptions);
+                    }
                 }
             }
         }
         finally
         {
+            await Cts.CancelAsync();
+            
             foreach (var disposable in _disposable)
             {
                 try

@@ -16,7 +16,7 @@ public static partial class WarmProcessorTests
                 new(5, Watermark.From(50))
             };
 
-            await using var flow = new FlowSource(TestContext.Current.CancellationToken);
+            await using var flow = new FlowSource();
             var policy = new TestPolicy(); // warm even keys — odd ones pass through
 
             var results = await RunAsync(
@@ -24,7 +24,9 @@ public static partial class WarmProcessorTests
                 policy,
                 new ListAccumulatorFactory(),
                 input,
-                flow);
+                flow,
+                null,
+                TestContext.Current.CancellationToken);
 
             var values = results.Where(static r => r.IsT0).Select(static r => r.AsT0).ToArray();
             Assert.Equal(new[] { 1, 3, 5 }, values);

@@ -20,17 +20,17 @@ public static class BypassMapProcessorTests
     private static async Task<List<int>> RunAsync(
         IEnumerable<int> input,
         MapSelector<int, int> selector,
-        FlowSource flow)
+        FlowSource flow,
+        CancellationToken cancellationToken)
     {
         flow
-            .OnAsyncProducatorSource<int>(input)
+            .OnAsyncProducatorSource(input)
             .Map(selector)
             .Consume(out var reader);
 
-        await flow.ExecuteAsync();
+        await flow.ExecuteAsync(cancellationToken);
 
-        return await reader.ReadAllAsync(TestContext.Current.CancellationToken)
-            .ToListAsync(TestContext.Current.CancellationToken);
+        return await reader.ReadAllAsync(cancellationToken).ToListAsync(cancellationToken);
     }
 
     public sealed class Mapping
@@ -39,8 +39,8 @@ public static class BypassMapProcessorTests
         public async Task ProjectsEachElementInOrder()
         {
             // 1:1 projection, order preserved.
-            await using var flow = new FlowSource(TestContext.Current.CancellationToken);
-            var results = await RunAsync([1, 2, 3, 4, 5], TimesTen, flow);
+            await using var flow = new FlowSource();
+            var results = await RunAsync([1, 2, 3, 4, 5], TimesTen, flow, TestContext.Current.CancellationToken);
 
             Assert.Equal([10, 20, 30, 40, 50], results);
         }
@@ -48,8 +48,8 @@ public static class BypassMapProcessorTests
         [Fact(Timeout = TimeoutMs)]
         public async Task EmptySource_YieldsNothing()
         {
-            await using var flow = new FlowSource(TestContext.Current.CancellationToken);
-            var results = await RunAsync([], Identity, flow);
+            await using var flow = new FlowSource();
+            var results = await RunAsync([], Identity, flow, TestContext.Current.CancellationToken);
 
             Assert.Empty(results);
         }
@@ -59,8 +59,8 @@ public static class BypassMapProcessorTests
         {
             // A large source exercises the hold-slot: when the downstream consumer is slower, the projected
             // value is retained and flushed first, so nothing is lost and order is kept.
-            await using var flow = new FlowSource(TestContext.Current.CancellationToken);
-            var results = await RunAsync(Enumerable.Range(0, 100), Increment, flow);
+            await using var flow = new FlowSource();
+            var results = await RunAsync(Enumerable.Range(0, 100), Increment, flow, TestContext.Current.CancellationToken);
 
             Assert.Equal(Enumerable.Range(1, 100), results);
         }
@@ -69,17 +69,16 @@ public static class BypassMapProcessorTests
         public async Task ChainedSources_ProjectionComposes()
         {
             // Two Map stages compose: first * 10, then + 1 → 10x+1 for each element.
-            await using var flow = new FlowSource(TestContext.Current.CancellationToken);
+            await using var flow = new FlowSource();
 
             flow
-                .OnAsyncProducatorSource<int>([1, 2, 3])
+                .OnAsyncProducatorSource([1, 2, 3])
                 .Map(TimesTen)
                 .Map(Increment)
                 .Consume(out var reader);
 
-            await flow.ExecuteAsync();
-            var results = await reader.ReadAllAsync(TestContext.Current.CancellationToken)
-                .ToListAsync(TestContext.Current.CancellationToken);
+            await flow.ExecuteAsync(TestContext.Current.CancellationToken);
+            var results = await reader.ReadAllAsync(TestContext.Current.CancellationToken).ToListAsync(TestContext.Current.CancellationToken);
 
             Assert.Equal([11, 21, 31], results);
         }

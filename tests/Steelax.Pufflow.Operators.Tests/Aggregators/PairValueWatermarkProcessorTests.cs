@@ -17,17 +17,16 @@ public static class PairValueWatermarkProcessorTests
 
     private static async Task<List<Watermarked<int>>> RunAsync(
         IEnumerable<Unio<int, Watermark>> input,
-        FlowSource flow)
+        FlowSource flow, CancellationToken cancellationToken)
     {
         flow
-            .OnAsyncProducatorSource<Unio<int, Watermark>>(input)
+            .OnAsyncProducatorSource(input)
             .Watermarked()
             .Consume(out var reader);
 
-        await flow.ExecuteAsync();
+        await flow.ExecuteAsync(cancellationToken);
 
-        return await reader.ReadAllAsync(TestContext.Current.CancellationToken)
-            .ToListAsync(TestContext.Current.CancellationToken);
+        return await reader.ReadAllAsync(cancellationToken).ToListAsync(cancellationToken);
     }
 
     public sealed class Collapse
@@ -42,8 +41,8 @@ public static class PairValueWatermarkProcessorTests
                 Watermark.From(10)
             };
 
-            await using var flow = new FlowSource(TestContext.Current.CancellationToken);
-            var results = await RunAsync(input, flow);
+            await using var flow = new FlowSource();
+            var results = await RunAsync(input, flow, TestContext.Current.CancellationToken);
 
             var item = Assert.Single(results);
             Assert.Equal(1, item.Value);
@@ -61,8 +60,8 @@ public static class PairValueWatermarkProcessorTests
                 2
             };
 
-            await using var flow = new FlowSource(TestContext.Current.CancellationToken);
-            var results = await RunAsync(input, flow);
+            await using var flow = new FlowSource();
+            var results = await RunAsync(input, flow, TestContext.Current.CancellationToken);
 
             var item = Assert.Single(results);
             Assert.Equal(1, item.Value);
@@ -81,8 +80,8 @@ public static class PairValueWatermarkProcessorTests
                 2
             };
 
-            await using var flow = new FlowSource(TestContext.Current.CancellationToken);
-            var results = await RunAsync(input, flow);
+            await using var flow = new FlowSource();
+            var results = await RunAsync(input, flow, TestContext.Current.CancellationToken);
 
             var item = Assert.Single(results);
             Assert.Equal(1, item.Value);
@@ -102,8 +101,8 @@ public static class PairValueWatermarkProcessorTests
                 Watermark.From(20)
             };
 
-            await using var flow = new FlowSource(TestContext.Current.CancellationToken);
-            var results = await RunAsync(input, flow);
+            await using var flow = new FlowSource();
+            var results = await RunAsync(input, flow, TestContext.Current.CancellationToken);
 
             Assert.Collection(results,
                 item => Assert.Equal(new Watermarked<int>(1, Watermark.From(10)), item),
@@ -113,8 +112,8 @@ public static class PairValueWatermarkProcessorTests
         [Fact(Timeout = TimeoutMs)]
         public async Task EmptyInput_CompletesImmediately()
         {
-            await using var flow = new FlowSource(TestContext.Current.CancellationToken);
-            var results = await RunAsync([], flow);
+            await using var flow = new FlowSource();
+            var results = await RunAsync([], flow, TestContext.Current.CancellationToken);
 
             Assert.Empty(results);
         }
@@ -129,8 +128,8 @@ public static class PairValueWatermarkProcessorTests
                 Watermark.From(20)
             };
 
-            await using var flow = new FlowSource(TestContext.Current.CancellationToken);
-            var results = await RunAsync(input, flow);
+            await using var flow = new FlowSource();
+            var results = await RunAsync(input, flow, TestContext.Current.CancellationToken);
 
             Assert.Empty(results);
         }

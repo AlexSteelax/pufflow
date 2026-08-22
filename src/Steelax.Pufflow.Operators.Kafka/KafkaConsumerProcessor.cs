@@ -37,7 +37,7 @@ namespace Steelax.Pufflow.Operators.Kafka;
 ///     </para>
 /// </remarks>
 [Flow]
-internal sealed partial class KafkaConsumerProcessor<TKey, TValue> : IAsyncDisposable
+internal sealed partial class KafkaConsumerProcessor<TKey, TValue> : IAsyncDisposable, IWatermarkCommiter
 {
     /// <summary>The Kafka consumer.</summary>
     private readonly IConsumer<TKey, TValue> _consumer;

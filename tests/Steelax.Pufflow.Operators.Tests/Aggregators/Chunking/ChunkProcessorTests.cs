@@ -18,14 +18,14 @@ public static partial class ChunkProcessorTests
     // --- helpers ---
 
     /// <summary>Runs the <c>Chunking</c> pipeline over an eagerly filled source and collects the chunk arrays.</summary>
-    private static async Task<List<int[]>> RunAsync(IEnumerable<int> input, int size, TimeSpan linger, FlowSource flow)
+    private static async Task<List<int[]>> RunAsync(IEnumerable<int> input, int size, TimeSpan linger, FlowSource flow, CancellationToken cancellationToken)
     {
         flow
             .OnAsyncConsumatorSource(input)
             .Chunking(size, linger)
             .Consume(out var reader);
 
-        await flow.ExecuteAsync();
+        await flow.ExecuteAsync(cancellationToken);
 
         return await ReadChunksAsync(reader);
     }
@@ -35,14 +35,15 @@ public static partial class ChunkProcessorTests
         FlowSource flow,
         int size,
         TimeSpan linger,
-        Func<ChannelWriter<int>, Task> fillAsync)
+        Func<ChannelWriter<int>, Task> fillAsync,
+        CancellationToken cancellationToken)
     {
         flow
             .OnAsyncConsumatorSource(out ChannelWriter<int> writer)
             .Chunking(size, linger)
             .Consume(out var reader);
 
-        var runTask = flow.ExecuteAsync();
+        var runTask = flow.ExecuteAsync(cancellationToken);
 
         await fillAsync(writer);
         writer.TryComplete();

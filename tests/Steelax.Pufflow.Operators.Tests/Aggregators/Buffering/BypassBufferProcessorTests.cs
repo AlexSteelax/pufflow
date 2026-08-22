@@ -13,14 +13,14 @@ public static class BypassBufferProcessorTests
 {
     private const int TimeoutMs = 1_000;
 
-    private static async Task<List<int>> RunAsync(IEnumerable<int> input, int capacity, FlowSource flow)
+    private static async Task<List<int>> RunAsync(IEnumerable<int> input, int capacity, FlowSource flow, CancellationToken cancellationToken)
     {
         flow
-            .OnAsyncProducatorSource<int>(input)
+            .OnAsyncProducatorSource(input)
             .Buffering(capacity)
             .Consume(out var reader);
 
-        await flow.ExecuteAsync();
+        await flow.ExecuteAsync(cancellationToken);
 
         return await reader.ReadAllAsync(TestContext.Current.CancellationToken)
             .ToListAsync(TestContext.Current.CancellationToken);
@@ -32,8 +32,8 @@ public static class BypassBufferProcessorTests
         public async Task FastSource_YieldsAllItemsInOrder()
         {
             // A small source passes through the buffer unchanged, in arrival order.
-            await using var flow = new FlowSource(TestContext.Current.CancellationToken);
-            var results = await RunAsync([1, 2, 3, 4, 5], capacity: 2, flow);
+            await using var flow = new FlowSource();
+            var results = await RunAsync([1, 2, 3, 4, 5], capacity: 2, flow, TestContext.Current.CancellationToken);
 
             Assert.Equal([1, 2, 3, 4, 5], results);
         }
@@ -41,8 +41,8 @@ public static class BypassBufferProcessorTests
         [Fact(Timeout = TimeoutMs)]
         public async Task EmptySource_YieldsNothing()
         {
-            await using var flow = new FlowSource(TestContext.Current.CancellationToken);
-            var results = await RunAsync([], capacity: 2, flow);
+            await using var flow = new FlowSource();
+            var results = await RunAsync([], capacity: 2, flow, TestContext.Current.CancellationToken);
 
             Assert.Empty(results);
         }
@@ -51,8 +51,8 @@ public static class BypassBufferProcessorTests
         public async Task SourceLargerThanBuffer_AllItemsDelivered()
         {
             // The writer blocks on the full buffer (backpressure) and resumes as the reader drains it.
-            await using var flow = new FlowSource(TestContext.Current.CancellationToken);
-            var results = await RunAsync(Enumerable.Range(0, 100), capacity: 2, flow);
+            await using var flow = new FlowSource();
+            var results = await RunAsync(Enumerable.Range(0, 100), capacity: 2, flow, TestContext.Current.CancellationToken);
 
             Assert.Equal(Enumerable.Range(0, 100), results);
         }
@@ -61,8 +61,8 @@ public static class BypassBufferProcessorTests
         public async Task CapacityOfOne_SequentialDelivery()
         {
             // A capacity of one still delivers every item exactly once, in order.
-            await using var flow = new FlowSource(TestContext.Current.CancellationToken);
-            var results = await RunAsync(Enumerable.Range(0, 20), capacity: 1, flow);
+            await using var flow = new FlowSource();
+            var results = await RunAsync(Enumerable.Range(0, 20), capacity: 1, flow, TestContext.Current.CancellationToken);
 
             Assert.Equal(Enumerable.Range(0, 20), results);
         }

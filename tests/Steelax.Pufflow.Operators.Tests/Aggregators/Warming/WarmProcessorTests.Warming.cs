@@ -15,7 +15,7 @@ public static partial class WarmProcessorTests
                 new(4, Watermark.From(40))
             };
 
-            await using var flow = new FlowSource(TestContext.Current.CancellationToken);
+            await using var flow = new FlowSource();
             var policy = new TestPolicy(); // warm even keys (2, 4)
 
             var results = await RunAsync(
@@ -23,7 +23,9 @@ public static partial class WarmProcessorTests
                 policy,
                 new ListAccumulatorFactory(),
                 input,
-                flow);
+                flow,
+                null,
+                TestContext.Current.CancellationToken);
 
             var groups = results.Where(static r => r.IsT1).Select(static r => r.AsT1).ToArray();
             Assert.Equal(new[] { "2", "4" }, groups);
@@ -43,7 +45,7 @@ public static partial class WarmProcessorTests
                 new(4, Watermark.From(40)) // warm
             };
 
-            await using var flow = new FlowSource(TestContext.Current.CancellationToken);
+            await using var flow = new FlowSource();
             var policy = new TestPolicy();
 
             var results = await RunAsync(
@@ -51,7 +53,9 @@ public static partial class WarmProcessorTests
                 policy,
                 new ListAccumulatorFactory(),
                 input,
-                flow);
+                flow,
+                null,
+                TestContext.Current.CancellationToken);
 
             var values = results.Where(static r => r.IsT0).Select(static r => r.AsT0).ToArray();
             var groups = results.Where(static r => r.IsT1).Select(static r => r.AsT1).ToArray();
@@ -63,14 +67,16 @@ public static partial class WarmProcessorTests
         [Fact(Timeout = 1_000)]
         public async Task EmptySource_CompletesImmediately()
         {
-            await using var flow = new FlowSource(TestContext.Current.CancellationToken);
+            await using var flow = new FlowSource();
 
             var results = await RunAsync(
                 new SyncJobFactory(),
                 new TestPolicy(),
                 new ListAccumulatorFactory(),
                 [],
-                flow);
+                flow,
+                null,
+                TestContext.Current.CancellationToken);
 
             Assert.Empty(results);
         }

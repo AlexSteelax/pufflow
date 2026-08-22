@@ -22,19 +22,22 @@ public class PipelineBenchmarks
     private static readonly TimeSpan ChunkLinger = TimeSpan.FromMilliseconds(100);
 
     private FlowSource _flow = null!;
+    
+    [BenchmarkCancellation]
+    public CancellationToken CancellationToken { get; set; }
 
     /// <summary>Baseline: <c>source → null sink</c>, no operators. Measures the full pipeline overhead.</summary>
     [Benchmark(OperationsPerInvoke = ItemsPerInvoke)]
     public async Task Baseline()
     {
-        await _flow.ExecuteAsync();
+        await _flow.ExecuteAsync(CancellationToken);
     }
 
     /// <summary>Chunking: <c>source → Chunking → null sink</c>. Adds the chunking operator on top.</summary>
     [Benchmark(OperationsPerInvoke = ItemsPerInvoke)]
     public async Task Chunking()
     {
-        await _flow.ExecuteAsync();
+        await _flow.ExecuteAsync(CancellationToken);
     }
 
     /// <summary>Builds a fresh pipeline for the baseline benchmark (no operator).</summary>

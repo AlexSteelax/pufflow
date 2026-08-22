@@ -21,7 +21,7 @@ public static partial class WarmProcessorTests
                 .Select(i => new Watermarked<int>(i % modulo, Watermark.From(i * 10)))
                 .ToArray();
 
-            await using var flow = new FlowSource(TestContext.Current.CancellationToken);
+            await using var flow = new FlowSource();
             var policy = new PredicatePolicy(static key => key >= 5);
 
             var results = await RunAsync(
@@ -29,7 +29,9 @@ public static partial class WarmProcessorTests
                 policy,
                 new QueueAccumulatorFactory(),
                 input,
-                flow);
+                flow,
+                null,
+                TestContext.Current.CancellationToken);
 
             // Mixed mode: both passthrough values and warmed groups are present.
             var values = results.Where(static r => r.IsT0).Select(static r => r.AsT0).ToArray();
@@ -65,7 +67,7 @@ public static partial class WarmProcessorTests
                 .Select(i => new Watermarked<int>(2, Watermark.From((i + 1) * 10)))
                 .ToArray();
 
-            await using var flow = new FlowSource(TestContext.Current.CancellationToken);
+            await using var flow = new FlowSource();
             var policy = new TestPolicy(); // warm even keys (2)
 
             var results = await RunAsync(
@@ -73,7 +75,9 @@ public static partial class WarmProcessorTests
                 policy,
                 new ListAccumulatorFactory(),
                 input,
-                flow);
+                flow,
+                null,
+                TestContext.Current.CancellationToken);
 
             // The key is warmable — there must be no passthrough.
             Assert.DoesNotContain(results, static r => r.IsT0);
@@ -101,7 +105,7 @@ public static partial class WarmProcessorTests
                 .Select(i => new Watermarked<int>(i * 2, Watermark.From((i + 1) * 10)))
                 .ToArray();
 
-            await using var flow = new FlowSource(TestContext.Current.CancellationToken);
+            await using var flow = new FlowSource();
             var policy = new TestPolicy(); // warm even keys
 
             var results = await RunAsync(
@@ -109,7 +113,9 @@ public static partial class WarmProcessorTests
                 policy,
                 new ListAccumulatorFactory(),
                 input,
-                flow);
+                flow,
+                null,
+                TestContext.Current.CancellationToken);
 
             Assert.DoesNotContain(results, static r => r.IsT0);
 

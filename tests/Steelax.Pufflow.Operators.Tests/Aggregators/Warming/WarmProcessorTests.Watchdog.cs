@@ -16,7 +16,7 @@ public static partial class WarmProcessorTests
                 .Select(i => new Watermarked<int>(i, Watermark.From(i)))
                 .ToArray();
 
-            await using var flow = new FlowSource(TestContext.Current.CancellationToken);
+            await using var flow = new FlowSource();
             var policy = new TestPolicy(); // warm even keys
 
             var results = await RunAsync(
@@ -25,7 +25,8 @@ public static partial class WarmProcessorTests
                 new ListAccumulatorFactory(),
                 input,
                 flow,
-                TimeSpan.FromMilliseconds(10));
+                TimeSpan.FromMilliseconds(10),
+                TestContext.Current.CancellationToken);
 
             var values = results.Where(static r => r.IsT0).Select(static r => r.AsT0).ToArray();
             var groups = results.Where(static r => r.IsT1).Select(static r => r.AsT1).ToArray();
@@ -41,14 +42,16 @@ public static partial class WarmProcessorTests
         public async Task DisabledByDefault_CompletesImmediately()
         {
             // watchdogPeriod not passed → null → watchdog disabled (as before).
-            await using var flow = new FlowSource(TestContext.Current.CancellationToken);
+            await using var flow = new FlowSource();
 
             var results = await RunAsync(
                 new SyncJobFactory(),
                 new TestPolicy(),
                 new ListAccumulatorFactory(),
                 [],
-                flow);
+                flow,
+                null,
+                TestContext.Current.CancellationToken);
 
             Assert.Empty(results);
         }
@@ -57,7 +60,7 @@ public static partial class WarmProcessorTests
         public async Task InfinitePeriod_Disabled_CompletesImmediately()
         {
             // Explicit Timeout.InfiniteTimeSpan → watchdog disabled.
-            await using var flow = new FlowSource(TestContext.Current.CancellationToken);
+            await using var flow = new FlowSource();
 
             var results = await RunAsync(
                 new SyncJobFactory(),
@@ -65,7 +68,8 @@ public static partial class WarmProcessorTests
                 new ListAccumulatorFactory(),
                 [],
                 flow,
-                Timeout.InfiniteTimeSpan);
+                Timeout.InfiniteTimeSpan,
+                TestContext.Current.CancellationToken);
 
             Assert.Empty(results);
         }

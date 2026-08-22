@@ -8,7 +8,7 @@ public class BaseTests
     [Fact]
     public async Task AsyncEnumeratorChain_ProducesExpectedResults()
     {
-        await using var source = new FlowSource(TestContext.Current.CancellationToken);
+        await using var source = new FlowSource();
 
         var sourceFlow = source
             .OnAsyncEnumeratorSource(Enumerable.Range(1, 5))
@@ -16,7 +16,7 @@ public class BaseTests
             .Next(new FlowPipeAsyncEnumeratorToAsyncEnumerator<int, int>(static v => v))
             .Consume(out var reader);
 
-        await source.ExecuteAsync();
+        await source.ExecuteAsync(TestContext.Current.CancellationToken);
 
         var ret = await reader.ReadAllAsync(TestContext.Current.CancellationToken).ToListAsync(TestContext.Current.CancellationToken);
 
@@ -26,7 +26,7 @@ public class BaseTests
     [Fact]
     public async Task AsyncConsumatorChain_ProducesExpectedResults()
     {
-        await using var source = new FlowSource(TestContext.Current.CancellationToken);
+        await using var source = new FlowSource();
 
         var sourceFlow = source
             .OnAsyncConsumatorSource(Enumerable.Range(1, 5))
@@ -34,7 +34,7 @@ public class BaseTests
             .Next(new FlowPipeAsyncConsumatorToAsyncConsumator<int, int>(static v => v))
             .Consume(out var reader);
 
-        await source.ExecuteAsync();
+        await source.ExecuteAsync(TestContext.Current.CancellationToken);
 
         var ret = await reader.ReadAllAsync(TestContext.Current.CancellationToken).ToListAsync(TestContext.Current.CancellationToken);
 
@@ -44,7 +44,7 @@ public class BaseTests
     [Fact]
     public async Task AsyncProducatorChain_ProducesExpectedResults()
     {
-        await using var source = new FlowSource(TestContext.Current.CancellationToken);
+        await using var source = new FlowSource();
 
         var sourceFlow = source
             .OnAsyncProducatorSource(Enumerable.Range(1, 5))
@@ -52,7 +52,7 @@ public class BaseTests
             .Next(new FlowPipeAsyncProducatorToAsyncProducator<int, int>(static v => v))
             .Consume(out var reader);
 
-        await source.ExecuteAsync();
+        await source.ExecuteAsync(TestContext.Current.CancellationToken);
 
         var ret = await reader.ReadAllAsync(TestContext.Current.CancellationToken).ToListAsync(TestContext.Current.CancellationToken);
 

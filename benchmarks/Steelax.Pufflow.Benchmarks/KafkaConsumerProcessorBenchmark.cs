@@ -50,9 +50,9 @@ public class KafkaConsumerProcessorBenchmark
             .Range(0, ItemsPerInvoke)
             .Select(static i => new KeyValuePair<string, string>(i.ToString(), "value"));
         
-        _flow = new FlowSource(CancellationToken);
+        _flow = new FlowSource();
         _flow
-            .OnKafkaSource(options, items)
+            .OnKafkaSource(options, items, out _)
             .Consume();
     }
 
@@ -63,7 +63,7 @@ public class KafkaConsumerProcessorBenchmark
     [Benchmark(OperationsPerInvoke = ItemsPerInvoke)]
     public async Task Consume()
     {
-        await _flow.ExecuteAsync();
+        await _flow.ExecuteAsync(CancellationToken);
     }
 
     /// <summary>Releases the pipeline (safe after the loop has already completed).</summary>

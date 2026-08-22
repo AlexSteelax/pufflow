@@ -109,30 +109,47 @@ public static class FlowContextTests
         }
     }
 
-    public class LinkedToken
+    public class ExecuteAsyncCancellation
     {
-        [Fact]
-        public void ExternalCancellation_ShouldCancelContext()
+        [Fact(Timeout = 5_000)]
+        public async Task ExternalCancellation_ShouldCancelContext()
         {
-            using var cts = new CancellationTokenSource();
-            using var source = new FlowSource(cts.Token);
+            using var cts = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+            await using var source = new FlowSource();
             var ctx = source.Context;
+
+            // A background task that waits for the context token, so ExecuteAsync does not complete on its own.
+            _ = source.RegisterBackground(async () => await Task.Delay(Timeout.InfiniteTimeSpan, ctx.Token));
+
+            var runTask = source.ExecuteAsync(cts.Token);
 
             Assert.False(ctx.Token.IsCancellationRequested);
 
-            cts.Cancel();
+            await cts.CancelAsync();
 
-            Assert.True(ctx.Token.IsCancellationRequested);
+            // The external cancellation cascades into the flow token: the background task is canceled and
+            // ExecuteAsync faults with the cancellation.
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => runTask);
         }
 
-        [Fact]
-        public void Done_ShouldCancelContextWithLinkedToken()
+        [Fact(Timeout = 5_000)]
+        public async Task ContextCancellation_ShouldStopPipeline()
         {
-            using var cts = new CancellationTokenSource();
-            using var source = new FlowSource(cts.Token);
+            await using var source = new FlowSource();
             var ctx = source.Context;
 
+            _ = source.RegisterBackground(async () => await Task.Delay(Timeout.InfiniteTimeSpan, ctx.Token));
+
+            var runTask = source.ExecuteAsync(TestContext.Current.CancellationToken);
+
+            Assert.False(runTask.IsCompleted);
+
             ctx.Cancel();
+
+            // Cancelling the context is a normal pipeline stop (like DisposeAsync): the background task
+            // is canceled and ExecuteAsync completes successfully — internal cancellation is not surfaced
+            // as an exception.
+            await runTask;
 
             Assert.True(ctx.Token.IsCancellationRequested);
         }
