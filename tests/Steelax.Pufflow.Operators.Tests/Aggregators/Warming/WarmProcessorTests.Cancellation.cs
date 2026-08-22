@@ -43,13 +43,16 @@ public static partial class WarmProcessorTests
             // Wait for the warm job to start — by then the loop is asleep waiting.
             await WaitUntilAsync(() => job.Started, flow.Context.Token);
 
+            // Stop the pipeline in the correct order: cancel the flow token first, let the background
+            // tasks unwind on the (still valid) token, wait for ExecuteAsync to finish, and only then
+            // dispose the source. Disposing first would tear down the CTS while tasks still observe it.
+            flow.Context.Cancel();
+            await execution;
             await flow.DisposeAsync();
 
             // The buffer must be completed (in finally) — the wait finishes and TryRead reports Completed.
             await reader.WaitToReadAsync(TestContext.Current.CancellationToken);
             Assert.True(reader.Completion.IsCompleted);
-
-            await execution;
         }
     }
 }
