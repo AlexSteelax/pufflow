@@ -13,6 +13,7 @@
         <PackageId>Steelax.Pufflow.Generator</PackageId>
         <Description>Source generator for Steelax.Pufflow dataflow pipelines. Generates IFlowable implementation from [Flow]-annotated classes.</Description>
         <PackageTags>dataflow;pipeline;poll;push;source-generator;roslyn</PackageTags>
+        <PackageReleaseNotes>Initial pre-release.</PackageReleaseNotes>
 
         <!-- Documentation -->
         <GenerateDocumentationFile>true</GenerateDocumentationFile>
@@ -21,6 +22,12 @@
     <!-- Enforce custom packaging layouts -->
     <ItemGroup>
         <None Include="$(OutputPath)\$(AssemblyName).dll"
+              Pack="true"
+              PackagePath="analyzers/dotnet/cs"
+              Visible="false"/>
+        <!-- Pack the PDB so the NuGet symbols service can validate the analyzer DLL
+             (snupkg is otherwise empty because IncludeBuildOutput is disabled) -->
+        <None Include="$(OutputPath)\$(AssemblyName).pdb"
               Pack="true"
               PackagePath="analyzers/dotnet/cs"
               Visible="false"/>
