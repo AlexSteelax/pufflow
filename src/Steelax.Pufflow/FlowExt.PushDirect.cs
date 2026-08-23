@@ -5,6 +5,30 @@ namespace Steelax.Pufflow;
 public static partial class FlowExt
 {
     /// <summary>
+    ///     Chains a producator source to a producator pipe (push→push). The source node and the pipe are
+    ///     grouped into a <see cref="FlowMetaCollection" /> for reverse-order resolution.
+    /// </summary>
+    [PublicAPI]
+    public static Source<IProducator<T2>> Next<T1, T2>(this Source<IProducator<T1>> left,
+        IFlowable<Pipe<IProducator<T1>, IProducator<T2>>> right)
+    {
+        var collection = GetOrCreateCollection(left.Meta);
+        collection.Push(FlowMetaNode.Create(right, FlowKind.OutProducator, FlowKind.Producator));
+        return new Source<IProducator<T2>>(collection, left.Context);
+    }
+
+    /// <summary>
+    ///     Chains a producator pipe to a producator pipe (push→push).
+    /// </summary>
+    [PublicAPI]
+    public static Source<IProducator<T2>> Next<T1, TMid, T2>(this Pipe<IProducator<T1>, IProducator<TMid>> left, IFlowable<Pipe<IProducator<TMid>, IProducator<T2>>> right)
+    {
+        var collection = (FlowMetaCollection)left.Meta;
+        collection.Push(FlowMetaNode.Create(right, FlowKind.OutProducator, FlowKind.Producator));
+        return new Source<IProducator<T2>>(collection, left.Context);
+    }
+
+    /// <summary>
     ///     Chains an async producator source to an async producator pipe (async push→async push). The
     ///     source node and the pipe are grouped into a <see cref="FlowMetaCollection" /> for reverse-order
     ///     resolution.

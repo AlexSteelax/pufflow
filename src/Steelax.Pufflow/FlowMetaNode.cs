@@ -598,9 +598,12 @@ internal sealed class FlowMetaNode : FlowMeta
                     break;
                 }
 
-                // ImplementsGenericInterface strips the by-ref wrapper (a ref/out parameter exposes the
-                // underlying interface type).
-                if (!ImplementsGenericInterface(parameter.ParameterType, interfaces[i]))
+                // The parameter must be exactly the requested flow interface (after stripping a ref/out
+                // wrapper). An inheritance match is intentionally rejected: IAsyncProducator{T} derives
+                // from IProducator{T}, so a synchronous request for IProducator{} must not bind to an
+                // async handler (and vice versa) — otherwise a node exposing both overloads would resolve
+                // the wrong one.
+                if (!IsExactGenericInterface(parameter.ParameterType, interfaces[i]))
                 {
                     matches = false;
                     break;
@@ -654,15 +657,17 @@ internal sealed class FlowMetaNode : FlowMeta
         return type == typeof(IProducator<>) || type == typeof(IAsyncProducator<>);
     }
 
-    private static bool ImplementsGenericInterface(Type type, Type interfaceType)
+    /// <summary>
+    ///     Returns <see langword="true" /> when the parameter type is exactly the requested generic flow
+    ///     interface (after stripping a ref/out wrapper). Inherited interfaces are deliberately excluded:
+    ///     <c>IAsyncProducator{T}</c> derives from <c>IProducator{T}</c>, so a sync request must not match
+    ///     an async handler. A <c>Fuse(...)</c> parameter is always declared as a flow interface, so an
+    ///     exact generic-definition comparison is sufficient.
+    /// </summary>
+    private static bool IsExactGenericInterface(Type type, Type interfaceType)
     {
         type = UnwrapByRef(type);
-
-        if (type.IsGenericType && type.GetGenericTypeDefinition() == interfaceType)
-            return true;
-
-        return type.GetInterfaces()
-            .Any(i => i.IsGenericType && i.GetGenericTypeDefinition() == interfaceType);
+        return type.IsGenericType && type.GetGenericTypeDefinition() == interfaceType;
     }
 
     /// <summary>
