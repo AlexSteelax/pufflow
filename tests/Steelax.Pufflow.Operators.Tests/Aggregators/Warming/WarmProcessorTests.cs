@@ -60,6 +60,8 @@ public static partial class WarmProcessorTests
         private readonly List<int> _values = new();
         private int _consumed;
 
+        protected internal override int EstimatedWeight => 1;
+
         protected override void Add(int value)
         {
             _values.Add(value);
@@ -94,6 +96,8 @@ public static partial class WarmProcessorTests
     private sealed class QueueAccumulator : WarmAccumulator<int, int>
     {
         private readonly Queue<int> _values = new();
+
+        protected internal override int EstimatedWeight => 1;
 
         protected override void Add(int value)
         {

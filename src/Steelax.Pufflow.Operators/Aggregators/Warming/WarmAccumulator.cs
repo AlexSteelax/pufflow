@@ -41,7 +41,7 @@ public abstract class WarmAccumulator<TValue, TGroup>
     ///     initialized by the subclass (for the first value) and updated by <see cref="Add" /> after each
     ///     stored value; zero means the next value adds no weight.
     /// </summary>
-    protected internal int EstimatedWeight { get; }
+    protected internal abstract int EstimatedWeight { get; }
 
     /// <summary>Stores a value and updates <see cref="EstimatedWeight" /> for the next value.</summary>
     /// <param name="value">The value to store.</param>
