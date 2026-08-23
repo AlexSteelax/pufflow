@@ -180,6 +180,15 @@ public static class OperatorExtensions
         return left.Next(processor.FlowAProdToAProd);
     }
     
+    /// <summary>
+    ///     Projects each element of an async push stream through a <see cref="MapSelector{TSource,TTarget}" />,
+    ///     producing a 1:1 transformed push stream.
+    /// </summary>
+    /// <typeparam name="TSource">The input element type.</typeparam>
+    /// <typeparam name="TTarget">The output element type.</typeparam>
+    /// <param name="left">The upstream push source whose elements are projected.</param>
+    /// <param name="selector">The pure function applied to each element to produce the output element.</param>
+    /// <returns>A source emitting the projected elements downstream.</returns>
     public static Source<IProducator<TTarget>> Map<TSource, TTarget>(this Source<IProducator<TSource>> left, MapSelector<TSource, TTarget> selector)
     {
         var processor = new BypassMapProcessor<TSource, TTarget>(selector);
