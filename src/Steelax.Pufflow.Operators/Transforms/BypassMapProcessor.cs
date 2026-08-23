@@ -24,14 +24,8 @@ namespace Steelax.Pufflow.Operators.Transforms;
 ///     </para>
 /// </remarks>
 [Flow]
-internal sealed partial class BypassMapProcessor<TSource, TTarget>(MapSelector<TSource, TTarget> selector) : IAsyncProducator<TSource>
+internal sealed partial class BypassMapProcessor<TSource, TTarget>(MapSelector<TSource, TTarget> selector)
 {
-    /// <summary>The downstream producator the projected values are pushed into.</summary>
-    private IAsyncProducator<TTarget> _target = null!;
-
-    /// <summary>The projected value retained while the downstream target is full (single-element hold-slot).</summary>
-    private PendingValue<TTarget> _pending;
-
     /// <summary>
     ///     Hands out the push input producer (this component) and captures the downstream target to write into.
     /// </summary>
@@ -40,39 +34,90 @@ internal sealed partial class BypassMapProcessor<TSource, TTarget>(MapSelector<T
     /// <param name="context">The flow context providing cancellation for the pipeline.</param>
     public void Fuse(out IAsyncProducator<TSource> source, IAsyncProducator<TTarget> target, FlowContext context)
     {
-        source = this;
-        _target = target;
+        source = new AsyncProducator(target, selector);
+    }
+    
+    /// <summary>
+    ///     Hands out the push input producer (this component) and captures the downstream target to write into.
+    /// </summary>
+    /// <param name="source">The push (producator) side this component implements; written by the upstream source.</param>
+    /// <param name="target">The downstream producator to push the projected values into.</param>
+    /// <param name="context">The flow context providing cancellation for the pipeline.</param>
+    public void Fuse(out IProducator<TSource> source, IProducator<TTarget> target, FlowContext context)
+    {
+        source = new Producator(target, selector);
     }
 
-    /// <summary>
-    ///     Accepts a source value: first flushes any retained projected value (the hold-slot) into the
-    ///     target, then projects the new value. When the target is full, the projected value is retained in
-    ///     the hold-slot so the selector is not re-invoked and ordering is preserved.
-    /// </summary>
-    /// <param name="value">The source value to project and forward.</param>
-    /// <returns><see langword="true" /> when the value was accepted; otherwise <see langword="false" /> (backpressure).</returns>
-    public bool TryWrite(TSource value)
+    private sealed class AsyncProducator(IAsyncProducator<TTarget> writer, MapSelector<TSource, TTarget> selector) : IAsyncProducator<TSource>
     {
-        if (_pending.Occupied)
+        /// <summary>The projected value retained while the downstream target is full (single-element hold-slot).</summary>
+        private PendingValue<TTarget> _pending;
+        
+        /// <summary>
+        ///     Accepts a source value: first flushes any retained projected value (the hold-slot) into the
+        ///     target, then projects the new value. When the target is full, the projected value is retained in
+        ///     the hold-slot so the selector is not re-invoked and ordering is preserved.
+        /// </summary>
+        /// <param name="value">The source value to project and forward.</param>
+        /// <returns><see langword="true" /> when the value was accepted; otherwise <see langword="false" /> (backpressure).</returns>
+        public bool TryWrite(TSource value)
         {
-            if (!_target.TryWrite(_pending.Value))
-                return false;
+            if (_pending.Occupied)
+            {
+                if (!writer.TryWrite(_pending.Value))
+                    return false;
 
-            _pending = default;
+                _pending = default;
+            }
+
+            var mapped = selector.Invoke(value);
+
+            if (writer.TryWrite(mapped))
+                return true;
+
+            _pending = new PendingValue<TTarget>(mapped);
+            return false;
         }
 
-        var mapped = selector.Invoke(value);
+        /// <summary>Signals the end of the stream on the downstream target.</summary>
+        public bool TryComplete(Exception? ex = null) => writer.TryComplete(ex);
 
-        if (_target.TryWrite(mapped))
-            return true;
-
-        _pending = new PendingValue<TTarget>(mapped);
-        return false;
+        /// <summary>Delegates the write-readiness wait to the downstream target.</summary>
+        public ValueTask<bool> WaitToWriteAsync() => writer.WaitToWriteAsync();
     }
+    
+    private sealed class Producator(IProducator<TTarget> writer, MapSelector<TSource, TTarget> selector) : IProducator<TSource>
+    {
+        /// <summary>The projected value retained while the downstream target is full (single-element hold-slot).</summary>
+        private PendingValue<TTarget> _pending;
+        
+        /// <summary>
+        ///     Accepts a source value: first flushes any retained projected value (the hold-slot) into the
+        ///     target, then projects the new value. When the target is full, the projected value is retained in
+        ///     the hold-slot so the selector is not re-invoked and ordering is preserved.
+        /// </summary>
+        /// <param name="value">The source value to project and forward.</param>
+        /// <returns><see langword="true" /> when the value was accepted; otherwise <see langword="false" /> (backpressure).</returns>
+        public bool TryWrite(TSource value)
+        {
+            if (_pending.Occupied)
+            {
+                if (!writer.TryWrite(_pending.Value))
+                    return false;
 
-    /// <summary>Signals the end of the stream on the downstream target.</summary>
-    public bool TryComplete(Exception? ex = null) => _target.TryComplete(ex);
+                _pending = default;
+            }
 
-    /// <summary>Delegates the write-readiness wait to the downstream target.</summary>
-    public ValueTask<bool> WaitToWriteAsync() => _target.WaitToWriteAsync();
+            var mapped = selector.Invoke(value);
+
+            if (writer.TryWrite(mapped))
+                return true;
+
+            _pending = new PendingValue<TTarget>(mapped);
+            return false;
+        }
+
+        /// <summary>Signals the end of the stream on the downstream target.</summary>
+        public bool TryComplete(Exception? ex = null) => writer.TryComplete(ex);
+    }
 }

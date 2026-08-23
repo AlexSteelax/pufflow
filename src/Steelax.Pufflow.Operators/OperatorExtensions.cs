@@ -177,6 +177,12 @@ public static class OperatorExtensions
     public static Source<IAsyncProducator<TTarget>> Map<TSource, TTarget>(this Source<IAsyncProducator<TSource>> left, MapSelector<TSource, TTarget> selector)
     {
         var processor = new BypassMapProcessor<TSource, TTarget>(selector);
-        return left.Next(processor);
+        return left.Next(processor.FlowAProdToAProd);
+    }
+    
+    public static Source<IProducator<TTarget>> Map<TSource, TTarget>(this Source<IProducator<TSource>> left, MapSelector<TSource, TTarget> selector)
+    {
+        var processor = new BypassMapProcessor<TSource, TTarget>(selector);
+        return left.Next(processor.FlowProdToProd);
     }
 }
