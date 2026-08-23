@@ -21,6 +21,10 @@
     </ItemGroup>
 
     <ItemGroup>
+        <InternalsVisibleTo Include="Steelax.Pufflow.Operators.Kafka.Tests"/>
+    </ItemGroup>
+
+    <ItemGroup>
         <ProjectReference Include="..\Steelax.Pufflow.Generator\Steelax.Pufflow.Generator.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false"/>
         <ProjectReference Include="..\Steelax.Pufflow.Operators\Steelax.Pufflow.Operators.csproj" />
     </ItemGroup>

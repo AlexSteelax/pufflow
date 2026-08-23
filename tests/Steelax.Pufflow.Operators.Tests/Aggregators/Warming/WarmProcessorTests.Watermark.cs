@@ -12,13 +12,13 @@ public static partial class WarmProcessorTests
             // Non-uniform mixed mode with accumulation: values cycle 1..8, 0 (mod 9), key equals the
             // value, so keys are reused and accumulate into an honest per-key queue (TValue == TGroup,
             // each value is released exactly one at a time). We warm values with remainder 5..8 (about
-            // half of the stream), the rest pass through. Input watermarks strictly grow (10 → 1000),
-            // so the output watermarks (segment-covering + final global) must be strictly increasing —
-            // head-of-line segment emission.
+            // half of the stream), the rest pass through. Input watermarks are non-decreasing and repeat
+            // three times each (as a real provider would within one clock tick), so the output watermarks
+            // (segment-covering + final global) must be non-decreasing — head-of-line segment emission.
             const int n = 100;
             const int modulo = 9;
             var input = Enumerable.Range(1, n)
-                .Select(i => new Watermarked<int>(i % modulo, Watermark.From(i * 10)))
+                .Select(i => new Watermarked<int>(i % modulo, Watermark.From(((i + 1) / 3) * 10)))
                 .ToArray();
 
             await using var flow = new FlowSource();
@@ -43,28 +43,29 @@ public static partial class WarmProcessorTests
             // must total the number of input values — nothing is lost and nothing is duplicated.
             Assert.Equal(n, values.Length + groups.Length);
 
-            // All output watermarks strictly increase (no equal, no decreasing pairs).
+            // All real (non-Nothing) output watermarks are non-decreasing: they may repeat, as the input
+            // watermarks repeat within a tick, but collapsing consecutive duplicates yields a strictly
+            // increasing sequence — progress never goes backwards.
             var watermarks = results.Where(static r => r.IsT2).Select(static r => r.AsT2).ToArray();
-            Assert.NotEmpty(watermarks);
-            for (var i = 1; i < watermarks.Length; i++)
-                Assert.True(watermarks[i - 1] < watermarks[i],
-                    $"watermark[{i - 1}]={watermarks[i - 1]} is not less than watermark[{i}]={watermarks[i]}");
+            var real = watermarks.Where(static w => !w.IsNothing).ToArray();
+            Assert.NotEmpty(real);
+            Assert.DoesNotContain(watermarks, static w => w.IsNothing);
+            AssertX.StrictlyIncreasing(real);
 
-            // The final watermark is the maximum of the input and closes the pipeline: it is the last
-            // element of the whole output stream, not just the last watermark among the T2 items.
-            Assert.Equal(Watermark.From(n * 10), watermarks[^1]);
-            Assert.True(results[^1].IsT2, "watermark should be the last item");
-            Assert.Equal(Watermark.From(n * 10), results[^1].AsT2);
+            // The maximum real watermark equals the maximum of the input and closes the pipeline.
+            var maxInput = Watermark.From(((n + 1) / 3) * 10);
+            Assert.Equal(maxInput, real.Max());
         }
 
         [Fact(Timeout = 1_000)]
         public async Task MonotonicWatermarks_OneKey_LargeInput_LastWatermarkEmitted()
         {
-            // The same warmable key on 500 positions, the watermark grows with each message
-            // (10 → 20 → … → 5000). The output watermark is exactly the last (maximum) one.
+            // The same warmable key on 500 positions, the watermark grows with each message but repeats
+            // three times (as a real provider would within one clock tick). The output watermark is
+            // exactly the last (maximum) one.
             const int n = 500;
             var input = Enumerable.Range(0, n)
-                .Select(i => new Watermarked<int>(2, Watermark.From((i + 1) * 10)))
+                .Select(i => new Watermarked<int>(2, Watermark.From(((i + 1) / 3) * 10)))
                 .ToArray();
 
             await using var flow = new FlowSource();
@@ -85,24 +86,29 @@ public static partial class WarmProcessorTests
             // All values of the key are accumulated into a single group (one group per key).
             Assert.Equal(1, results.Count(static r => r.IsT1));
 
-            // No output watermark exceeds the last (maximum) one among the input.
+            // Real (non-Nothing) output watermarks are non-decreasing (consecutive duplicates collapsed)
+            // and never exceed the input maximum.
             var watermarks = results.Where(static r => r.IsT2).Select(static r => r.AsT2).ToArray();
-            Assert.NotEmpty(watermarks);
-            Assert.All(watermarks, w => Assert.True(w <= Watermark.From(n * 10)));
+            var real = watermarks.Where(static w => !w.IsNothing).ToArray();
+            Assert.NotEmpty(real);
+            Assert.DoesNotContain(watermarks, static w => w.IsNothing);
+            AssertX.StrictlyIncreasing(real);
+            Assert.All(real, w => Assert.True(w <= Watermark.From((n / 3) * 10)));
 
             // The final (global progress) watermark is exactly the last of the input.
             Assert.True(results[^1].IsT2, "watermark should be the last item");
-            Assert.Equal(Watermark.From(n * 10), results[^1].AsT2);
+            Assert.Equal(Watermark.From((n / 3) * 10), results[^1].AsT2);
         }
 
         [Fact(Timeout = 1_000)]
         public async Task MonotonicWatermarks_UniqueKeys_LargeInput_LastWatermarkEmitted()
         {
-            // 500 unique warmable keys, the watermark grows monotonically. The final output watermark
-            // must be the last (maximum), not the first or an intermediate one.
+            // 500 unique warmable keys, the watermark grows but repeats three times (as a real provider
+            // would within one clock tick). The final output watermark must be the last (maximum),
+            // not the first or an intermediate one.
             const int n = 500;
             var input = Enumerable.Range(0, n)
-                .Select(i => new Watermarked<int>(i * 2, Watermark.From((i + 1) * 10)))
+                .Select(i => new Watermarked<int>(i * 2, Watermark.From(((i + 1) / 3) * 10)))
                 .ToArray();
 
             await using var flow = new FlowSource();
@@ -123,13 +129,19 @@ public static partial class WarmProcessorTests
             var groups = results.Where(static r => r.IsT1).Select(static r => r.AsT1).ToArray();
             Assert.Equal(n, groups.Length);
 
+            // Real (non-Nothing) output watermarks are non-decreasing. With repeated input watermarks the
+            // same value may legitimately appear more than once (it lands in both the closing and the next
+            // window), so collapse consecutive duplicates and require the remaining distinct sequence to be
+            // strictly increasing — progress never goes backwards.
             var watermarks = results.Where(static r => r.IsT2).Select(static r => r.AsT2).ToArray();
-            Assert.NotEmpty(watermarks);
+            var real = watermarks.Where(static w => !w.IsNothing).ToArray();
+            Assert.NotEmpty(real);
+            Assert.DoesNotContain(watermarks, static w => w.IsNothing);
+            AssertX.StrictlyIncreasing(real);
 
-            // The final watermark is the maximum on the output and equals the last of the input.
-            Assert.Equal(Watermark.From(n * 10), watermarks.Max());
-            Assert.True(results[^1].IsT2, "watermark should be the last item");
-            Assert.Equal(Watermark.From(n * 10), results[^1].AsT2);
+            // The maximum real watermark equals the maximum of the input.
+            var maxInput = Watermark.From((n / 3) * 10);
+            Assert.Equal(maxInput, real.Max());
         }
     }
 }

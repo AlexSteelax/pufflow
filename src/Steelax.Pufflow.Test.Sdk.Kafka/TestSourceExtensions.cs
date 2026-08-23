@@ -2,6 +2,7 @@
 using Confluent.Kafka;
 using JetBrains.Annotations;
 using Steelax.Pufflow.Abstractions;
+using Steelax.Pufflow.Operators;
 using Steelax.Pufflow.Operators.Common;
 using Steelax.Pufflow.Operators.Kafka;
 

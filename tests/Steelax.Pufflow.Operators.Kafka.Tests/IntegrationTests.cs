@@ -121,15 +121,18 @@ public class IntegrationTests(ApplicationFixture application, ITestOutputHelper 
             Assert.Equal(count, items.Count);
             Assert.Equal(Enumerable.Range(0, count).Select(i => $"value-{i}"), items.Select(i => i.Value.Message.Value));
 
-            // The system watermark provider emits Watermark.Nothing() for records consumed within the same
-            // tick (Environment.TickCount64 changes roughly every 15.6 ms). Filtering those out, the
-            // remaining (real) watermarks must be strictly increasing — progress never goes backwards.
-            var progress = items.Where(i => !i.IsNothing).Select(i => i.Watermark).ToList();
+            // The system watermark provider emits the current clock tick on every record, so each item
+            // carries a real watermark (never Nothing). Values are non-decreasing: they may repeat within
+            // a single tick (Environment.TickCount64 changes roughly every 15.6 ms — all items may land in
+            // one tick), and they advance on tick transitions. No strict advancement is required.
+            Assert.DoesNotContain(items, static i => i.IsNothing);
+
+            var progress = items.Select(i => i.Watermark).ToList();
             Assert.NotEmpty(progress);
 
             for (var i = 1; i < progress.Count; i++)
-                Assert.True(progress[i - 1] < progress[i],
-                    "real (non-Nothing) watermarks must be strictly increasing");
+                Assert.True(progress[i - 1] <= progress[i],
+                    "watermarks must be non-decreasing — progress never goes backwards");
         }
         finally
         {

@@ -55,11 +55,22 @@ internal sealed partial class KafkaConsumerProcessor<TKey, TValue> : IAsyncDispo
     private readonly WatermarkProvider _watermarkProvider;
 
     /// <summary>
-    ///     The watermark published by the reader (pipeline) via <see cref="SetReaderWatermark" />.
-    ///     Publication: cast <see cref="Watermark" /> → <see cref="long" /> + <see cref="Interlocked" />;
-    ///     reading: <see cref="Volatile" />.
+    ///     The reader's confirmed commit point: the watermark up to which the pipeline has fully
+    ///     processed all records. Windows whose watermark does not exceed this value are flushed.
+    ///     Updated by <see cref="SetReaderWatermark" /> when the reader breaks the current
+    ///     <see cref="_thresholdWatermark" />. Read via <see cref="Volatile" /> by
+    ///     <see cref="FlushReadyWindows" />.
     /// </summary>
     private long _readerWatermark = Watermark.NothingValue;
+
+    /// <summary>
+    ///     The current progress threshold: the last watermark reported by the reader that has not yet been
+    ///     promoted to <see cref="_readerWatermark" />. The reader must report a strictly greater watermark
+    ///     to break it — the promoted value (the old threshold) becomes the commit point, and the new value
+    ///     becomes the next threshold. This way repeated watermark values (same clock tick) never advance
+    ///     the commit point prematurely. Written by <see cref="SetReaderWatermark" />.
+    /// </summary>
+    private long _thresholdWatermark = Watermark.NothingValue;
 
     /// <summary>
     ///     Records that could not be written to the output producer (it was not accepting them). A non-empty
@@ -136,26 +147,49 @@ internal sealed partial class KafkaConsumerProcessor<TKey, TValue> : IAsyncDispo
     /// </summary>
     /// <param name="watermark">The mark up to which the reader has processed data.</param>
     /// <remarks>
-    ///     The consume loop reads the field via <see cref="Volatile" /> and, once it exceeds the
-    ///     watermark of a closed head window, flushes that window.
+    ///     <para>
+    ///         A <see cref="Watermark.Nothing()" /> value is ignored — it carries no progress.
+    ///     </para>
+    ///     <para>
+    ///         The value is treated as a threshold: it only promotes the commit point when it strictly
+    ///         exceeds the current <see cref="_thresholdWatermark" />. On promotion the previous threshold
+    ///         becomes the confirmed commit point (<see cref="_readerWatermark" />) and the new value becomes
+    ///         the next threshold. Repeated values (same clock tick) never advance the commit point.
+    ///     </para>
     /// </remarks>
     [PublicAPI]
-    public void SetReaderWatermark(Watermark watermark) =>
-        Interlocked.Exchange(ref _readerWatermark, watermark);
+    public void SetReaderWatermark(Watermark watermark)
+    {
+        // Nothing carries no progress — ignore it.
+        if (watermark.IsNothing)
+            return;
+
+        var current = (long)watermark;
+        var threshold = Volatile.Read(ref _thresholdWatermark);
+
+        // A repeated (or lower) watermark does not break the threshold — it carries no new progress.
+        if (current <= threshold)
+            return;
+
+        // Break the threshold: promote it to the new value, keeping the old threshold as the outcome.
+        var preview = InterlockedMath.AdvanceMax(ref _thresholdWatermark, current, threshold);
+
+        // The promoted (old) threshold is now the confirmed commit point.
+        InterlockedMath.AdvanceMax(ref _readerWatermark, preview);
+    }
 
     /// <summary>Returns the current reader watermark (for tests/diagnostics).</summary>
     [PublicAPI]
     public Watermark GetReaderWatermark() => Watermark.From(Volatile.Read(ref _readerWatermark));
 
     /// <summary>
-    ///     Flushes the closed head windows whose watermark has been exceeded by the reader's watermark.
+    ///     Flushes the closed head windows whose watermark has been reached by the reader's confirmed
+    ///     commit point (<see cref="_readerWatermark" />).
     /// </summary>
     /// <remarks>
-    ///     Reads the reader watermark via <see cref="Volatile" /> and advances through the window pool head.
-    /// </remarks>
-    /// <remarks>
-    ///     Walks the pool from the head: for each closed window, if the reader's watermark reaches the window
-    ///     watermark, the window is flushed and its slot is released (reused). If a window is not yet
+    ///     Reads the commit point via <see cref="Volatile" /> and advances through the window pool head.
+    ///     Walks the pool from the head: for each closed window, if the reader's commit point reaches the
+    ///     window watermark, the window is flushed and its slot is released (reused). If a window is not yet
     ///     confirmed, the pass stops — no further windows are flushed.
     /// </remarks>
     private void FlushReadyWindows()
