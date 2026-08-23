@@ -43,10 +43,10 @@ internal sealed partial class WarmProcessor<TKey, TValue, TGroup, TWarm>
     where TKey : notnull
 {
     /// <summary>Observes the input <c>WaitToReadAsync</c> and signals the loop when the source becomes ready.</summary>
-    private EventTask<bool> _input;
+    private readonly EventTask<bool> _input;
 
     /// <summary>Observes the output <c>WaitToWriteAsync</c> and signals the loop when capacity frees up.</summary>
-    private EventTask<bool> _output;
+    private readonly EventTask<bool> _output;
 
     /// <summary>The fan-in slot signaled by the <see cref="Warmer{TKey,TWarm}" /> when work completes.</summary>
     private const int WarmSlot = 1;

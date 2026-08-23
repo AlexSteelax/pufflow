@@ -10,7 +10,7 @@ namespace Steelax.Pufflow.Operators.Aggregators.Buffering;
 /// <typeparam name="T">The type of buffered values.</typeparam>
 /// <remarks>
 ///     <para>
-///         The component exposes both flow interfaces through one <see cref="Fuse" /> handler
+///         The component exposes both flow interfaces through one handler
 ///         (<c>Fuse(out IAsyncProducator{T}, out IAsyncConsumator{T}, ctx)</c>): the producator side is the
 ///         write endpoint an upstream push source pushes into (<c>TryWrite</c> / <c>WaitToWriteAsync</c>),
 ///         the consumator side is the read endpoint a downstream pull consumer reads from
@@ -43,6 +43,22 @@ public sealed partial class BypassBufferProcessor<T>(int capacity)
     /// <param name="context">The flow context providing cancellation for the pipeline.</param>
     [PublicAPI]
     public void Fuse(out IAsyncProducator<T> source, out IAsyncConsumator<T> target, FlowContext context)
+    {
+        var channel = new InternalSpscChannel<T>(_buffer);
+        Trace.WriteLine($"[BypassBufferProcessor] Fuse: channel={channel.GetHashCode()} buffer={_buffer.GetHashCode()}");
+        source = channel;
+        target = channel;
+    }
+    
+    /// <summary>
+    ///     Hands out the two sides of the buffer: the push input producer (written by the upstream source)
+    ///     and the pull output stream (read by the downstream consumer), both backed by the same channel.
+    /// </summary>
+    /// <param name="source">The push (producator) side of the buffer.</param>
+    /// <param name="target">The pull (consumator) side of the buffer.</param>
+    /// <param name="context">The flow context providing cancellation for the pipeline.</param>
+    [PublicAPI]
+    public void Fuse(out IProducator<T> source, out IAsyncConsumator<T> target, FlowContext context)
     {
         var channel = new InternalSpscChannel<T>(_buffer);
         Trace.WriteLine($"[BypassBufferProcessor] Fuse: channel={channel.GetHashCode()} buffer={_buffer.GetHashCode()}");

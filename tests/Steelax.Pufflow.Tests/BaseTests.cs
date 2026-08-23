@@ -76,4 +76,21 @@ public class BaseTests
 
         Assert.Equal(Enumerable.Range(1, 5), ret);
     }
+
+    [Fact]
+    public async Task ProducatorToAsyncConsumatorChain_ProducesExpectedResults()
+    {
+        await using var source = new FlowSource();
+
+        source
+            .OnProducatorSource(Enumerable.Range(1, 5))
+            .Next(new FlowPipeProducatorToAsyncConsumator<int, int>(static v => v * 2))
+            .Consume(out var reader);
+
+        await source.ExecuteAsync(TestContext.Current.CancellationToken);
+
+        var ret = await reader.ReadAllAsync(TestContext.Current.CancellationToken).ToListAsync(TestContext.Current.CancellationToken);
+
+        Assert.Equal([2, 4, 6, 8, 10], ret);
+    }
 }

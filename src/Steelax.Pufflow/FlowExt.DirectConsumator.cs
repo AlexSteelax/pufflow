@@ -101,4 +101,19 @@ public static partial class FlowExt
         collection.Push(FlowMetaNode.Create(rightFlow, FlowKind.OutAsyncProducator, FlowKind.OutAsyncConsumator));
         return new Source<IAsyncConsumator<T2>>(collection, left.Context);
     }
+
+    /// <summary>
+    ///     Chains a synchronous producator source to a composite push→pull pipe (sync push → async pull).
+    ///     The composite (<c>Fuse(out IProducator, out IAsyncConsumator, ctx)</c>, e.g. a passive buffer
+    ///     bridge) exposes a push input producer the upstream source writes into and a pull output stream
+    ///     the downstream consumator reads. The source and the composite are grouped into a
+    ///     <see cref="FlowMetaCollection" /> for reverse-order resolution.
+    /// </summary>
+    [PublicAPI]
+    public static Source<IAsyncConsumator<T2>> Next<T1, T2>(this Source<IProducator<T1>> left, IFlowable<Pipe<IProducator<T1>, IAsyncConsumator<T2>>> rightFlow)
+    {
+        var collection = GetOrCreateCollection(left.Meta);
+        collection.Push(FlowMetaNode.Create(rightFlow, FlowKind.OutProducator, FlowKind.OutAsyncConsumator));
+        return new Source<IAsyncConsumator<T2>>(collection, left.Context);
+    }
 }
