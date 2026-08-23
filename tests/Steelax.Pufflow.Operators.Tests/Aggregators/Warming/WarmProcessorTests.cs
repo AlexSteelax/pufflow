@@ -173,10 +173,6 @@ public static partial class WarmProcessorTests
             return _results.AsSpan();
         }
 
-        public void SynchronousComplete()
-        {
-        }
-
         public void Dispose()
         {
         }
@@ -204,10 +200,6 @@ public static partial class WarmProcessorTests
         public ReadOnlySpan<KeyValuePair<int, string>> GetResult()
         {
             return _results.AsSpan();
-        }
-
-        public void SynchronousComplete()
-        {
         }
 
         public void Dispose()
@@ -245,10 +237,6 @@ public static partial class WarmProcessorTests
         public ReadOnlySpan<KeyValuePair<int, string>> GetResult()
         {
             return Keys!.Select(k => new KeyValuePair<int, string>(k, "W" + k)).ToArray().AsSpan();
-        }
-
-        public void SynchronousComplete()
-        {
         }
 
         public void Dispose()

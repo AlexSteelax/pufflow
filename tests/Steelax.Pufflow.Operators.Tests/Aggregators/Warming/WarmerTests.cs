@@ -136,10 +136,6 @@ public static partial class WarmerTests
             return _results.AsSpan();
         }
 
-        public void SynchronousComplete()
-        {
-        }
-
         public void Dispose()
         {
         }
@@ -170,10 +166,6 @@ public static partial class WarmerTests
         public ReadOnlySpan<KeyValuePair<int, string>> GetResult()
         {
             return _results.AsSpan();
-        }
-
-        public void SynchronousComplete()
-        {
         }
 
         public void Dispose()
@@ -211,10 +203,6 @@ public static partial class WarmerTests
             return _keys.Select(k => new KeyValuePair<int, string>(k, "W" + k)).ToArray().AsSpan();
         }
 
-        public void SynchronousComplete()
-        {
-        }
-
         public void Dispose()
         {
             Disposed = true;
@@ -248,10 +236,6 @@ public static partial class WarmerTests
             return ReadOnlySpan<KeyValuePair<int, string>>.Empty;
         }
 
-        public void SynchronousComplete()
-        {
-        }
-
         public void Dispose()
         {
         }
@@ -276,10 +260,6 @@ public static partial class WarmerTests
         public ReadOnlySpan<KeyValuePair<int, string>> GetResult()
         {
             return ReadOnlySpan<KeyValuePair<int, string>>.Empty;
-        }
-
-        public void SynchronousComplete()
-        {
         }
 
         public void Dispose()

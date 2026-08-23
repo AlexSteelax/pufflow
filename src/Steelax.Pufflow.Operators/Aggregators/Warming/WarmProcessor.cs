@@ -194,10 +194,6 @@ internal sealed partial class WarmProcessor<TKey, TValue, TGroup, TWarm>
         if (_watchdogPeriod == Timeout.InfiniteTimeSpan || _watchdogPeriod <= TimeSpan.Zero)
             return null;
 
-        return TimeProvider.System.CreateTimer(
-            _ => _fanIn.Signal(WatchdogSlot),
-            null,
-            _watchdogPeriod,
-            _watchdogPeriod);
+        return TimeProvider.System.CreateTimer(static state => ((FanInSlim)state!).Signal(WatchdogSlot), _fanIn, _watchdogPeriod, _watchdogPeriod);
     }
 }

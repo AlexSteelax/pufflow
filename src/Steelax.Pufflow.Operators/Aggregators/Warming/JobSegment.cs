@@ -86,8 +86,6 @@ internal sealed class JobSegment<TKey, TWarm>(int capacity) : IDisposable
 
             foreach (var (key, warm) in _job.GetResult())
                 warmable.OnWarmed(key, warm);
-
-            _job.SynchronousComplete();
         }
         finally
         {

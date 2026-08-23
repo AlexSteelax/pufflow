@@ -2,8 +2,7 @@
 
 /// <summary>
 ///     A two-phase warming job: <see cref="ExecuteAsync" /> runs on a background thread, while
-///     <see cref="GetResult" /> and <see cref="SynchronousComplete" /> run on the consumer loop
-///     after the task completes.
+///     <see cref="GetResult" /> runs on the consumer loop after the task completes.
 /// </summary>
 /// <typeparam name="TKey">The key type used to partition the stream for warming.</typeparam>
 /// <typeparam name="TWarm">The warming data type produced by the job.</typeparam>
@@ -24,7 +23,4 @@ public interface IAsyncJob<TKey, TWarm> : IDisposable
     /// <summary>Returns the warming data produced for the warmed keys, if any.</summary>
     /// <remarks>Must be called only after the task returned by <see cref="ExecuteAsync" /> has completed.</remarks>
     ReadOnlySpan<KeyValuePair<TKey, TWarm>> GetResult();
-
-    /// <summary>Applies side effects on the consumer loop when the job completes.</summary>
-    void SynchronousComplete();
 }
