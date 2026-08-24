@@ -9,7 +9,7 @@ namespace Steelax.Pufflow.Operators.Kafka;
 ///     advance strategy.
 /// </remarks>
 [PublicAPI]
-public record struct KafkaConsumerOptions
+public sealed record KafkaConsumerOptions
 {
     /// <summary>
     ///     Initializes options with the specified lifecycle interval.
@@ -24,7 +24,7 @@ public record struct KafkaConsumerOptions
     /// </summary>
     public KafkaConsumerOptions(TimeSpan lifeCycleInterval)
     {
-        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(lifeCycleInterval.Milliseconds);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(lifeCycleInterval.TotalMilliseconds);
         LifeCycleInterval = lifeCycleInterval;
     }
 
