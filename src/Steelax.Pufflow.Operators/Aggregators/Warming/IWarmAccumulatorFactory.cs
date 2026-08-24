@@ -18,3 +18,11 @@ public interface IWarmAccumulatorFactory<in TKey, TValue, TGroup>
     /// <returns>A new <see cref="WarmAccumulator{TValue,TGroup}" /> for <paramref name="key" />.</returns>
     WarmAccumulator<TValue, TGroup> Create(TKey key);
 }
+
+/// <summary>
+///     Creates <see cref="WarmAccumulator{TValue,TGroup}" /> instances for warming keys.
+/// </summary>
+/// <typeparam name="TKey">The key type used to partition the stream for warming.</typeparam>
+/// <typeparam name="TValue">The input value type from the source stream.</typeparam>
+[PublicAPI]
+public interface IWarmAccumulatorFactory<in TKey, TValue> : IWarmAccumulatorFactory<TKey, TValue, TValue>;

@@ -1,4 +1,5 @@
-﻿using Steelax.Pufflow.Operators.Abstractions;
+﻿using System.Runtime.Intrinsics;
+using Steelax.Pufflow.Operators.Abstractions;
 using Steelax.Pufflow.Operators.Aggregators;
 using Steelax.Pufflow.Operators.Aggregators.Buffering;
 using Steelax.Pufflow.Operators.Aggregators.Chunking;
@@ -103,53 +104,39 @@ public static class OperatorExtensions
             return left.Next(processor.FlowAConsToAProd);
         }
 
-        // /// <summary>
-        // ///     Warms the upstream stream in key segments before forwarding values downstream.
-        // /// </summary>
-        // /// <typeparam name="TKey">The key type used to partition the stream for warming.</typeparam>
-        // /// <typeparam name="TWarm">The warming data type produced by an <see cref="IAsyncJob{TKey,TWarm}" />.</typeparam>
-        // /// <param name="options">Numeric and timing configuration (concurrency, segments, budget, watchdog).</param>
-        // /// <param name="jobFactory">Creates the warming jobs.</param>
-        // /// <param name="keySelector">Selects the warming key for each input value.</param>
-        // /// <param name="policy">Decides which keys require warming and receives the warm result.</param>
-        // /// <param name="accumulatorFactory">Creates the per-key accumulator buffers.</param>
-        // /// <returns>A source emitting <see cref="Unio{T,TGroup,Watermark}" /> items.</returns>
-        // [PublicAPI]
-        // public Source<IAsyncProducator<Unio<TValue, Watermark>>> Warming<TKey, TWarm>(
-        //     WarmOptions options,
-        //     IJobFactory<TKey, TWarm> jobFactory,
-        //     KeySelector<TValue, TKey> keySelector,
-        //     IWarmPolicy<TKey, TWarm> policy,
-        //     IWarmAccumulatorFactory<TKey, TValue, TValue> accumulatorFactory)
-        //     where TKey : notnull
-        // {
-        //     var warmer = new Warmer<TKey, TWarm>(
-        //         options.MaxConcurrency,
-        //         options.MaxQueued,
-        //         options.SegmentCapacity,
-        //         options.SegmentLinger,
-        //         jobFactory);
-        //
-        //     var processor = new Aggregators.Warming.WarmProcessor<TKey, TValue, TValue, TWarm>(
-        //         warmer,
-        //         keySelector,
-        //         policy,
-        //         accumulatorFactory,
-        //         options.QueueWeightLimit,
-        //         options.WatchdogPeriod);
-        //
-        //     return left
-        //         .Next(processor)
-        //         .Next(new MapProcessor<Unio<TValue, TValue, Watermark>, Unio<TValue, Watermark>>(Map));
-        //
-        //     static Unio<TValue, Watermark> Map(Unio<TValue, TValue, Watermark> value)
-        //     {
-        //         if (value.TryPickT1(out var group, out var remainder))
-        //             return group;
-        //
-        //         return remainder;
-        //     }
-        // }
+        /// <summary>
+        ///     Warms the upstream stream in key segments before forwarding values downstream.
+        /// </summary>
+        /// <typeparam name="TKey">The key type used to partition the stream for warming.</typeparam>
+        /// <typeparam name="TWarm">The warming data type produced by an <see cref="IAsyncJob{TKey,TWarm}" />.</typeparam>
+        /// <param name="options">Numeric and timing configuration (concurrency, segments, budget, watchdog).</param>
+        /// <param name="jobFactory">Creates the warming jobs.</param>
+        /// <param name="keySelector">Selects the warming key for each input value.</param>
+        /// <param name="policy">Decides which keys require warming and receives the warm result.</param>
+        /// <param name="accumulatorFactory">Creates the per-key accumulator buffers.</param>
+        /// <returns>A source emitting <see cref="Unio{T,TGroup,Watermark}" /> items.</returns>
+        [PublicAPI]
+        public Source<IAsyncProducator<Unio<TValue, Watermark>>> Warming<TKey, TWarm>(
+            WarmOptions options,
+            IJobFactory<TKey, TWarm> jobFactory,
+            MapSelector<TValue, TKey> keySelector,
+            IWarmPolicy<TKey, TWarm> policy,
+            IWarmAccumulatorFactory<TKey, TValue> accumulatorFactory)
+            where TKey : notnull
+        {
+            return  left
+                .Warming<TValue, TKey, TValue, TWarm>(options, jobFactory, keySelector, policy, accumulatorFactory)
+                .Map(Simplify);
+
+            Unio<TValue, Watermark> Simplify(scoped in Unio<TValue, TValue, Watermark> value)
+            {
+                return value.TryPickT0(out var v1, out var remainder)
+                    ? v1
+                    : remainder.TryPickT0(out var v2, out var watermark)
+                        ? v2
+                        : watermark;
+            }
+        }
     }
 
     /// <summary>
