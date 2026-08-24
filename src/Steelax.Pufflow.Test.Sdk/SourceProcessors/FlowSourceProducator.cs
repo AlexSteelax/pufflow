@@ -37,25 +37,34 @@ internal partial class FlowSourceProducator<T>
         {
             while (!cancellationToken.IsCancellationRequested)
             {
-                if (reader.TryPeek(out var item))
+                if (!reader.TryPeek(out var item))
                 {
-                    while (!cancellationToken.IsCancellationRequested)
-                    {
-                        if (output.TryWrite(item))
-                        {
-                            _ = reader.TryRead(out _);
-                            break;
-                        }
-                        
-                        Thread.Yield();
-                    }
+                    if (!await reader.WaitToReadAsync(cancellationToken))
+                        break;
 
                     continue;
                 }
 
-                if (!await reader.WaitToReadAsync(cancellationToken))
+                while (!cancellationToken.IsCancellationRequested)
+                {
+                    if (!output.TryWrite(item))
+                    {
+                        // The sync producer offers no wait primitive — yield asynchronously instead of
+                        // spinning synchronously, so a blocking producer does not stall the flow startup
+                        // (background tasks start in registration order; an inline spin before the first
+                        // await would prevent the downstream sink from ever starting).
+                        await Task.Yield();
+                        continue;
+                    }
+                    
+                    _ = reader.TryRead(out _);
                     break;
+                }
             }
+        }
+        catch (Exception ex)
+        {
+            output.TryComplete(ex);
         }
         finally
         {
@@ -78,7 +87,7 @@ internal partial class FlowSourceProducator<T>
                             _ = reader.TryRead(out _);
                             break;
                         }
-                        
+
                         await output.WaitToWriteAsync();
                     }
 
@@ -88,6 +97,10 @@ internal partial class FlowSourceProducator<T>
                 if (!await reader.WaitToReadAsync(cancellationToken))
                     break;
             }
+        }
+        catch (Exception ex)
+        {
+            output.TryComplete(ex);
         }
         finally
         {

@@ -78,9 +78,10 @@ internal sealed class FlowMetaCollection : FlowMeta
         // 3. Wrap the terminal target through the push-push pipes in reverse order: each pipe
         //    (producator→producator) receives the current target and returns its own out source (the
         //    input producer it implements itself) as the new target. Hybrid pipes (consumator→producator)
-        //    are invoked later with both the upstream and the terminal target. A composite push→pull pipe
-        //    feeds its consumator output to the sink and its producator input to the push source.
-        object? pipeTarget = target;
+        //    are invoked later with both the upstream and the terminal target. With a composite push→pull
+        //    pipe the wrapping starts from the composite's push input (the producer the pipes must write
+        //    into), not from the pull output the sink consumes.
+        object? pipeTarget = composite is not null ? composite.PushInput : target;
         for (var i = nodes.Length - 1; i >= 1; i--)
         {
             if (nodes[i].Kind != NodeKind.Pipe)
@@ -98,11 +99,10 @@ internal sealed class FlowMetaCollection : FlowMeta
         }
 
         // 4. Invoke the source once: a push source receives the wrapped target (and starts pushing), a
-        //    pull source produces the upstream consumator/enumerator. A composite push→pull pipe hands
-        //    its producator input to the push source as the write target.
-        object? upstream = composite is not null && pushSource
-            ? nodes[0].Invoke(context, composite.PushInput)
-            : nodes[0].Invoke(context, pushSource ? pipeTarget : null);
+        //    pull source produces the upstream consumator/enumerator. The wrapped target already accounts
+        //    for the composite (it starts from the composite's push input), so intermediate push-push
+        //    pipes are never bypassed.
+        object? upstream = nodes[0].Invoke(context, pushSource ? pipeTarget : null);
 
         // 5. Feed the consumator stream (produced by the composite) into the pull sink.
         if (composite is not null)

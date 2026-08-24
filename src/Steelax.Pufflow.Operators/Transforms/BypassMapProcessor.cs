@@ -52,7 +52,7 @@ internal sealed partial class BypassMapProcessor<TSource, TTarget>(MapSelector<T
     {
         /// <summary>The projected value retained while the downstream target is full (single-element hold-slot).</summary>
         private PendingValue<TTarget> _pending;
-        
+
         /// <summary>
         ///     Accepts a source value: first flushes any retained projected value (the hold-slot) into the
         ///     target, then projects the new value. When the target is full, the projected value is retained in
@@ -68,6 +68,7 @@ internal sealed partial class BypassMapProcessor<TSource, TTarget>(MapSelector<T
                     return false;
 
                 _pending = default;
+                return true;
             }
 
             var mapped = selector.Invoke(value);
@@ -80,7 +81,10 @@ internal sealed partial class BypassMapProcessor<TSource, TTarget>(MapSelector<T
         }
 
         /// <summary>Signals the end of the stream on the downstream target.</summary>
-        public bool TryComplete(Exception? ex = null) => writer.TryComplete(ex);
+        public bool TryComplete(Exception? ex = null)
+        {
+            return writer.TryComplete(ex);
+        }
 
         /// <summary>Delegates the write-readiness wait to the downstream target.</summary>
         public ValueTask<bool> WaitToWriteAsync() => writer.WaitToWriteAsync();
@@ -104,8 +108,9 @@ internal sealed partial class BypassMapProcessor<TSource, TTarget>(MapSelector<T
             {
                 if (!writer.TryWrite(_pending.Value))
                     return false;
-
+            
                 _pending = default;
+                return true;
             }
 
             var mapped = selector.Invoke(value);
@@ -118,6 +123,9 @@ internal sealed partial class BypassMapProcessor<TSource, TTarget>(MapSelector<T
         }
 
         /// <summary>Signals the end of the stream on the downstream target.</summary>
-        public bool TryComplete(Exception? ex = null) => writer.TryComplete(ex);
+        public bool TryComplete(Exception? ex = null)
+        {
+            return writer.TryComplete(ex);
+        }
     }
 }

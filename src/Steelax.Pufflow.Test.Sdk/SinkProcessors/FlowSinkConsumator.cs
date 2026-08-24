@@ -21,6 +21,7 @@ internal partial class FlowSinkConsumator<T>
     [PublicAPI]
     public void Fuse(IConsumator<T> source, FlowContext context)
     {
+        Trace.WriteLine($"[FlowSinkConsumator] Fuse: source={source.GetHashCode()} type={source.GetType().Name}");
         context.RegisterBackground(() => ConsumeLoopAsync(source, _channel, context));
     }
     
@@ -71,10 +72,8 @@ internal partial class FlowSinkConsumator<T>
                     continue;
                 }
 
-                if (source.IsCompleted)
+                if (!await source.WaitToReadAsync())
                     break;
-
-                await source.WaitToReadAsync();
             }
         }
         catch (Exception ex)

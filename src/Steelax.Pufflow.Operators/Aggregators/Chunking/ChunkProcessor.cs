@@ -96,8 +96,28 @@ internal sealed partial class ChunkProcessor<T, TChunk> : IAsyncConsumator<TChun
                 if (!_await.GetState().IsPending)
                     _ = _await.Observe(_source.WaitToReadAsync());
 
-                if (_source.IsCompleted)
-                    _signal.Complete();
+                // The source wait may have resolved synchronously (the channel was already completed) —
+                // resolve it now: an end-of-stream flushes the trailing chunk, a fault propagates, and
+                // data-ready re-reads the source. Without this, the raised signal could be consumed by the
+                // consumer's WaitToReadAsync and the sink would wait forever.
+                switch (TryHandleAwait())
+                {
+                    case AwaitOutcome.DataReady:
+                        continue;
+
+                    case AwaitOutcome.EndOfStream:
+                    case AwaitOutcome.Failed:
+                        StopLinger();
+                        _signal.Complete();
+
+                        if (_chunker.TryComplete(out chunk))
+                            return true;
+
+                        _ = _await.GetResult();
+
+                        chunk = default!;
+                        return false;
+                }
 
                 chunk = default!;
                 return false;
@@ -157,7 +177,7 @@ internal sealed partial class ChunkProcessor<T, TChunk> : IAsyncConsumator<TChun
     private void StopLinger() => _timer.Change(Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
     private void StartLinger() => _timer.Change(_linger, Timeout.InfiniteTimeSpan);
 
-    public bool IsCompleted => _source.IsCompleted && _chunker.IsEmpty;
+    public bool IsCompleted => _source.IsCompleted && _chunker.IsEmpty && !_await.GetState().IsPending;
 
     public ValueTask<bool> WaitToReadAsync()
     {
