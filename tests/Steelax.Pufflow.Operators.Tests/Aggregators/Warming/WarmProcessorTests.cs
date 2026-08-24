@@ -119,7 +119,7 @@ public static partial class WarmProcessorTests
         }
     }
 
-    private sealed class QueueAccumulatorFactory : IWarmAccumulatorFactory<int, int, int>
+    private sealed class QueueAccumulatorFactory : IWarmAccumulatorFactory<int, int>
     {
         public WarmAccumulator<int, int> Create(int key)
         {

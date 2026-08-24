@@ -114,7 +114,7 @@ public static class OperatorExtensions
         /// <param name="keySelector">Selects the warming key for each input value.</param>
         /// <param name="policy">Decides which keys require warming and receives the warm result.</param>
         /// <param name="accumulatorFactory">Creates the per-key accumulator buffers.</param>
-        /// <returns>A source emitting <see cref="Unio{T,TGroup,Watermark}" /> items.</returns>
+        /// <returns>A source emitting <see cref="Unio{T,Watermark}" /> items.</returns>
         [PublicAPI]
         public Source<IAsyncProducator<Unio<TValue, Watermark>>> Warming<TKey, TWarm>(
             WarmOptions options,
@@ -124,17 +124,13 @@ public static class OperatorExtensions
             IWarmAccumulatorFactory<TKey, TValue> accumulatorFactory)
             where TKey : notnull
         {
-            return  left
+            return left
                 .Warming<TValue, TKey, TValue, TWarm>(options, jobFactory, keySelector, policy, accumulatorFactory)
                 .Map(Simplify);
 
             Unio<TValue, Watermark> Simplify(scoped in Unio<TValue, TValue, Watermark> value)
             {
-                return value.TryPickT0(out var v1, out var remainder)
-                    ? v1
-                    : remainder.TryPickT0(out var v2, out var watermark)
-                        ? v2
-                        : watermark;
+                return value.TryPickT0(out var v1, out var remainder) ? v1 : remainder;
             }
         }
     }

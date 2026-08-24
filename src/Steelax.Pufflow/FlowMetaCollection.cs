@@ -119,6 +119,8 @@ internal sealed class FlowMetaCollection : FlowMeta
 
         // 6. Feed both the upstream value and the terminal target into each hybrid pipe
         //    (consumator→producator) — these read the upstream pull side and push into the terminal.
+        //    The terminal is the wrapped target (the input producer of the innermost push-push pipe),
+        //    not the raw sink producer, so the hybrid pipe's output element type matches.
         for (var i = nodes.Length - 1; i >= 1; i--)
         {
             if (nodes[i].Kind != NodeKind.Pipe || IsPushPipe(nodes[i]))
@@ -127,7 +129,7 @@ internal sealed class FlowMetaCollection : FlowMeta
             if (composite is not null && ReferenceEquals(nodes[i], composite))
                 continue;
 
-            nodes[i].InvokePipe(context, upstream, target);
+            nodes[i].InvokePipe(context, upstream, pipeTarget);
         }
 
         Trace.WriteLine("[FlowMetaCollection] Build: chain resolved");
