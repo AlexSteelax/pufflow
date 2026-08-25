@@ -53,7 +53,7 @@ public static class PairValueWatermarkProcessorTests
         public async Task Value_Then_Value_AttachesPreviousWatermarkAndEvicts()
         {
             // Two consecutive values: the first is evicted by the second with a Nothing watermark (no
-            // watermark has arrived yet), the second stays in the hold slot.
+            // watermark has arrived yet), and the second is flushed at completion with the held watermark.
             var input = new List<Unio<int, Watermark>>
             {
                 1,
@@ -63,16 +63,17 @@ public static class PairValueWatermarkProcessorTests
             await using var flow = new FlowSource();
             var results = await RunAsync(input, flow, TestContext.Current.CancellationToken);
 
-            var item = Assert.Single(results);
-            Assert.Equal(1, item.Value);
-            Assert.True(item.IsNothing, "the first value was evicted without a watermark");
+            Assert.Collection(results,
+                item => Assert.Equal(new Watermarked<int>(1, Watermark.Nothing()), item),
+                item => Assert.Equal(new Watermarked<int>(2, Watermark.Nothing()), item));
         }
 
         [Fact(Timeout = TimeoutMs)]
         public async Task Value_Watermark_Value_AttachesWatermarkToBoth()
         {
             // Value, watermark, value: the first gets watermark 10 (released by the watermark), the second
-            // is held until completion (no closing watermark — stays in the slot and is not emitted).
+            // is flushed at completion with the current watermark — it was reset to Nothing when the first
+            // value consumed the watermark 10.
             var input = new List<Unio<int, Watermark>>
             {
                 1,
@@ -83,9 +84,9 @@ public static class PairValueWatermarkProcessorTests
             await using var flow = new FlowSource();
             var results = await RunAsync(input, flow, TestContext.Current.CancellationToken);
 
-            var item = Assert.Single(results);
-            Assert.Equal(1, item.Value);
-            Assert.Equal(Watermark.From(10), item.Watermark);
+            Assert.Collection(results,
+                item => Assert.Equal(new Watermarked<int>(1, Watermark.From(10)), item),
+                item => Assert.Equal(new Watermarked<int>(2, Watermark.Nothing()), item));
         }
 
         [Fact(Timeout = TimeoutMs)]

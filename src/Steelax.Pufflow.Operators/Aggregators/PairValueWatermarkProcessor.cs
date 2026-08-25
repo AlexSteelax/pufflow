@@ -54,5 +54,20 @@ internal sealed partial class PairValueWatermarkProcessor<T> : IAsyncProducator<
     }
 
     public ValueTask<bool> WaitToWriteAsync() => _target.WaitToWriteAsync();
-    public bool TryComplete(Exception? ex = null) => _target.TryComplete(ex);
+
+    public bool TryComplete(Exception? ex = null)
+    {
+        // The last value stays in the pending slot until a watermark pairs with it; flush it now so a
+        // trailing value is not lost at end-of-stream.
+        if (_pending.Occupied)
+        {
+            if (!_target.TryWrite(new Watermarked<T>(_pending.Value, _watermark)))
+                return false;
+
+            _pending = default;
+            _watermark = Watermark.Nothing();
+        }
+
+        return _target.TryComplete(ex);
+    }
 }

@@ -94,6 +94,36 @@ public class ComplexPipelineTests
         Assert.Equal([2, 3, 4], results.Select(static u => u.AsT0));
     }
 
+    [Fact(Timeout = TimeoutMs)]
+    public async Task KafkaLikePipeline_WithChunkingTail()
+    {
+        // Mirrors the full AnalogProcessor tail: after the second buffer the pull stream is chunked by
+        // a pull-pull pipe (Chunking), then a hybrid (pull→push) forwards the chunks to a push sink.
+        // Sync source → sync push-push ×2 → composite → hybrid (Warming) → async push-push ×3 →
+        // composite → pull-pull (Chunking) → hybrid → push sink.
+        await using var flow = new FlowSource();
+
+        flow
+            .OnProducatorSource(Input.Select(static w => w.Value))
+            .Map(static (scoped in int v) => new Watermarked<int>(v, Watermark.Nothing()))
+            .Map(static (scoped in Watermarked<int> w) => new Watermarked<int>(w.Value + 1, w.Watermark))
+            .Buffering(128)
+            .Warming(WarmOptions, new StubJobFactory(), IdentityKey, new NoWarmPolicy(), new QueueAccumulatorFactory())
+            .Map(static (scoped in Unio<int, Watermark> u) => u)
+            .Map(static (scoped in Unio<int, Watermark> u) => u)
+            .Watermarked()
+            .Buffering(256)
+            .Chunking(128, TimeSpan.FromSeconds(2))
+            .ToAsyncProducator(static chunk => chunk)
+            .Consume(out var reader);
+
+        await flow.ExecuteAsync(TestContext.Current.CancellationToken);
+        var results = await reader.ReadAllAsync(TestContext.Current.CancellationToken)
+            .ToListAsync(TestContext.Current.CancellationToken);
+
+        Assert.Equal([2, 3, 4], results.SelectMany(static chunk => chunk).Select(static w => w.Value));
+    }
+
     /// <summary>Warms nothing: every key is a passthrough.</summary>
     private sealed class NoWarmPolicy : IWarmPolicy<int, int>
     {
