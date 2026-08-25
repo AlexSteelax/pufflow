@@ -27,11 +27,10 @@ public static partial class ChunkProcessorTests
             // Write with a spin-wait delay on a separate thread to emulate a slow producer.
             var producer = Task.Run(() =>
             {
-                var spinner = new SpinWait();
                 for (var i = 0; i < items; i++)
                 {
                     writer.TryWrite(i);
-                    spinner.SpinOnce();
+                    Thread.Sleep(5);
                 }
 
                 writer.TryComplete();

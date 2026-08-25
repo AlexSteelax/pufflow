@@ -1,4 +1,5 @@
 using System.Threading.Channels;
+using Unio;
 using Steelax.Pufflow.Sdk.Test;
 
 namespace Steelax.Pufflow.Tests;
@@ -16,6 +17,15 @@ public class TransitionChainTests
     private static readonly int[] Input = [1, 2, 3];
 
     private static readonly int[] Expected = [30, 50, 70];
+
+    private static int Id(int value) => value;
+
+    private readonly record struct DummyWatermark;
+
+    private static Unio<int, DummyWatermark> TimesTenInUnio(Unio<int, DummyWatermark> value)
+    {
+        return value.TryPickT0(out var v, out _) ? v * 10 : value;
+    }
 
     private static async Task<List<int>> DrainAsync(FlowSource flow, ChannelReader<int> reader, CancellationToken cancellationToken)
     {
@@ -126,6 +136,76 @@ public class TransitionChainTests
             .ToAsyncConsumator(static v => v * 2)
             .ToConsumator(static v => v + 1)
             .ToAsyncConsumator(static v => v * 10)
+            .Consume(out var reader);
+
+        var results = await DrainAsync(flow, reader, TestContext.Current.CancellationToken);
+        Assert.Equal(Expected, results);
+    }
+[Fact(Timeout = 5_000)]
+    public async Task ThirtyBlocks_AlternatingPullPushTransitions()
+    {
+        // 30 blocks alternating between families: a pull chain of 14 pull-pull pipes (sync/async),
+        // one hybrid pull→push transition, then a push chain of 15 push-push pipes (sync/async).
+        await using var flow = new FlowSource();
+
+        flow
+            .OnAsyncConsumatorSource(Input)
+            // Pull chain (merge): 14 pull-pull blocks alternating sync/async.
+            .ToConsumator(static v => v * 2)
+            .ToAsyncConsumator(static v => v + 1)
+            .ToConsumator(Id)
+            .ToAsyncConsumator(Id)
+            .ToConsumator(Id)
+            .ToAsyncConsumator(Id)
+            .ToConsumator(Id)
+            .ToAsyncConsumator(Id)
+            .ToConsumator(Id)
+            .ToAsyncConsumator(Id)
+            .ToConsumator(Id)
+            .ToAsyncConsumator(Id)
+            .ToConsumator(Id)
+            .ToAsyncConsumator(Id)
+            // Pull → push transition (collection): the hybrid pipe.
+            .ToAsyncProducator(static v => v * 10)
+            // Push chain (collection): 15 push-push blocks alternating sync/async.
+            .ToProducator(Id)
+            .ToAsyncProducator(Id)
+            .ToProducator(Id)
+            .ToAsyncProducator(Id)
+            .ToProducator(Id)
+            .ToAsyncProducator(Id)
+            .ToProducator(Id)
+            .ToAsyncProducator(Id)
+            .ToProducator(Id)
+            .ToAsyncProducator(Id)
+            .ToProducator(Id)
+            .ToAsyncProducator(Id)
+            .ToProducator(Id)
+            .ToAsyncProducator(Id)
+            .ToProducator(Id)
+            .Consume(out var reader);
+
+        var results = await DrainAsync(flow, reader, TestContext.Current.CancellationToken);
+        Assert.Equal(Expected, results);
+    }
+[Fact(Timeout = 5_000)]
+    public async Task SyncPushSource_WatermarkedToUnioWithDummyWatermark()
+    {
+        // Sync push source → sync push-push → async push-push → composite (push→pull) → hybrid
+        // (pull→push, the transition into Unio<int, DummyWatermark>) → async push-push → async
+        // push-push → composite (push→pull, unpacking the value) → async pull sink. The watermark is a
+        // dummy placeholder type; the final stage emits the plain value, not a watermarked wrapper.
+        await using var flow = new FlowSource();
+
+        flow
+            .OnProducatorSource(Input)
+            .ToProducator(static v => v * 2)
+            .ToAsyncProducator(static v => v + 1)
+            .ToAsyncConsumator(static v => v)
+            .ToAsyncProducator(static v => (Unio<int, DummyWatermark>)v)
+            .ToAsyncProducator(TimesTenInUnio)
+            .ToAsyncProducator(static u => u)
+            .ToAsyncConsumator(static u => u.AsT0)
             .Consume(out var reader);
 
         var results = await DrainAsync(flow, reader, TestContext.Current.CancellationToken);
