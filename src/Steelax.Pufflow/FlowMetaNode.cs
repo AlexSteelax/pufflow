@@ -365,8 +365,10 @@ internal sealed class FlowMetaNode : FlowMeta
     private static FlowMetaNode MergePipePipe(FlowMetaNode left, FlowMetaNode right, FlowContext context)
     {
         Trace.WriteLine("[FlowMeta] MergePipePipe");
-        var input = left.Invoke(context, left.Value);
-        var result = right.Invoke(context, input);
+        // The left pipe already produced its output during the upstream merge (stored in Value); feed it
+        // directly into the right pipe. Re-invoking the left handler would construct a second pipe
+        // instance (and register a second background pump), processing the stream twice.
+        var result = right.Invoke(context, left.Value);
         return new FlowMetaNode(right._instance, right.Method, NodeKind.Pipe, right.InType, right.OutType)
         {
             Value = result

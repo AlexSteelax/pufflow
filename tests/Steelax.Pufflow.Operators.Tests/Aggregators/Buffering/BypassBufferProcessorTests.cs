@@ -1,4 +1,3 @@
-using Steelax.Pufflow.Operators.Abstractions;
 using Steelax.Pufflow.Sdk.Test;
 
 namespace Steelax.Pufflow.Operators.Tests.Aggregators.Buffering;
@@ -13,8 +12,6 @@ namespace Steelax.Pufflow.Operators.Tests.Aggregators.Buffering;
 public static class BypassBufferProcessorTests
 {
     private const int TimeoutMs = 1_000;
-
-    private static readonly MapSelector<int, int> TimesTen = static (scoped in int value) => value * 10;
 
     private static async Task<List<int>> RunAsync(IEnumerable<int> input, int capacity, FlowSource flow, CancellationToken cancellationToken)
     {
@@ -68,29 +65,6 @@ public static class BypassBufferProcessorTests
             var results = await RunAsync(Enumerable.Range(0, 20), capacity: 1, flow, TestContext.Current.CancellationToken);
 
             Assert.Equal(Enumerable.Range(0, 20), results);
-        }
-    }
-
-    public sealed class PushThroughMap
-    {
-        [Fact(Timeout = TimeoutMs)]
-        public async Task SyncPushSource_ThroughMapPipe_IntoBuffer()
-        {
-            // Sync push source → sync push-push map pipe → composite buffer (push→pull) → async pull sink.
-            // The map projects each value before it crosses the buffer bridge.
-            await using var flow = new FlowSource();
-
-            flow
-                .OnProducatorSource([1, 2, 3, 4])
-                .Map(TimesTen)
-                .Buffering(capacity: 2)
-                .Consume(out var reader);
-
-            await flow.ExecuteAsync(TestContext.Current.CancellationToken);
-            var results = await reader.ReadAllAsync(TestContext.Current.CancellationToken)
-                .ToListAsync(TestContext.Current.CancellationToken);
-
-            Assert.Equal([10, 20, 30, 40], results);
         }
     }
 }

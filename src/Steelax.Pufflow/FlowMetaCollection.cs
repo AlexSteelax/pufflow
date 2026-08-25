@@ -35,11 +35,11 @@ internal sealed class FlowMetaCollection : FlowMeta
     }
 
     /// <summary>
-    ///     Resolves the chain back-to-front: creates the terminal producator target (from the sink), wraps
-    ///     it through the push-push pipes (each pipe receives the current target and returns its own out
-    ///     source — the input producer it implements itself — as the new target), then invokes the source
-    ///     with the wrapped target and feeds the hybrid pipes (consumator→producator) with both the
-    ///     upstream and the terminal target.
+    ///     Resolves the chain back-to-front: creates the terminal sink value(s) (a push sink produces its
+    ///     own terminal producer, a composite hands out its push input and pull output), wraps the
+    ///     push-push pipes on both sides of the composite, then invokes the source with the wrapped target
+    ///     and feeds the hybrid pipes (consumator→producator) with the pull side and the post-composite
+    ///     target.
     /// </summary>
     /// <param name="context">The flow context passed to the handlers.</param>
     public void Build(FlowContext context)
@@ -54,19 +54,20 @@ internal sealed class FlowMetaCollection : FlowMeta
         if (nodes.Length == 0)
             return;
 
-        // 1. Invoke the sink: it produces the terminal producator (target) for a push sink, or expects
-        //    a consumator input (produced by the composite) for a pull sink. A composite pipe
-        //    (Fuse(out IProducator, out IConsumator, ctx)) that precedes the sink is invoked first so it
-        //    creates the consumator stream the sink consumes.
-        object? target = null;
+        // 1. Create the composite bridge (push input written by the upstream push chain, pull output read
+        //    by the downstream hybrid pipe or pull sink) and the terminal sink value. A pull sink consumes
+        //    the composite's pull output; a push sink creates the terminal producer it consumes.
         var composite = FindComposite(nodes);
+        object? pullOutput = composite?.Invoke(context);
+
+        object? sinkProducer = null;
         for (var i = nodes.Length - 1; i >= 1; i--)
         {
             if (nodes[i].Kind != NodeKind.Sink)
                 continue;
 
-            target = composite is not null
-                ? composite.Invoke(context) // composite creates the consumator; Invoke returns its pull output
+            sinkProducer = IsPullSink(nodes[i])
+                ? pullOutput
                 : nodes[i].Invoke(context);
             break;
         }
@@ -75,52 +76,92 @@ internal sealed class FlowMetaCollection : FlowMeta
         //    pull source (emits a consumator/enumerator through an out parameter).
         var pushSource = nodes[0].Kind == NodeKind.Source && nodes[0].IsPushSource;
 
-        // 3. Wrap the terminal target through the push-push pipes in reverse order: each pipe
-        //    (producator→producator) receives the current target and returns its own out source (the
-        //    input producer it implements itself) as the new target. Hybrid pipes (consumator→producator)
-        //    are invoked later with both the upstream and the terminal target. With a composite push→pull
-        //    pipe the wrapping starts from the composite's push input (the producer the pipes must write
-        //    into), not from the pull output the sink consumes.
-        object? pipeTarget = composite is not null ? composite.PushInput : target;
-        for (var i = nodes.Length - 1; i >= 1; i--)
+        // 3. Wrap the push-push pipes into two separate chains. The pre-composite pipes (between the
+        //    source and the composite) wrap the composite's push input. The post-hybrid pipes (between the
+        //    hybrid consumator→producator pipe and the sink) wrap the terminal producer the sink created.
+        //    Without a composite there is no pre-chain; without a hybrid there is no post-chain (all pipes
+        //    then wrap the terminal producer as a single pre-chain).
+        var compositeIndex = composite is null ? -1 : Array.IndexOf(nodes, composite);
+        var hybridIndex = FindLastHybrid(nodes, composite);
+
+        object? postTarget = sinkProducer;
+        if (hybridIndex >= 0)
         {
-            if (nodes[i].Kind != NodeKind.Pipe)
-                continue;
-
-            if (composite is not null && ReferenceEquals(nodes[i], composite))
-                continue;
-
-            if (nodes[i].InType is not null && IsPushPipe(nodes[i]))
+            // Downstream of the hybrid: innermost pipe (closest to the sink) wraps the producer first.
+            for (var i = nodes.Length - 1; i > hybridIndex; i--)
             {
-                // Push-push pipe: it owns the input producer; the out source it returns becomes the
-                // target fed to the source / the previous pipe.
-                pipeTarget = nodes[i].InvokePipe(context, null, pipeTarget);
+                if (nodes[i].Kind != NodeKind.Pipe || nodes[i].InType is null || !IsPushPipe(nodes[i]))
+                    continue;
+
+                postTarget = nodes[i].InvokePipe(context, null, postTarget);
             }
         }
+        else if (compositeIndex >= 0)
+        {
+            // No hybrid: pipes downstream of the composite (none in a pull-sink chain) would wrap the
+            // producer; there are none, so the post-target stays the terminal producer.
+        }
 
-        // 4. Invoke the source once: a push source receives the wrapped target (and starts pushing), a
-        //    pull source produces the upstream consumator/enumerator. The wrapped target already accounts
-        //    for the composite (it starts from the composite's push input), so intermediate push-push
-        //    pipes are never bypassed.
-        object? upstream = nodes[0].Invoke(context, pushSource ? pipeTarget : null);
+        object? preTarget;
+        if (compositeIndex >= 0)
+        {
+            // Upstream of the composite: innermost pipe (closest to the composite) wraps the push input first.
+            preTarget = composite!.PushInput;
+            for (var i = compositeIndex - 1; i >= 1; i--)
+            {
+                if (nodes[i].Kind != NodeKind.Pipe || nodes[i].InType is null || !IsPushPipe(nodes[i]))
+                    continue;
 
-        // 5. Feed the consumator stream (produced by the composite) into the pull sink.
+                preTarget = nodes[i].InvokePipe(context, null, preTarget);
+            }
+        }
+        else if (hybridIndex < 0)
+        {
+            // A single push chain (no composite, no hybrid): every pipe wraps the terminal producer.
+            preTarget = sinkProducer;
+            for (var i = nodes.Length - 1; i >= 1; i--)
+            {
+                if (nodes[i].Kind != NodeKind.Pipe || nodes[i].InType is null || !IsPushPipe(nodes[i]))
+                    continue;
+
+                preTarget = nodes[i].InvokePipe(context, null, preTarget);
+            }
+        }
+        else
+        {
+            // A hybrid without a composite is fed by a pull source — there is no pre-chain to feed.
+            preTarget = postTarget;
+        }
+
+        // 4. Invoke the source once: a push source receives the wrapped pre-composite target (and starts
+        //    pushing), a pull source produces the upstream consumator/enumerator. A pull chain fused with
+        //    its pull-pull pipes already carries the produced stream in Value — re-invoking the merged
+        //    node would construct the pipes a second time.
+        object? upstream;
+        if (nodes[0].Kind == NodeKind.Pipe && nodes[0].Value is not null)
+        {
+            upstream = nodes[0].Value;
+        }
+        else
+        {
+            upstream = nodes[0].Invoke(context, pushSource ? preTarget : null);
+        }
+
+        // 5. Feed the pull sink with the consumator stream produced by the composite.
         if (composite is not null)
         {
             for (var i = nodes.Length - 1; i >= 1; i--)
             {
-                if (nodes[i].Kind == NodeKind.Sink)
-                {
-                    nodes[i].Invoke(context, target);
-                    break;
-                }
+                if (nodes[i].Kind != NodeKind.Sink || !IsPullSink(nodes[i]))
+                    continue;
+
+                nodes[i].Invoke(context, pullOutput);
+                break;
             }
         }
 
-        // 6. Feed both the upstream value and the terminal target into each hybrid pipe
-        //    (consumator→producator) — these read the upstream pull side and push into the terminal.
-        //    The terminal is the wrapped target (the input producer of the innermost push-push pipe),
-        //    not the raw sink producer, so the hybrid pipe's output element type matches.
+        // 6. Feed the hybrid pipes (consumator→producator): they read the pull side (the composite's pull
+        //    output, or the pull source's consumator) and push into the post-composite target.
         for (var i = nodes.Length - 1; i >= 1; i--)
         {
             if (nodes[i].Kind != NodeKind.Pipe || IsPushPipe(nodes[i]))
@@ -129,10 +170,60 @@ internal sealed class FlowMetaCollection : FlowMeta
             if (composite is not null && ReferenceEquals(nodes[i], composite))
                 continue;
 
-            nodes[i].InvokePipe(context, upstream, pipeTarget);
+            nodes[i].InvokePipe(context, pullOutput ?? upstream, postTarget);
         }
 
         Trace.WriteLine("[FlowMetaCollection] Build: chain resolved");
+    }
+
+    /// <summary>
+    ///     Returns the index of the last hybrid pipe (consumator→producator, e.g. the Warming processor)
+    ///     in the collection, or <c>-1</c> when there is none. Hybrid pipes are the only non-composite,
+    ///     non-push-push pipes that appear in a push chain.
+    /// </summary>
+    private static int FindLastHybrid(FlowMetaNode[] nodes, FlowMetaNode? composite)
+    {
+        for (var i = nodes.Length - 1; i >= 1; i--)
+        {
+            if (nodes[i].Kind != NodeKind.Pipe)
+                continue;
+
+            if (composite is not null && ReferenceEquals(nodes[i], composite))
+                continue;
+
+            if (!IsPushPipe(nodes[i]))
+                return i;
+        }
+
+        return -1;
+    }
+
+    /// <summary>
+    ///     Returns <see langword="true" /> for a sink that consumes a pull interface (a consumator or
+    ///     enumerator, e.g. a reader fed by a composite's pull output); <see langword="false" /> for a push
+    ///     sink that creates the terminal producer through an <see langword="out" /> parameter.
+    /// </summary>
+    private static bool IsPullSink(FlowMetaNode node)
+    {
+        var parameters = node.Method.GetParameters();
+
+        foreach (var parameter in parameters)
+        {
+            if (parameter.ParameterType == typeof(FlowContext))
+                continue;
+
+            if (parameter.IsOut)
+                return false;
+
+            var type = parameter.ParameterType;
+            if (type.IsGenericType)
+                type = type.GetGenericTypeDefinition();
+
+            return type == typeof(Abstractions.IAsyncConsumator<>) || type == typeof(Abstractions.IConsumator<>) ||
+                   type == typeof(System.Collections.Generic.IAsyncEnumerator<>) || type == typeof(System.Collections.Generic.IEnumerator<>);
+        }
+
+        return false;
     }
 
     /// <summary>

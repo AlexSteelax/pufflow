@@ -58,6 +58,26 @@ public static partial class FlowExt
     }
 
     /// <summary>
+    ///     Connects an upstream synchronous consumator source/pipe node to a terminal sink, forming a
+    ///     complete pipeline.
+    /// </summary>
+    /// <typeparam name="T">The element type flowing through the pipeline.</typeparam>
+    /// <param name="left">The upstream node (a source or a previously connected pipe).</param>
+    /// <param name="right">The terminal sink component.</param>
+    /// <returns>A sink marker representing the terminal stage.</returns>
+    [PublicAPI]
+    public static Sink<IConsumator<T>> End<T>(this Source<IConsumator<T>> left, IFlowable<Sink<IConsumator<T>>> right)
+    {
+        var rightMeta = FlowMetaNode.Create(right, FlowKind.Consumator, FlowKind.None);
+
+        var merged = FlowMetaNode.Merge(left.Meta, rightMeta, left.Context);
+        if (merged is FlowMetaCollection collection)
+            collection.Build(left.Context);
+
+        return new Sink<IConsumator<T>>(merged, left.Context);
+    }
+
+    /// <summary>
     ///     Connects an upstream async consumator pipe node to a terminal sink, forming a complete pipeline.
     /// </summary>
     /// <typeparam name="T">The element type flowing through the pipeline.</typeparam>

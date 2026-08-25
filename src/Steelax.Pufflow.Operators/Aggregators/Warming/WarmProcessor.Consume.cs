@@ -32,8 +32,17 @@ internal sealed partial class WarmProcessor<TKey, TValue, TGroup, TWarm>
         }
 
         if (reader.IsCompleted)
+        {
             _completedInput = true;
-        
+        }
+        else
+        {
+            // The source has no data yet but is not done: arm the readiness observation so the loop
+            // wakes through the input slot when a value arrives or the stream completes. Without this
+            // the loop would sleep on the fan-in forever, never re-checking the source.
+            _input.Observe(reader.WaitToReadAsync());
+        }
+
         _pendingInput = default;
         return false;
     }

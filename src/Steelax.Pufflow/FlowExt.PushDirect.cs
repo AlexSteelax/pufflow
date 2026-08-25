@@ -5,8 +5,7 @@ namespace Steelax.Pufflow;
 public static partial class FlowExt
 {
     /// <summary>
-    ///     Chains a producator source to a producator pipe (push→push). The source node and the pipe are
-    ///     grouped into a <see cref="FlowMetaCollection" /> for reverse-order resolution.
+    ///     Chains a synchronous producator source to a synchronous producator pipe (sync push→sync push).
     /// </summary>
     [PublicAPI]
     public static Source<IProducator<T2>> Next<T1, T2>(this Source<IProducator<T1>> left,
@@ -15,6 +14,56 @@ public static partial class FlowExt
         var collection = GetOrCreateCollection(left.Meta);
         collection.Push(FlowMetaNode.Create(right, FlowKind.OutProducator, FlowKind.Producator));
         return new Source<IProducator<T2>>(collection, left.Context);
+    }
+
+    /// <summary>
+    ///     Chains a synchronous producator source to an asynchronous producator pipe (sync push→async push).
+    /// </summary>
+    [PublicAPI]
+    public static Source<IAsyncProducator<T2>> Next<T1, T2>(this Source<IProducator<T1>> left,
+        IFlowable<Pipe<IProducator<T1>, IAsyncProducator<T2>>> right)
+    {
+        var collection = GetOrCreateCollection(left.Meta);
+        collection.Push(FlowMetaNode.Create(right, FlowKind.OutProducator, FlowKind.AsyncProducator));
+        return new Source<IAsyncProducator<T2>>(collection, left.Context);
+    }
+
+    /// <summary>
+    ///     Chains an asynchronous producator source to a synchronous producator pipe (async push→sync push).
+    /// </summary>
+    [PublicAPI]
+    public static Source<IProducator<T2>> Next<T1, T2>(this Source<IAsyncProducator<T1>> left,
+        IFlowable<Pipe<IAsyncProducator<T1>, IProducator<T2>>> right)
+    {
+        var collection = GetOrCreateCollection(left.Meta);
+        collection.Push(FlowMetaNode.Create(right, FlowKind.OutAsyncProducator, FlowKind.Producator));
+        return new Source<IProducator<T2>>(collection, left.Context);
+    }
+
+    /// <summary>
+    ///     Chains a synchronous producator source to a composite sync push→sync pull pipe
+    ///     (sync push→sync pull).
+    /// </summary>
+    [PublicAPI]
+    public static Source<IConsumator<T2>> Next<T1, T2>(this Source<IProducator<T1>> left,
+        IFlowable<Pipe<IProducator<T1>, IConsumator<T2>>> right)
+    {
+        var collection = GetOrCreateCollection(left.Meta);
+        collection.Push(FlowMetaNode.Create(right, FlowKind.OutProducator, FlowKind.OutConsumator));
+        return new Source<IConsumator<T2>>(collection, left.Context);
+    }
+
+    /// <summary>
+    ///     Chains an asynchronous producator source to a composite async push→sync pull pipe
+    ///     (async push→sync pull).
+    /// </summary>
+    [PublicAPI]
+    public static Source<IConsumator<T2>> Next<T1, T2>(this Source<IAsyncProducator<T1>> left,
+        IFlowable<Pipe<IAsyncProducator<T1>, IConsumator<T2>>> right)
+    {
+        var collection = GetOrCreateCollection(left.Meta);
+        collection.Push(FlowMetaNode.Create(right, FlowKind.OutAsyncProducator, FlowKind.OutConsumator));
+        return new Source<IConsumator<T2>>(collection, left.Context);
     }
 
     /// <summary>

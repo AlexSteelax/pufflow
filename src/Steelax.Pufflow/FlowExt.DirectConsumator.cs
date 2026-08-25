@@ -5,12 +5,14 @@ namespace Steelax.Pufflow;
 public static partial class FlowExt
 {
     /// <summary>
-    ///     Chains a synchronous consumator source to a synchronous consumator pipe.
+    ///     Chains a synchronous consumator source to a synchronous consumator pipe (sync→sync).
     /// </summary>
     [PublicAPI]
     public static Source<IConsumator<T2>> Next<T1, T2>(this Source<IConsumator<T1>> left, IFlowable<Pipe<IConsumator<T1>, IConsumator<T2>>> rightFlow)
     {
-        throw new NotImplementedException();
+        var rightMeta = FlowMetaNode.Create(rightFlow, FlowKind.Consumator, FlowKind.Consumator);
+        var merged = FlowMetaNode.Merge(left.Meta, rightMeta, left.Context);
+        return new Source<IConsumator<T2>>(merged, left.Context);
     }
 
     /// <summary>
@@ -41,7 +43,20 @@ public static partial class FlowExt
     [PublicAPI]
     public static Source<IAsyncConsumator<T2>> Next<T1, T2>(this Source<IConsumator<T1>> left, IFlowable<Pipe<IConsumator<T1>, IAsyncConsumator<T2>>> rightFlow)
     {
-        throw new NotImplementedException();
+        var rightMeta = FlowMetaNode.Create(rightFlow, FlowKind.Consumator, FlowKind.AsyncConsumator);
+        var merged = FlowMetaNode.Merge(left.Meta, rightMeta, left.Context);
+        return new Source<IAsyncConsumator<T2>>(merged, left.Context);
+    }
+
+    /// <summary>
+    ///     Chains an async consumator source to a synchronous consumator pipe (async→sync transition).
+    /// </summary>
+    [PublicAPI]
+    public static Source<IConsumator<T2>> Next<T1, T2>(this Source<IAsyncConsumator<T1>> left, IFlowable<Pipe<IAsyncConsumator<T1>, IConsumator<T2>>> rightFlow)
+    {
+        var rightMeta = FlowMetaNode.Create(rightFlow, FlowKind.AsyncConsumator, FlowKind.Consumator);
+        var merged = FlowMetaNode.Merge(left.Meta, rightMeta, left.Context);
+        return new Source<IConsumator<T2>>(merged, left.Context);
     }
 
     /// <summary>
@@ -85,6 +100,42 @@ public static partial class FlowExt
         var collection = GetOrCreateCollection(left.Meta);
         collection.Push(FlowMetaNode.Create(rightFlow, FlowKind.AsyncConsumator, FlowKind.AsyncProducator));
         return new Source<IAsyncProducator<T2>>(collection, left.Context);
+    }
+
+    /// <summary>
+    ///     Chains a synchronous consumator source to an async producator pipe (sync pull→async push). The
+    ///     source node and the pipe are grouped into a <see cref="FlowMetaCollection" /> for reverse-order
+    ///     resolution: the downstream producator target is created by the terminal sink and fed upstream
+    ///     through the pipe into the consumator source.
+    /// </summary>
+    [PublicAPI]
+    public static Source<IAsyncProducator<T2>> Next<T1, T2>(this Source<IConsumator<T1>> left, IFlowable<Pipe<IConsumator<T1>, IAsyncProducator<T2>>> rightFlow)
+    {
+        var collection = GetOrCreateCollection(left.Meta);
+        collection.Push(FlowMetaNode.Create(rightFlow, FlowKind.Consumator, FlowKind.AsyncProducator));
+        return new Source<IAsyncProducator<T2>>(collection, left.Context);
+    }
+
+    /// <summary>
+    ///     Chains an async consumator source to a synchronous producator pipe (async pull→sync push).
+    /// </summary>
+    [PublicAPI]
+    public static Source<IProducator<T2>> Next<T1, T2>(this Source<IAsyncConsumator<T1>> left, IFlowable<Pipe<IAsyncConsumator<T1>, IProducator<T2>>> rightFlow)
+    {
+        var collection = GetOrCreateCollection(left.Meta);
+        collection.Push(FlowMetaNode.Create(rightFlow, FlowKind.AsyncConsumator, FlowKind.Producator));
+        return new Source<IProducator<T2>>(collection, left.Context);
+    }
+
+    /// <summary>
+    ///     Chains a synchronous consumator source to a synchronous producator pipe (sync pull→sync push).
+    /// </summary>
+    [PublicAPI]
+    public static Source<IProducator<T2>> Next<T1, T2>(this Source<IConsumator<T1>> left, IFlowable<Pipe<IConsumator<T1>, IProducator<T2>>> rightFlow)
+    {
+        var collection = GetOrCreateCollection(left.Meta);
+        collection.Push(FlowMetaNode.Create(rightFlow, FlowKind.Consumator, FlowKind.Producator));
+        return new Source<IProducator<T2>>(collection, left.Context);
     }
     
     /// <summary>

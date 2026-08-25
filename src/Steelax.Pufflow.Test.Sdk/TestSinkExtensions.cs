@@ -24,6 +24,14 @@ public static class TestSinkExtensions
     }
     
     [PublicAPI]
+    public static Sink<IConsumator<T>> Consume<T>(this Source<IConsumator<T>> left, out ChannelReader<T> reader)
+    {
+        var right = new FlowSinkConsumator<T>();
+        reader = right.Reader;
+        return left.End(right.FlowCons);
+    }
+    
+    [PublicAPI]
     public static Sink<IAsyncEnumerator<T>> Consume<T>(this Source<IAsyncEnumerator<T>> left, out ChannelReader<T> reader)
     {
         var right = new FlowSinkEnumerator<T>();

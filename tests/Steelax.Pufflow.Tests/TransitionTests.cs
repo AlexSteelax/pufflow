@@ -1,5 +1,4 @@
 ﻿using Steelax.Pufflow.Sdk.Test;
-using Steelax.Pufflow.Tests.Flows;
 
 namespace Steelax.Pufflow.Tests;
 
@@ -8,15 +7,14 @@ public class TransitionTests
     [Fact]
     public async Task AsyncConsumatorToAsyncProducatorChain_ProducesExpectedResults()
     {
-        // Hybrid chain: a pull source (consumator) → a consumator→producator pipe (delayed binding:
-        // the pipe needs the upstream consumator from the source and the target producator from the
-        // sink) → a push sink (producator).
+        // Hybrid chain: a pull source (consumator) → a consumator→producator pipe → an async push pipe
+        // → a push sink (producator).
         await using var source = new FlowSource();
 
         var sourceFlow = source
             .OnAsyncConsumatorSource(Enumerable.Range(1, 5))
-            .Next(new FlowPipeAsyncConsumatorToAsyncProducator<int, int>(static v => v * 10))
-            .Next(new FlowPipeAsyncProducatorToAsyncProducator<int, int>(static v => v))
+            .ToAsyncProducator(static v => v * 10)
+            .ToAsyncProducator(static v => v)
             .Consume(out var reader);
 
         await source.ExecuteAsync(TestContext.Current.CancellationToken);
