@@ -23,6 +23,7 @@ internal partial class FlowNullSinkProducator<T>
         public bool TryWrite(T _) => true;
 
         public bool TryComplete(Exception? ex = null) => true;
+        public bool IsFull => false;
 
         public ValueTask<bool> WaitToWriteAsync() => ValueTask.FromResult(true);
     }

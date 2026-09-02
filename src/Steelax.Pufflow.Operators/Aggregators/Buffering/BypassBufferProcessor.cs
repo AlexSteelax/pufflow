@@ -1,5 +1,5 @@
 ﻿using Steelax.Pufflow.Operators.Internal;
-using Steelax.Toolkit.HighPerformance.Concurrency.Channels;
+using Steelax.Toolkit.HighPerformance.Concurrency.Collections;
 
 namespace Steelax.Pufflow.Operators.Aggregators.Buffering;
 
@@ -14,7 +14,7 @@ namespace Steelax.Pufflow.Operators.Aggregators.Buffering;
 ///         (<c>Fuse(out IAsyncProducator{T}, out IAsyncConsumator{T}, ctx)</c>): the producator side is the
 ///         write endpoint an upstream push source pushes into (<c>TryWrite</c> / <c>WaitToWriteAsync</c>),
 ///         the consumator side is the read endpoint a downstream pull consumer reads from
-///         (<c>TryRead</c> / <c>WaitToReadAsync</c>). Both sides wrap the same <see cref="SpscChannel{T}" />,
+///         (<c>TryRead</c> / <c>WaitToReadAsync</c>). Both sides wrap the same <see cref="Conduit{T}" />,
 ///         so values written on the producator side surface on the consumator side in FIFO order.
 ///     </para>
 ///     <para>
@@ -32,7 +32,7 @@ namespace Steelax.Pufflow.Operators.Aggregators.Buffering;
 public sealed partial class BypassBufferProcessor<T>(int capacity)
 {
     /// <summary>The bounded SPSC channel shared by the producator (write) and consumator (read) sides.</summary>
-    private readonly SpscChannel<T> _buffer = new(capacity);
+    private readonly InternalConduit<T> _buffer = new(capacity, ConduitBehavior.AwaitableReader | ConduitBehavior.AwaitableWriter);
     
     /// <summary>
     ///     Hands out the two sides of the buffer: the push input producer (written by the upstream source)
@@ -44,10 +44,9 @@ public sealed partial class BypassBufferProcessor<T>(int capacity)
     [PublicAPI]
     public void Fuse(out IAsyncProducator<T> source, out IAsyncConsumator<T> target, FlowContext context)
     {
-        var channel = new InternalSpscChannel<T>(_buffer);
-        Trace.WriteLine($"[BypassBufferProcessor] Fuse: channel={channel.GetHashCode()} buffer={_buffer.GetHashCode()}");
-        source = channel;
-        target = channel;
+        Trace.WriteLine($"[BypassBufferProcessor] Fuse: buffer={GetHashCode()}");
+        source = _buffer;
+        target = _buffer;
     }
     
     /// <summary>
@@ -60,9 +59,8 @@ public sealed partial class BypassBufferProcessor<T>(int capacity)
     [PublicAPI]
     public void Fuse(out IProducator<T> source, out IAsyncConsumator<T> target, FlowContext context)
     {
-        var channel = new InternalSpscChannel<T>(_buffer);
-        Trace.WriteLine($"[BypassBufferProcessor] Fuse: channel={channel.GetHashCode()} buffer={_buffer.GetHashCode()}");
-        source = channel;
-        target = channel;
+        Trace.WriteLine($"[BypassBufferProcessor] Fuse: buffer={GetHashCode()}");
+        source = _buffer;
+        target = _buffer;
     }
 }

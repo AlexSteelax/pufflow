@@ -17,4 +17,9 @@ public interface IProducator<in T>
     /// <param name="ex">The optional fault; <see langword="null" /> for successful completion.</param>
     /// <returns><see langword="true" /> when the stream was marked as completed; otherwise <see langword="false" />.</returns>
     bool TryComplete(Exception? ex = null);
+    
+    /// <summary>
+    /// Gets a value indicating whether the ring buffer is full — every slot is occupied.
+    /// </summary>
+    bool IsFull { get; }
 }

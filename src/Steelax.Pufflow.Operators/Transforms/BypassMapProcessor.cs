@@ -48,84 +48,39 @@ internal sealed partial class BypassMapProcessor<TSource, TTarget>(MapSelector<T
         source = new Producator(target, selector);
     }
 
-    private sealed class AsyncProducator(IAsyncProducator<TTarget> writer, MapSelector<TSource, TTarget> selector) : IAsyncProducator<TSource>
+    private sealed class AsyncProducator(IAsyncProducator<TTarget> writer, MapSelector<TSource, TTarget> selector) :IAsyncProducator<TSource>
     {
-        /// <summary>The projected value retained while the downstream target is full (single-element hold-slot).</summary>
-        private PendingValue<TTarget> _pending;
-
-        /// <summary>
-        ///     Accepts a source value: first flushes any retained projected value (the hold-slot) into the
-        ///     target, then projects the new value. When the target is full, the projected value is retained in
-        ///     the hold-slot so the selector is not re-invoked and ordering is preserved.
-        /// </summary>
-        /// <param name="value">The source value to project and forward.</param>
-        /// <returns><see langword="true" /> when the value was accepted; otherwise <see langword="false" /> (backpressure).</returns>
         public bool TryWrite(TSource value)
         {
-            if (_pending.Occupied)
-            {
-                if (!writer.TryWrite(_pending.Value))
-                    return false;
-
-                _pending = default;
-                return true;
-            }
-
+            if (writer.IsFull)
+                return false;
+            
             var mapped = selector.Invoke(value);
 
-            if (writer.TryWrite(mapped))
-                return true;
-
-            _pending = new PendingValue<TTarget>(mapped);
-            return false;
+            return writer.TryWrite(mapped);
         }
 
-        /// <summary>Signals the end of the stream on the downstream target.</summary>
-        public bool TryComplete(Exception? ex = null)
-        {
-            return writer.TryComplete(ex);
-        }
+        public bool TryComplete(Exception? ex = null) => writer.TryComplete(ex);
 
-        /// <summary>Delegates the write-readiness wait to the downstream target.</summary>
+        public bool IsFull => writer.IsFull;
+
         public ValueTask<bool> WaitToWriteAsync() => writer.WaitToWriteAsync();
     }
     
     private sealed class Producator(IProducator<TTarget> writer, MapSelector<TSource, TTarget> selector) : IProducator<TSource>
     {
-        /// <summary>The projected value retained while the downstream target is full (single-element hold-slot).</summary>
-        private PendingValue<TTarget> _pending;
-        
-        /// <summary>
-        ///     Accepts a source value: first flushes any retained projected value (the hold-slot) into the
-        ///     target, then projects the new value. When the target is full, the projected value is retained in
-        ///     the hold-slot so the selector is not re-invoked and ordering is preserved.
-        /// </summary>
-        /// <param name="value">The source value to project and forward.</param>
-        /// <returns><see langword="true" /> when the value was accepted; otherwise <see langword="false" /> (backpressure).</returns>
         public bool TryWrite(TSource value)
         {
-            if (_pending.Occupied)
-            {
-                if (!writer.TryWrite(_pending.Value))
-                    return false;
+            if (writer.IsFull)
+                return false;
             
-                _pending = default;
-                return true;
-            }
-
             var mapped = selector.Invoke(value);
 
-            if (writer.TryWrite(mapped))
-                return true;
-
-            _pending = new PendingValue<TTarget>(mapped);
-            return false;
+            return writer.TryWrite(mapped);
         }
 
-        /// <summary>Signals the end of the stream on the downstream target.</summary>
-        public bool TryComplete(Exception? ex = null)
-        {
-            return writer.TryComplete(ex);
-        }
+        public bool TryComplete(Exception? ex = null) => writer.TryComplete(ex);
+
+        public bool IsFull => writer.IsFull;
     }
 }

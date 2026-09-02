@@ -41,6 +41,8 @@ internal partial class FlowSinkProducator<T>
             return writer.TryComplete(ex);
         }
 
+        public bool IsFull => false;
+
         public ValueTask<bool> WaitToWriteAsync() => writer.WaitToWriteAsync(cancellationToken);
     }
 }

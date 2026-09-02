@@ -17,6 +17,9 @@ internal sealed partial class PairValueWatermarkProcessor<T> : IAsyncProducator<
 
     public bool TryWrite(Unio<T, Watermark> item)
     {
+        if (_target.IsFull)
+            return false;
+        
         if (item.TryPickT0(out var value, out var watermark))
         {
             if (_pending.Occupied)
@@ -70,4 +73,6 @@ internal sealed partial class PairValueWatermarkProcessor<T> : IAsyncProducator<
 
         return _target.TryComplete(ex);
     }
+
+    public bool IsFull => _target.IsFull;
 }

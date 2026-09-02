@@ -16,6 +16,7 @@ internal sealed partial class FlowPipeProducator<TSource, TTarget>(Func<TSource,
         public bool TryWrite(TSource value) => _channel.Writer.TryWrite(value);
 
         public bool TryComplete(Exception? ex = null) => _channel.Writer.TryComplete(ex);
+        public bool IsFull => false;
 
         public ValueTask<bool> WaitToWriteAsync() => _channel.Writer.WaitToWriteAsync(cancellationToken);
 
@@ -79,6 +80,7 @@ internal sealed partial class FlowPipeProducator<TSource, TTarget>(Func<TSource,
         public bool TryWrite(TSource value) => _channel.Writer.TryWrite(value);
 
         public bool TryComplete(Exception? ex = null) => _channel.Writer.TryComplete(ex);
+        public bool IsFull => false;
 
         public ValueTask<bool> WaitToWriteAsync() => _channel.Writer.WaitToWriteAsync(cancellationToken);
     }
