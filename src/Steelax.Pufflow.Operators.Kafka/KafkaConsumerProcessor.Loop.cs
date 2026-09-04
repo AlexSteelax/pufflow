@@ -1,10 +1,11 @@
 using Confluent.Kafka;
 using Steelax.Pufflow.Abstractions;
 using Steelax.Pufflow.Operators.Common;
+using Unio;
 
 namespace Steelax.Pufflow.Operators.Kafka;
 
-internal sealed partial class KafkaConsumerProcessor<TKey, TValue>
+internal partial class KafkaConsumerProcessor<TKey, TValue>
 {
     /// <summary>
     ///     The current working mode of the loop with respect to the advance timer
@@ -43,7 +44,7 @@ internal sealed partial class KafkaConsumerProcessor<TKey, TValue>
     ///     reactions (advance/watermark timers), with the <see cref="LoopMode" /> deciding the
     ///     advance-timer pace.
     /// </summary>
-    private async Task InternalExecuteAsync(IProducator<Watermarked<ConsumeResult<TKey, TValue>>> buffer, FlowContext context)
+    private async Task InternalExecuteAsync(IProducator<Watermarked<Unio<ConsumeResult<TKey, TValue>, Unit>>> buffer, FlowContext context)
     {
         var abortToken = context.Token;
         _watermarkTimer.Change(_options.WindowLifetime, _options.WindowLifetime);
@@ -61,6 +62,12 @@ internal sealed partial class KafkaConsumerProcessor<TKey, TValue>
                     case LoopMode.Emergency or LoopMode.Idle when fanSet.IsSet(AdvanceTimerSignal):
                     {
                         var advanced = Advance(buffer);
+
+                        // When the wake produced no data and the buffer is not under backpressure, run the
+                        // idle progress-marker state machine: it arms on the first empty wake and emits a
+                        // single bare watermark on the following one (guarded by a newer-watermark check).
+                        if (!advanced && !IsEmergency)
+                            TryEmitIdleWatermark(buffer);
 
                         // Re-evaluate the actual mode: a write failure is unconditional emergency; no data
                         // falls back to idle unless the buffer is still under backpressure.

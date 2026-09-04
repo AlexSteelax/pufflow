@@ -6,7 +6,7 @@ namespace Steelax.Pufflow;
 /// <summary>
 ///     Describes a single pipeline node: the handler method found on the node's type, the types it consumes
 ///     and produces, and its role in the chain (source/pipe/sink). Built once per node via reflection
-///     (following the same <c>GetType</c> + <c>GetMethod</c> approach as <see cref="FlowMarshal" />), then
+///     (following the same <c>GetType</c> + <c>GetMethod</c>), then
 ///     combined by <see cref="Merge" /> into connected nodes. The flow context is passed separately at
 ///     invocation time.
 /// </summary>

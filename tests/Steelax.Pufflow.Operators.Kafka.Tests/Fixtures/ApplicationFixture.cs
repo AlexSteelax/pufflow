@@ -22,10 +22,10 @@ public sealed class ApplicationFixture : IAsyncLifetime
             builder
                 .AddConsole()
                 .AddDebug()
-                .SetMinimumLevel(LogLevel.Warning); 
+                .SetMinimumLevel(LogLevel.Trace); 
         });
         
-        KafkaContainer = new KafkaBuilder("confluentinc/cp-kafka:7.4.0")
+        KafkaContainer = new KafkaBuilder("confluentinc/cp-kafka:7.5.12")
             .WithKRaft()
             .WithVendor(KafkaVendor.Confluent)
             .WithLogger(_loggerFactory.CreateLogger<KafkaContainer>())

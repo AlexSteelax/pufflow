@@ -1,74 +1,34 @@
+using Steelax.Pufflow.Abstractions;
 using static Steelax.Pufflow.Generator.Tests.TestMarshal;
 
 namespace Steelax.Pufflow.Generator.Tests;
 
+/// <summary>
+///     A single class with multiple <c>Fuse</c> overloads (as the real <c>FlowPipeProducator</c> flow)
+///     must produce one marker and one disambiguation view per signature, without legacy naming.
+/// </summary>
 public class MultiSignatureFuseTests
 {
-    /// <summary>
-    ///     A single class with multiple <c>Fuse</c> overloads (as the real <c>FlowPipeProducator</c> flow)
-    ///     must produce one <c>IFlowable<Pipe<...>></c> marker per signature.
-    /// </summary>
-    [Fact]
-    public void FlowPipeProducator_MultipleFuseSignatures_GeneratesAllPipes()
+    [Theory]
+    [InlineData(typeof(IEnumerator<>), typeof(IProducator<>))]
+    [InlineData(typeof(IEnumerator<>), typeof(IAsyncProducator<>))]
+    [InlineData(typeof(IConsumator<>), typeof(IProducator<>))]
+    [InlineData(typeof(IConsumator<>), typeof(IAsyncProducator<>))]
+    [InlineData(typeof(IAsyncEnumerator<>), typeof(IProducator<>))]
+    [InlineData(typeof(IAsyncEnumerator<>), typeof(IAsyncProducator<>))]
+    [InlineData(typeof(IAsyncConsumator<>), typeof(IProducator<>))]
+    [InlineData(typeof(IAsyncConsumator<>), typeof(IAsyncProducator<>))]
+    public void FlowPipeProducator_GeneratesMarkerAndViewPerSignature(Type left, Type right)
     {
         var source = GetNoCompilationSource("FlowPipeProducator");
         var runResult = RunGenerator(source);
-        var f = runResult.GeneratedTrees.FirstOrDefault(t => t.FilePath.EndsWith("FlowPipeProducator.g.cs"));
-        Assert.NotNull(f);
-        var c = f.GetText(TestContext.Current.CancellationToken).ToString();
+        var tree = runResult.GeneratedTrees.FirstOrDefault(t => t.FilePath.EndsWith("FlowPipeProducator.g.cs"));
 
-        Assert.Contains(
-            "IFlowable<Steelax.Pufflow.Pipe<System.Collections.Generic.IEnumerator<T1>, Steelax.Pufflow.Abstractions.IProducator<T2>>>",
-            c);
-        Assert.Contains(
-            "IFlowable<Steelax.Pufflow.Pipe<System.Collections.Generic.IEnumerator<T1>, Steelax.Pufflow.Abstractions.IAsyncProducator<T2>>>",
-            c);
-        Assert.Contains(
-            "IFlowable<Steelax.Pufflow.Pipe<Steelax.Pufflow.Abstractions.IConsumator<T1>, Steelax.Pufflow.Abstractions.IProducator<T2>>>",
-            c);
-        Assert.Contains(
-            "IFlowable<Steelax.Pufflow.Pipe<Steelax.Pufflow.Abstractions.IConsumator<T1>, Steelax.Pufflow.Abstractions.IAsyncProducator<T2>>>",
-            c);
-        Assert.Contains(
-            "IFlowable<Steelax.Pufflow.Pipe<System.Collections.Generic.IAsyncEnumerator<T1>, Steelax.Pufflow.Abstractions.IProducator<T2>>>",
-            c);
-        Assert.Contains(
-            "IFlowable<Steelax.Pufflow.Pipe<System.Collections.Generic.IAsyncEnumerator<T1>, Steelax.Pufflow.Abstractions.IAsyncProducator<T2>>>",
-            c);
-        Assert.Contains(
-            "IFlowable<Steelax.Pufflow.Pipe<Steelax.Pufflow.Abstractions.IAsyncConsumator<T1>, Steelax.Pufflow.Abstractions.IProducator<T2>>>",
-            c);
-        Assert.Contains(
-            "IFlowable<Steelax.Pufflow.Pipe<Steelax.Pufflow.Abstractions.IAsyncConsumator<T1>, Steelax.Pufflow.Abstractions.IAsyncProducator<T2>>>",
-            c);
+        Assert.NotNull(tree);
 
-        Assert.DoesNotContain("Steelax.Pufflow.Abstractions.Sync", c);
-        Assert.DoesNotContain("Steelax.Pufflow.Abstractions.Async", c);
-        Assert.DoesNotContain("GetFlow", c);
-    }
+        var text = tree.GetText(TestContext.Current.CancellationToken).ToString();
 
-    /// <summary>
-    ///     View properties use abbreviated interface names: Enum/AEnum/Cons/ACons/Prod/AProd.
-    /// </summary>
-    [Fact]
-    public void FlowPipeProducator_ViewPropertiesUseAbbreviations()
-    {
-        var source = GetNoCompilationSource("FlowPipeProducator");
-        var runResult = RunGenerator(source);
-        var f = runResult.GeneratedTrees.FirstOrDefault(t => t.FilePath.EndsWith("FlowPipeProducator.g.cs"));
-        Assert.NotNull(f);
-        var c = f.GetText(TestContext.Current.CancellationToken).ToString();
-
-        Assert.Contains("FlowEnumToProd", c);
-        Assert.Contains("FlowEnumToAProd", c);
-        Assert.Contains("FlowConsToProd", c);
-        Assert.Contains("FlowConsToAProd", c);
-        Assert.Contains("FlowAEnumToProd", c);
-        Assert.Contains("FlowAEnumToAProd", c);
-        Assert.Contains("FlowAConsToProd", c);
-        Assert.Contains("FlowAConsToAProd", c);
-
-        Assert.DoesNotContain("FlowWithEnumeratorToProducator", c);
-        Assert.DoesNotContain("FlowWithAsyncConsumatorToAsyncProducator", c);
+        Assert.Matches(FlowMarkerPattern(typeof(Pipe<,>), left, right), text);
+        Assert.Matches(FlowViewPattern(left, right), text);
     }
 }

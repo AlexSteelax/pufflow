@@ -121,7 +121,7 @@ public static partial class OperatorExtensions
                 options.QueueWeightLimit,
                 options.WatchdogPeriod);
             
-            return left.Map<TValue, Unio<TValue, Unit>>(Extend).Next(processor.FlowAConsToAProd);
+            return left.Map(Extend).Next(processor.FlowAConsToAProd);
         }
 
         /// <summary>
@@ -152,7 +152,7 @@ public static partial class OperatorExtensions
         }
     }
     
-    private static Unio<TValue, Unit> Simplify<TValue>(scoped in Unio<TValue, TValue, Unit> item)
+    private static Unio<TValue, Unit> Simplify<TValue>(scoped in Unio<TValue, TValue, Unit> item, scoped in Watermark watermark)
     {
         if (item.TryPickT2(out _, out var remainder))
             return default(Unit);
@@ -160,7 +160,7 @@ public static partial class OperatorExtensions
         return remainder.TryPickT0(out var v1, out var v2) ? v1 : v2;
     }
     
-    private static Unio<TValue, Unit> Extend<TValue>(scoped in TValue item)
+    private static Unio<TValue, Unit> Extend<TValue>(scoped in TValue item, scoped in Watermark watermark)
     {
         return item;
     }

@@ -3,9 +3,9 @@ using Steelax.Pufflow.Abstractions;
 namespace Steelax.Pufflow.Generator.Tests.NoCompilationSources;
 
 [Flow]
-public partial class MyMultiExecute<T1, T2>
+public partial class MyPipeProducatorToAsyncProducator<T1, T2>
 {
-    public void Fuse(System.Collections.Generic.IEnumerator<T1> source, IProducator<T2> target, Steelax.Pufflow.FlowContext ctx)
+    public void Fuse(IProducator<T1> source, IAsyncProducator<T2> target, Steelax.Pufflow.FlowContext ctx)
     {
         throw new System.NotImplementedException();
     }

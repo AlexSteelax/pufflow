@@ -4,6 +4,7 @@ using Confluent.Kafka.Admin;
 using Steelax.Pufflow.Operators.Common;
 using Steelax.Pufflow.Operators.Kafka.Tests.Fixtures;
 using Steelax.Pufflow.Sdk.Test;
+using Unio;
 using Xunit;
 
 namespace Steelax.Pufflow.Operators.Kafka.Tests;
@@ -70,21 +71,30 @@ public class IntegrationTests(ApplicationFixture application, ITestOutputHelper 
             EnableAutoCommit = false
         }).Build();
 
-    /// <summary>Reads exactly <paramref name="count" /> items from the reader, waiting with the given token.</summary>
-    private static async Task<List<Watermarked<ConsumeResult<string, string>>>> ReadExactlyAsync(
-        ChannelReader<Watermarked<ConsumeResult<string, string>>> reader,
+    /// <summary>
+    ///     Collects raw items from the reader until exactly <paramref name="count" /> consumed <b>records</b>
+    ///     (payload branch T0) have been seen. Bare progress markers (payload branch T1) that may appear while
+    ///     idle are collected as well, so watermark assertions still see the full emitted sequence.
+    /// </summary>
+    private static async Task<List<Watermarked<Unio<ConsumeResult<string, string>, Unit>>>> CollectAsync(
+        ChannelReader<Watermarked<Unio<ConsumeResult<string, string>, Unit>>> reader,
         int count,
         CancellationToken cancellationToken)
     {
-        var items = new List<Watermarked<ConsumeResult<string, string>>>(count);
+        var items = new List<Watermarked<Unio<ConsumeResult<string, string>, Unit>>>();
+        var records = 0;
 
-        while (items.Count < count)
+        while (records < count)
         {
             if (!await reader.WaitToReadAsync(cancellationToken).ConfigureAwait(false))
                 break;
 
-            while (items.Count < count && reader.TryRead(out var item))
+            while (records < count && reader.TryRead(out var item))
+            {
                 items.Add(item);
+                if (item.Value.IsT0)
+                    records++;
+            }
         }
 
         return items;
@@ -112,20 +122,19 @@ public class IntegrationTests(ApplicationFixture application, ITestOutputHelper 
 
         try
         {
-            var items = await ReadExactlyAsync(reader, count, cts.Token);
+            // Collect raw items (union of progress markers + records) until we have seen all records.
+            var items = await CollectAsync(reader, count, cts.Token);
+            var records = items.Where(static it => it.Value.IsT0).Select(static it => it.Value.AsT0).ToList();
 
             // All messages are delivered, in the produced order.
-            Assert.Equal(count, items.Count);
-            Assert.Equal(Enumerable.Range(0, count).Select(i => $"value-{i}"), items.Select(i => i.Value.Message.Value));
+            Assert.Equal(count, records.Count);
+            Assert.Equal(Enumerable.Range(0, count).Select(i => $"value-{i}"), records.Select(i => i.Message.Value));
 
-            // The system watermark provider emits the current clock tick on every record, so each item
-            // carries a real watermark (never Nothing). Values are non-decreasing: they may repeat within
-            // a single tick (Environment.TickCount64 changes roughly every 15.6 ms — all items may land in
-            // one tick), and they advance on tick transitions. No strict advancement is required.
-            Assert.DoesNotContain(items, static i => i.IsNothing);
-
-            var progress = items.Select(i => i.Watermark).ToList();
+            // Records carry a real wrapper watermark (never Nothing) and progress across records never goes
+            // backwards (values may repeat within a single running tick — no strict advancement required).
+            var progress = items.Where(static it => it.Value.IsT0).Select(static it => it.Watermark).ToList();
             Assert.NotEmpty(progress);
+            Assert.DoesNotContain(progress, static w => w.IsNothing);
 
             for (var i = 1; i < progress.Count; i++)
                 Assert.True(progress[i - 1] <= progress[i],
@@ -158,11 +167,22 @@ public class IntegrationTests(ApplicationFixture application, ITestOutputHelper 
 
         try
         {
-            // Wait briefly: nothing is produced, so nothing arrives on the reader.
+            // Wait several waiting cycles: the idle Kafka source should have emitted bare progress markers,
+            // but never a consumed record on an empty topic.
             await Task.Delay(500, cts.Token);
 
-            // No items were emitted on an empty topic.
-            Assert.False(reader.TryRead(out _), "an empty topic must not emit any items");
+            var sawRecord = false;
+            var sawMarker = false;
+            while (reader.TryRead(out var item))
+            {
+                if (item.Value.IsT0)
+                    sawRecord = true;
+                else if (item.Value.IsT1)
+                    sawMarker = true;
+            }
+
+            Assert.False(sawRecord, "an empty topic must not emit any consumed records");
+            Assert.True(sawMarker, "idle consumption should emit bare progress markers");
         }
         finally
         {
@@ -216,19 +236,30 @@ public class IntegrationTests(ApplicationFixture application, ITestOutputHelper 
 
         try
         {
-            // Stay idle well beyond the client's Session.Timeout (5s). The idle loop must keep the
-            // connection alive: the pipeline must not fault.
+            // Stay idle well beyond the client's Session.Timeout. While idle the source should emit bare
+            // progress markers (which keeps the pipeline alive) but never consumed records on an empty topic.
             await Task.Delay(TimeSpan.FromSeconds(12), cts.Token);
 
             Assert.False(runTask.IsFaulted, "the idle Kafka source must not fault within the client timeouts");
-            Assert.False(reader.TryRead(out _), "no messages should be produced on an empty topic");
+
+            bool sawRecordOnIdle = false, sawMarkerOnIdle = false;
+            while (reader.TryRead(out var idleItem))
+            {
+                if (idleItem.Value.IsT0)
+                    sawRecordOnIdle = true;
+                else if (idleItem.Value.IsT1)
+                    sawMarkerOnIdle = true;
+            }
+
+            Assert.False(sawRecordOnIdle, "no consumed records should be produced while idle on an empty topic");
+            Assert.True(sawMarkerOnIdle, "idle consumption should emit bare progress markers");
 
             // The connection is still alive: a message produced now must be delivered.
             await ProduceAsync(bootstrap, topic, 1);
 
-            var item = await ReadExactlyAsync(reader, 1, cts.Token);
-            var message = Assert.Single(item);
-            Assert.Equal("value-0", message.Value.Message.Value);
+            var collected = await CollectAsync(reader, 1, cts.Token);
+            var value = Assert.Single(collected.Where(static it => it.Value.IsT0).Select(static it => it.Value.AsT0));
+            Assert.Equal("value-0", value.Message.Value);
         }
         finally
         {

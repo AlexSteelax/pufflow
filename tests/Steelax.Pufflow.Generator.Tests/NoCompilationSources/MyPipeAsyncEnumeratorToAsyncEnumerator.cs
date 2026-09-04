@@ -4,7 +4,7 @@ using Steelax.Pufflow.Abstractions;
 namespace Steelax.Pufflow.Generator.Tests.NoCompilationSources;
 
 [Flow]
-public partial class MyAsyncTransform<T1, T2>
+public partial class MyPipeAsyncEnumeratorToAsyncEnumerator<T1, T2>
 {
     public void Fuse(in IAsyncEnumerator<T1> source, out IAsyncEnumerator<T2> target, Steelax.Pufflow.FlowContext ctx)
     {

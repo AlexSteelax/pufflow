@@ -4,12 +4,15 @@ using Steelax.Pufflow.Abstractions;
 using Steelax.Pufflow.Operators.Common;
 using Steelax.Toolkit.HighPerformance.Concurrency.Primitives;
 using Steelax.Toolkit.HighPerformance.Primitives;
+using Unio;
 
 namespace Steelax.Pufflow.Operators.Kafka;
 
 /// <summary>
 ///     Transforms an <see cref="IConsumer{TKey,TValue}" /> into a pipeline source emitting
-///     <see cref="Watermarked{T}" /> wrapping <see cref="ConsumeResult{TKey,TValue}" />.
+///     <see cref="Watermarked{T}" /> items whose payload is a union of a
+///     <see cref="ConsumeResult{TKey,TValue}" /> (branch T0) or a bare <see cref="Unit" /> marker
+///     (branch T1) carrying a progress watermark with no data.
 /// </summary>
 /// <typeparam name="TKey">The Kafka message key type.</typeparam>
 /// <typeparam name="TValue">The Kafka message value type.</typeparam>
@@ -31,8 +34,11 @@ namespace Steelax.Pufflow.Operators.Kafka;
 ///         the counter is greater than zero.
 ///     </para>
 ///     <para>
-///         The emitted element is the <see cref="ConsumeResult{TKey,TValue}" /> itself (no loss, no cost);
-///         mapping to a domain object is done by a downstream pipeline operator.
+///         The emitted value item is the <see cref="ConsumeResult{TKey,TValue}" /> itself (no loss, no cost);
+///         mapping to a domain object is done by a downstream pipeline operator. When consumption idles, a
+///         single bare <see cref="Unit" /> progress marker is emitted after a waiting cycle has elapsed with
+///         no data, so the reader's watermark can still be advanced and committed offsets can close a tail of
+///         data that has gone quiet.
 ///     </para>
 /// </remarks>
 [Flow]
@@ -77,6 +83,32 @@ internal sealed partial class KafkaConsumerProcessor<TKey, TValue> : IAsyncDispo
     ///     consuming the next records. Watermarks are not stored on failure.
     /// </summary>
     private readonly Deque<ConsumeResult<TKey, TValue>> _pending;
+
+    /// <summary>The idling progress-marker state machine.</summary>
+    private enum IdleWatermarkState : byte
+    {
+        /// <summary>Consumption is progressing (records flowed since the last idle cycle).</summary>
+        Default,
+
+        /// <summary>One full waiting cycle elapsed with no data — awaiting the next wake to emit the marker.</summary>
+        Prepare,
+
+        /// <summary>The bare progress marker has been emitted for this quiet period.</summary>
+        Realize
+    }
+
+    /// <summary>
+    ///     The most recent watermark that was actually emitted to the output producer (either as a record
+    ///     item or as a bare progress marker). A bare marker is only emitted for a new watermark that is
+    ///     strictly newer than this value — a guard against pushing a stale (or repeated) progress point.
+    /// </summary>
+    private long _lastEmittedWatermark = Watermark.NothingValue;
+
+    /// <summary>
+    ///     The idle progress marker state machine (see <see cref="IdleWatermarkState" />). It tracks whether a
+    ///     bare progress marker should be emitted now that consumption has been idle for a full waiting cycle.
+    /// </summary>
+    private IdleWatermarkState _idleWatermarkState;
 
     /// <summary>The shared loop signal multiplexer (advance/watermark timers).</summary>
     private readonly FanInSlim _fan;
@@ -130,11 +162,11 @@ internal sealed partial class KafkaConsumerProcessor<TKey, TValue> : IAsyncDispo
     ///     Starts pushing watermarked results into a synchronous producer, launching the background loop
     ///     on the thread pool.
     /// </summary>
-    /// <param name="target">The synchronous producer receiving the emitted results.</param>
+    /// <param name="target">The synchronous producer receiving the emitted items.</param>
     /// <param name="context">The flow context providing cancellation.</param>
     /// <returns>The background consume task.</returns>
     [PublicAPI]
-    public void Fuse(IProducator<Watermarked<ConsumeResult<TKey, TValue>>> target, FlowContext context)
+    public void Fuse(IProducator<Watermarked<Unio<ConsumeResult<TKey, TValue>, Unit>>> target, FlowContext context)
     {
         _ = context.RegisterBackground(() => InternalExecuteAsync(target, context));
         
@@ -237,7 +269,7 @@ internal sealed partial class KafkaConsumerProcessor<TKey, TValue> : IAsyncDispo
     ///     Advances the pipeline by one step: drains the pending queue into the output producer, then
     ///     either writes a freshly polled record directly or buffers it in the pending queue.
     /// </summary>
-    /// <param name="buffer">The write target (producer) receiving the emitted results.</param>
+    /// <param name="buffer">The write target (producer) receiving the emitted items.</param>
     /// <returns>
     ///     <see langword="true" /> when a record was consumed and emitted (and recorded in the window);
     ///     <see langword="false" /> when no data is available or the producer is not accepting (the record
@@ -249,7 +281,7 @@ internal sealed partial class KafkaConsumerProcessor<TKey, TValue> : IAsyncDispo
     ///     that could not be emitted is never marked as progress.
     /// </remarks>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private bool Advance(IProducator<Watermarked<ConsumeResult<TKey, TValue>>> buffer)
+    private bool Advance(IProducator<Watermarked<Unio<ConsumeResult<TKey, TValue>, Unit>>> buffer)
     {
         ref var window = ref TakeWindow();
 
@@ -258,7 +290,7 @@ internal sealed partial class KafkaConsumerProcessor<TKey, TValue> : IAsyncDispo
         {
             var watermark = _watermarkProvider.GetWatermark();
 
-            if (!buffer.TryWrite(new Watermarked<ConsumeResult<TKey, TValue>>(result, watermark)))
+            if (!TryWriteRecord(buffer, result, watermark))
                 break;
 
             window.Add(watermark, TopicPartitionEpoch.From(result), result.Offset);
@@ -273,7 +305,7 @@ internal sealed partial class KafkaConsumerProcessor<TKey, TValue> : IAsyncDispo
 
             var watermark = _watermarkProvider.GetWatermark();
 
-            if (!buffer.TryWrite(new Watermarked<ConsumeResult<TKey, TValue>>(result, watermark)))
+            if (!TryWriteRecord(buffer, result, watermark))
             {
                 // The producer is not accepting — keep the record in the pending queue.
                 _ = _pending.TryAddLast(result);
@@ -292,6 +324,90 @@ internal sealed partial class KafkaConsumerProcessor<TKey, TValue> : IAsyncDispo
         }
 
         return false;
+    }
+
+    /// <summary>
+    ///     Attempts to write an idle progress marker (<see cref="Unit" />) once a waiting cycle has elapsed
+    ///     with no data, so the reader watermark can advance and commit a quieted tail of offsets. This is
+    ///     driven by the three-state <see cref="IdleWatermarkState" /> machine.
+    /// </summary>
+    /// <param name="buffer">The output producer.</param>
+    /// <returns>
+    ///     <see langword="true" /> when a bare progress marker was emitted (or the state advanced toward one);
+    ///     <see langword="false" /> when the marker remains pending (the output was full or the new watermark
+    ///     was not newer than the last emitted one).
+    /// </returns>
+    /// <remarks>
+    ///     The marker is never recorded into a window and never buffered in <see cref="_pending" /> — it is
+    ///     idempotent and, on a full output, the loop simply retries on the next idle wake.
+    /// </remarks>
+    private bool TryEmitIdleWatermark(IProducator<Watermarked<Unio<ConsumeResult<TKey, TValue>, Unit>>> buffer)
+    {
+        switch (_idleWatermarkState)
+        {
+            case IdleWatermarkState.Default:
+                // A full waiting cycle has elapsed without a record — arm the next cycle to emit the marker.
+                _idleWatermarkState = IdleWatermarkState.Prepare;
+                return true;
+
+            case IdleWatermarkState.Prepare:
+            {
+                var watermark = _watermarkProvider.GetWatermark();
+
+                // Guard: never emit a marker that is not strictly newer than the last emitted progress —
+                // practically always true after a wait, but protects from a stale/repeated tick.
+                var last = Volatile.Read(ref _lastEmittedWatermark);
+                if (watermark <= last)
+                    return false;
+
+                if (!TryWriteMarker(buffer, watermark))
+                    return false;
+
+                // The marker was accepted — the progress point was delivered once; stay quiet until new data.
+                ReconcileEmittedWatermark(watermark);
+                _idleWatermarkState = IdleWatermarkState.Realize;
+                return true;
+            }
+
+            case IdleWatermarkState.Realize:
+            default:
+                // Already emitted a marker for this quiet period — nothing further to do.
+                return false;
+        }
+    }
+
+    /// <summary>Resets the idle progress marker state when a record has been successfully emitted.</summary>
+    private void EnterDefaultOnRecord()
+    {
+        _idleWatermarkState = IdleWatermarkState.Default;
+    }
+
+    /// <summary>Builds and writes a watermarked item carrying a consumed record (payload branch T0).</summary>
+    private bool TryWriteRecord(
+        IProducator<Watermarked<Unio<ConsumeResult<TKey, TValue>, Unit>>> buffer,
+        ConsumeResult<TKey, TValue> result,
+        Watermark watermark)
+    {
+        if (!buffer.TryWrite(new Watermarked<Unio<ConsumeResult<TKey, TValue>, Unit>>(result, watermark)))
+            return false;
+
+        ReconcileEmittedWatermark(watermark);
+        EnterDefaultOnRecord();
+        return true;
+    }
+
+    /// <summary>Builds and writes a watermarked bare progress marker (payload branch T1, <see cref="Unit" />).</summary>
+    private bool TryWriteMarker(
+        IProducator<Watermarked<Unio<ConsumeResult<TKey, TValue>, Unit>>> buffer,
+        Watermark watermark)
+    {
+        return buffer.TryWrite(new Watermarked<Unio<ConsumeResult<TKey, TValue>, Unit>>(default(Unit), watermark));
+    }
+
+    /// <summary>Records <paramref name="watermark" /> as the newest emitted progress point.</summary>
+    private void ReconcileEmittedWatermark(Watermark watermark)
+    {
+        InterlockedMath.AdvanceMax(ref _lastEmittedWatermark, watermark);
     }
 
     /// <summary>Performs a non-blocking poll, returning the next record or <see langword="null" />.</summary>

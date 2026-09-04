@@ -5,25 +5,32 @@ using Steelax.Pufflow.Operators.Common;
 namespace Steelax.Pufflow.Operators.Transforms;
 
 /// <summary>
-///     A stateless push→push pipe that applies a <see cref="MapSelector{TSource,TTarget}" /> to each element
-///     of an async push stream.
+///     A stateless 1:1 pipe that applies a projection (<see cref="MapSelector{TSource,TTarget}" />) to every element
+///     it sees, forwarding each result unchanged downstream. One input always produces exactly one output.
 /// </summary>
 /// <typeparam name="TSource">The input element type.</typeparam>
 /// <typeparam name="TTarget">The output element type.</typeparam>
-/// <typeparam name="TArgs"></typeparam>
-/// <typeparam name="TScope"></typeparam>
+/// <typeparam name="TScope">
+///     The type of the operator-held scope state (typically the caller-supplied selector itself), handed to the
+///     internal projection on each invocation. Kept as a type parameter so the projection can be a cached static
+///     method-group adapter that the JIT is able to inline on the hot path.
+/// </typeparam>
+/// <typeparam name="TArgs">
+///     The type of the fixed per-pipe arguments the projection receives (a <see cref="Unit" /> padding when the public
+///     selector takes no extra arguments).
+/// </typeparam>
 /// <remarks>
 ///     <para>
-///         The component implements <see cref="IAsyncProducator{TSource}" /> (the input the upstream source
-///         pushes into) and forwards the projected values into the downstream target through a hold-slot:
-///         when the target is full, the already-projected <typeparamref name="TTarget" /> value is retained in
-///         a <see cref="PendingValue{TTarget}" /> slot and pushed out first on the next write, so the selector
-///         is never invoked twice for the same input and element order is preserved.
+///         The transform is stateless and pushes exactly one element per input it accepts. On the push side,
+///         <c>TryWrite</c> maps the value only when the downstream target is not full and immediately hands the
+///         projection to it; a rejected write reports back the backpressure through <c>IsFull</c>/<c>WaitToWriteAsync</c>
+///         without dropping the incoming value. On the pull side, the consumer projects each accepted element into its
+///         output. No per-element buffering or background task is used, and completion is proxied to the neighbouring
+///         endpoint unchanged.
 ///     </para>
 ///     <para>
-///         The transform is stateless and 1:1 (one input produces exactly one output), so the pipe needs no
-///         buffering beyond the single hold-slot and no background task. Completion is proxied to the
-///         downstream target unchanged.
+///         For a watermarked input the processor keeps the marker intact: it projects the underlying value and wraps
+///         the result with the source's unchanged watermark (see the watermarked mapping extensions).
 ///     </para>
 /// </remarks>
 [Flow]

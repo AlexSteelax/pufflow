@@ -2,7 +2,7 @@
 
 namespace Steelax.Pufflow.Operators.Kafka;
 
-internal sealed partial class KafkaConsumerProcessor<TKey, TValue>
+internal partial class KafkaConsumerProcessor<TKey, TValue>
 {
     /// <summary>
     /// Advances committed offsets back to Kafka after records are processed.

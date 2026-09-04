@@ -1,6 +1,7 @@
 ﻿using Confluent.Kafka;
 using Steelax.Pufflow.Abstractions;
 using Steelax.Pufflow.Operators.Common;
+using Unio;
 
 namespace Steelax.Pufflow.Operators.Kafka;
 
@@ -11,8 +12,9 @@ namespace Steelax.Pufflow.Operators.Kafka;
 public static class KafkaOperatorExtensions
 {
     /// <summary>
-    ///     Attaches a Kafka consumer source to the flow: emits watermarked
-    ///     <see cref="ConsumeResult{TKey,TValue}" /> records as they are consumed.
+    ///     Attaches a Kafka consumer source to the flow: emits watermarked items whose payload is either a
+    ///     consumed <see cref="ConsumeResult{TKey,TValue}" /> (branch T0) or a bare <see cref="Unit" /> marker
+    ///     (branch T1) that carries a progress watermark when consumption has been quiet.
     /// </summary>
     /// <typeparam name="TKey">The Kafka message key type.</typeparam>
     /// <typeparam name="TValue">The Kafka message value type.</typeparam>
@@ -26,8 +28,11 @@ public static class KafkaOperatorExtensions
     /// <param name="errorPolicy">The error policy; defaults to <see cref="KafkaErrorPolicy.Default" />.</param>
     /// <param name="watermarkProvider">The watermark source; defaults to monotonic time.</param>
     /// <param name="timeProvider">The time source for timers; defaults to the system one.</param>
-    /// <returns>A source emitting <see cref="Watermarked{T}" /> <see cref="ConsumeResult{TKey,TValue}" /> items.</returns>
-    public static Source<IProducator<Watermarked<ConsumeResult<TKey, TValue>>>> OnKafkaSource<TKey, TValue>(
+    /// <returns>
+    ///     A source emitting <see cref="Watermarked{T}" /> items whose payload is a
+    ///     <c>Unio&lt;<see cref="ConsumeResult{TKey,TValue}" />, <see cref="Unit" />&gt;</c>.
+    /// </returns>
+    public static Source<IProducator<Watermarked<Unio<ConsumeResult<TKey, TValue>, Unit>>>> OnKafkaSource<TKey, TValue>(
         this FlowSource flowSource,
         IConsumer<TKey, TValue> consumer,
         KafkaConsumerOptions options,
