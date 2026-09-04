@@ -1,11 +1,7 @@
-﻿using System.Runtime.Intrinsics;
-using Steelax.Pufflow.Operators.Abstractions;
-using Steelax.Pufflow.Operators.Aggregators;
+﻿using Steelax.Pufflow.Operators.Aggregators;
 using Steelax.Pufflow.Operators.Aggregators.Buffering;
 using Steelax.Pufflow.Operators.Aggregators.Chunking;
-using Steelax.Pufflow.Operators.Aggregators.Warming;
 using Steelax.Pufflow.Operators.Common;
-using Steelax.Pufflow.Operators.Transforms;
 
 namespace Steelax.Pufflow.Operators;
 
@@ -13,7 +9,7 @@ namespace Steelax.Pufflow.Operators;
 ///     Provides extension operators that attach processing stages to a dataflow source.
 /// </summary>
 [PublicAPI]
-public static class OperatorExtensions
+public static partial class OperatorExtensions
 {
     extension<T>(Source<IAsyncEnumerator<T>> left)
     {
@@ -63,77 +59,7 @@ public static class OperatorExtensions
         }
     }
 
-    extension<TValue>(Source<IAsyncConsumator<Watermarked<TValue>>> left)
-    {
-        /// <summary>
-        ///     Warms the upstream stream in key segments before forwarding values downstream.
-        /// </summary>
-        /// <typeparam name="TKey">The key type used to partition the stream for warming.</typeparam>
-        /// <typeparam name="TGroup">The type of warmed group results produced by an accumulator.</typeparam>
-        /// <typeparam name="TWarm">The warming data type produced by an <see cref="IAsyncJob{TKey,TWarm}" />.</typeparam>
-        /// <param name="options">Numeric and timing configuration (concurrency, segments, budget, watchdog).</param>
-        /// <param name="jobFactory">Creates the warming jobs.</param>
-        /// <param name="keySelector">Selects the warming key for each input value.</param>
-        /// <param name="policy">Decides which keys require warming and receives the warm result.</param>
-        /// <param name="accumulatorFactory">Creates the per-key accumulator buffers.</param>
-        /// <returns>A source emitting <see cref="Unio{T,TGroup,Watermark}" /> items.</returns>
-        [PublicAPI]
-        public Source<IAsyncProducator<Unio<TValue, TGroup, Watermark>>> Warming<TKey, TGroup, TWarm>(
-            WarmOptions options,
-            IJobFactory<TKey, TWarm> jobFactory,
-            MapSelector<TValue, TKey> keySelector,
-            IWarmPolicy<TKey, TWarm> policy,
-            IWarmAccumulatorFactory<TKey, TValue, TGroup> accumulatorFactory)
-            where TKey : notnull
-        {
-            var warmer = new Warmer<TKey, TWarm>(
-                options.MaxConcurrency,
-                options.MaxQueued,
-                options.SegmentCapacity,
-                options.SegmentLinger,
-                jobFactory);
-
-            var processor = new WarmProcessor<TKey, TValue, TGroup, TWarm>(
-                warmer,
-                keySelector,
-                policy,
-                accumulatorFactory,
-                options.QueueWeightLimit,
-                options.WatchdogPeriod);
-
-            return left.Next(processor.FlowAConsToAProd);
-        }
-
-        /// <summary>
-        ///     Warms the upstream stream in key segments before forwarding values downstream.
-        /// </summary>
-        /// <typeparam name="TKey">The key type used to partition the stream for warming.</typeparam>
-        /// <typeparam name="TWarm">The warming data type produced by an <see cref="IAsyncJob{TKey,TWarm}" />.</typeparam>
-        /// <param name="options">Numeric and timing configuration (concurrency, segments, budget, watchdog).</param>
-        /// <param name="jobFactory">Creates the warming jobs.</param>
-        /// <param name="keySelector">Selects the warming key for each input value.</param>
-        /// <param name="policy">Decides which keys require warming and receives the warm result.</param>
-        /// <param name="accumulatorFactory">Creates the per-key accumulator buffers.</param>
-        /// <returns>A source emitting <see cref="Unio{T,Watermark}" /> items.</returns>
-        [PublicAPI]
-        public Source<IAsyncProducator<Unio<TValue, Watermark>>> Warming<TKey, TWarm>(
-            WarmOptions options,
-            IJobFactory<TKey, TWarm> jobFactory,
-            MapSelector<TValue, TKey> keySelector,
-            IWarmPolicy<TKey, TWarm> policy,
-            IWarmAccumulatorFactory<TKey, TValue> accumulatorFactory)
-            where TKey : notnull
-        {
-            return left
-                .Warming<TValue, TKey, TValue, TWarm>(options, jobFactory, keySelector, policy, accumulatorFactory)
-                .Map(Simplify);
-
-            Unio<TValue, Watermark> Simplify(scoped in Unio<TValue, TValue, Watermark> value)
-            {
-                return value.TryPickT0(out var v1, out var remainder) ? v1 : remainder;
-            }
-        }
-    }
+    
 
     /// <summary>
     ///     Decouples a push producer from a pull consumer over a bounded passive buffer.
@@ -159,35 +85,5 @@ public static class OperatorExtensions
     {
         var processor = new BypassBufferProcessor<T>(capacity);
         return left.Next(processor.FlowAProdToACons);
-    }
-
-    /// <summary>
-    ///     Projects each element of an async push stream through a <see cref="MapSelector{TSource,TTarget}" />,
-    ///     producing a 1:1 transformed push stream.
-    /// </summary>
-    /// <typeparam name="TSource">The input element type.</typeparam>
-    /// <typeparam name="TTarget">The output element type.</typeparam>
-    /// <param name="left">The upstream push source whose elements are projected.</param>
-    /// <param name="selector">The pure function applied to each element to produce the output element.</param>
-    /// <returns>A source emitting the projected elements downstream.</returns>
-    public static Source<IAsyncProducator<TTarget>> Map<TSource, TTarget>(this Source<IAsyncProducator<TSource>> left, MapSelector<TSource, TTarget> selector)
-    {
-        var processor = new BypassMapProcessor<TSource, TTarget>(selector);
-        return left.Next(processor.FlowAProdToAProd);
-    }
-    
-    /// <summary>
-    ///     Projects each element of an async push stream through a <see cref="MapSelector{TSource,TTarget}" />,
-    ///     producing a 1:1 transformed push stream.
-    /// </summary>
-    /// <typeparam name="TSource">The input element type.</typeparam>
-    /// <typeparam name="TTarget">The output element type.</typeparam>
-    /// <param name="left">The upstream push source whose elements are projected.</param>
-    /// <param name="selector">The pure function applied to each element to produce the output element.</param>
-    /// <returns>A source emitting the projected elements downstream.</returns>
-    public static Source<IProducator<TTarget>> Map<TSource, TTarget>(this Source<IProducator<TSource>> left, MapSelector<TSource, TTarget> selector)
-    {
-        var processor = new BypassMapProcessor<TSource, TTarget>(selector);
-        return left.Next(processor.FlowProdToProd);
     }
 }

@@ -12,9 +12,12 @@ namespace Steelax.Pufflow.Operators.Aggregators.Warming;
 /// <typeparam name="TGroup">The type of warmed group results produced by an accumulator.</typeparam>
 /// <typeparam name="TWarm">The warming data type produced by an <see cref="IAsyncJob{TKey,TWarm}" />.</typeparam>
 /// <remarks>
-///     Consumes <see cref="Watermarked{T}" /> messages and emits <see cref="Unio{T,TGroup,Watermark}" />
-///     items downstream: <c>T0</c> — a passthrough value, <c>T1</c> — an accumulated group result,
-///     <c>T2</c> — a watermark marker emitted after the data it covers (a commit/progress point).
+///     Consumes <see cref="Watermarked{T}" /> items whose payload is a <see cref="Unio{TValue,Unit}" />:
+///     <c>T0</c> — a value to process, <c>T1</c> — a bare watermark (a pure progress point without any
+///     data). It emits <see cref="Watermarked{T}" /> items whose payload is
+///     <see cref="Unio{T,TGroup,Unit}" /> downstream: <c>T0</c> — a passthrough value, <c>T1</c> — an
+///     accumulated group result, <c>T2</c> — a bare <see cref="Unit" /> marker carrying the commit/progress
+///     point on the <see cref="Watermarked{T}.Watermark" /> of the wrapping item.
 ///     <para />
 ///     The processor combines two mechanisms inherited from the old Kafka warm source:
 ///     <list type="bullet">
@@ -178,7 +181,7 @@ internal sealed partial class WarmProcessor<TKey, TValue, TGroup, TWarm>
     /// <param name="source"></param>
     /// <param name="output"></param>
     /// <param name="context"></param>
-    public void Fuse(IAsyncConsumator<Watermarked<TValue>> source, IAsyncProducator<Unio<TValue, TGroup, Watermark>> output, FlowContext context)
+    public void Fuse(IAsyncConsumator<Watermarked<Unio<TValue, Unit>>> source, IAsyncProducator<Watermarked<Unio<TValue, TGroup, Unit>>> output, FlowContext context)
     {
         context.RegisterBackground(() => InternalExecuteAsync(source, output, context));
     }

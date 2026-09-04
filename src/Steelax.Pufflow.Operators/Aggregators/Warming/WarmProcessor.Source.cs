@@ -13,23 +13,38 @@ internal sealed partial class WarmProcessor<TKey, TValue, TGroup, TWarm>
     private Watermark _watermark = Watermark.Nothing();
 
     /// <summary>
-    ///     Processes one watermarked source value (already peeked from the cursor).
+    ///     Processes one watermarked source item (already peeked from the cursor): a <c>T0</c> payload is a
+    ///     value (deduplicated key, passthrough, accumulate or warm a new key as before), while a bare
+    ///     <c>T1</c> (<see cref="Unit" />) payload is a pure progress point — no value actions apply; its
+    ///     watermark is folded (or, when nothing is warming, forwarded as an immediate progress marker).
     /// </summary>
-    /// <param name="item">The value to process, together with its watermark.</param>
+    /// <param name="item">The value or progress marker to process, together with its watermark.</param>
     /// <param name="writer">The output producer to push passthrough values into.</param>
     /// <returns>
     ///     <see cref="FlowResult.Success" /> when the value was fully handled (the caller advances the
     ///     cursor); <see cref="FlowResult.OutputBlocked" />, <see cref="FlowResult.WarmerBlocked" /> or
     ///     <see cref="FlowResult.BudgetBlocked" /> when the value could not be handled yet — the caller
-    ///     drains warmed data, waits for the respective signal, and retries this value.
+    ///     drains warmed data, waits for the respective signal, and retries this item.
     /// </returns>
-    private FlowResult TryHandleValue(scoped in Watermarked<TValue> item, IAsyncProducator<Unio<TValue, TGroup, Watermark>> writer)
+    private FlowResult TryHandleValue(scoped in Watermarked<Unio<TValue, Unit>> item, IAsyncProducator<Watermarked<Unio<TValue, TGroup, Unit>>> writer)
     {
-        var (value, watermark) = item;
+        var watermark = item.Watermark;
 
-        // Fold the value's watermark into the global progress watermark.
-        if (watermark > _watermark)
-            _watermark = watermark;
+        // A pure progress point (no value): forward it immediately when nothing is being warmed,
+        // otherwise only record its watermark (actions on a value do not apply).
+        if (item.Value.IsT1)
+        {
+            if (_delayedQueue.Count == 0)
+                return TryWriteOutput(writer, ProgressItem(watermark)) ? FlowResult.Success : FlowResult.OutputBlocked;
+
+            FoldWatermark(watermark);
+            return FlowResult.Success;
+        }
+
+        var value = item.Value.AsT0;
+
+        // Fold the item's watermark into the global progress watermark.
+        FoldWatermark(watermark);
 
         var key = _keySelector.Invoke(value);
 
@@ -47,7 +62,7 @@ internal sealed partial class WarmProcessor<TKey, TValue, TGroup, TWarm>
 
         if (!_policy.ShouldWarm(key))
             // Passthrough (no watermark — it is folded into the global progress watermark).
-            return TryWriteOutput(writer, value) ? FlowResult.Success : FlowResult.OutputBlocked;
+            return TryWriteOutput(writer, PassthroughItem(value)) ? FlowResult.Success : FlowResult.OutputBlocked;
 
         // A new warmable key: the warmer must accept it before the value is held.
         if (!_warmer.CanAdd)
@@ -67,6 +82,13 @@ internal sealed partial class WarmProcessor<TKey, TValue, TGroup, TWarm>
         return FlowResult.Success;
     }
 
+    /// <summary>Folds <paramref name="watermark" /> into the global progress watermark when it advances it.</summary>
+    private void FoldWatermark(Watermark watermark)
+    {
+        if (watermark > _watermark)
+            _watermark = watermark;
+    }
+
     /// <summary>
     ///     Emits the held global progress watermark once all delayed data has been drained. At this point
     ///     <see cref="DrainSegment" /> holds at most a pending watermark (its keys all live in the delayed
@@ -76,14 +98,14 @@ internal sealed partial class WarmProcessor<TKey, TValue, TGroup, TWarm>
     ///     <see langword="false" /> when the output is full and the watermark stays held for a retry;
     ///     otherwise <see langword="true" />.
     /// </returns>
-    private bool TryFlushWatermark(IAsyncProducator<Unio<TValue, TGroup, Watermark>> writer)
+    private bool TryFlushWatermark(IAsyncProducator<Watermarked<Unio<TValue, TGroup, Unit>>> writer)
     {
         if (_delayedQueue.Count > 0 || _watermark.IsNothing)
             return true;
 
         _pending = default;
 
-        if (!TryWriteOutput(writer, _watermark))
+        if (!TryWriteOutput(writer, ProgressItem(_watermark)))
             return false;
 
         _watermark = Watermark.Nothing();

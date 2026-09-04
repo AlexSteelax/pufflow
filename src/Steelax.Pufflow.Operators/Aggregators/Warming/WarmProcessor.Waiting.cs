@@ -11,25 +11,6 @@ namespace Steelax.Pufflow.Operators.Aggregators.Warming;
 /// </summary>
 internal sealed partial class WarmProcessor<TKey, TValue, TGroup, TWarm>
 {
-    /// <summary>The readiness source the loop must wait on.</summary>
-    private enum WaitSource
-    {
-        /// <summary>No wait — retry immediately (there was progress).</summary>
-        None,
-
-        /// <summary>Any signal wakes the loop (input, output, warmer, watchdog, cancellation).</summary>
-        Any,
-
-        /// <summary>The input consumator — wait until it has data.</summary>
-        Input,
-
-        /// <summary>The output producer — wait until it frees capacity.</summary>
-        Output,
-
-        /// <summary>The warmer — wait until a warm job completes.</summary>
-        Warmer
-    }
-
     /// <summary>
     ///     Decides, from the last operation's <see cref="FlowResult" />, what the consumer loop waits on.
     ///     All readiness sources are wired to the fan-in: <see cref="_input" /> → <see cref="InputSlot" />,
@@ -37,9 +18,9 @@ internal sealed partial class WarmProcessor<TKey, TValue, TGroup, TWarm>
     /// </summary>
     /// <param name="result">The outcome of the last source/drain operation.</param>
     /// <param name="writer"></param>
-    /// <returns>The <see cref="WaitSource" /> the loop must await (or <see cref="WaitSource.None" /> to retry).</returns>
+    /// <returns></returns>
     private bool PrepareWait<TWriter>(FlowResult result, TWriter writer)
-        where TWriter : IAsyncProducator<Unio<TValue, TGroup, Watermark>>
+        where TWriter : IAsyncProducator<Watermarked<Unio<TValue, TGroup, Unit>>>
     {
         switch (result)
         {

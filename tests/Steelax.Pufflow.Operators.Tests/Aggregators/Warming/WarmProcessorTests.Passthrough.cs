@@ -28,13 +28,13 @@ public static partial class WarmProcessorTests
                 null,
                 TestContext.Current.CancellationToken);
 
-            var values = results.Where(static r => r.IsT0).Select(static r => r.AsT0).ToArray();
+            var values = Values(results);
             Assert.Equal(new[] { 1, 3, 5 }, values);
 
-            // The global progress watermark (the maximum of the input) is emitted at the end as T2.
-            var watermarks = results.Where(static r => r.IsT2).Select(static r => r.AsT2).ToArray();
+            // The global progress watermark (the maximum of the input) is emitted at the end as a marker.
+            var watermarks = Progress(results);
             Assert.Equal(new[] { Watermark.From(50) }, watermarks);
-            Assert.True(results[^1].IsT2, "watermark should be the last item");
+            Assert.True(IsLastProgress(results), "watermark should be the last item");
         }
     }
 }

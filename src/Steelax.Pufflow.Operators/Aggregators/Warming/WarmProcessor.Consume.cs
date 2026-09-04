@@ -4,20 +4,20 @@ namespace Steelax.Pufflow.Operators.Aggregators.Warming;
 
 /// <summary>
 ///     Input handling for the <see cref="WarmProcessor{TKey,TValue,TGroup,TWarm}" />: reads watermarked
-///     values from the supplied <see cref="IAsyncConsumator{T}" /> without a buffer, retaining the current
-///     value in a single pending slot when it cannot be processed yet. Readiness is observed through
-///     <see cref="WarmProcessor{TKey,TValue,TGroup,TWarm}._input" /> so the loop sleeps on the fan-in
-///     instead of polling.
+///     <see cref="Unio{T,Unit}" /> items from the supplied <see cref="IAsyncConsumator{T}" /> without a buffer,
+///     retaining the current item in a single pending slot when it cannot be processed yet. Readiness is
+///     observed through <see cref="WarmProcessor{TKey,TValue,TGroup,TWarm}._input" /> so the loop sleeps on the
+///     fan-in instead of polling.
 /// </summary>
 internal sealed partial class WarmProcessor<TKey, TValue, TGroup, TWarm>
 {
-    /// <summary>The value currently read from the input and held until it is fully handled.</summary>
+    /// <summary>The item currently read from the input and held until it is fully handled.</summary>
     private PendingConsume _pendingInput;
 
     private bool _completedInput;
 
-    private bool TryPeekSource<TReader>(TReader reader, out Watermarked<TValue> item)
-        where TReader : IAsyncConsumator<Watermarked<TValue>>
+    private bool TryPeekSource<TReader>(TReader reader, out Watermarked<Unio<TValue, Unit>> item)
+        where TReader : IAsyncConsumator<Watermarked<Unio<TValue, Unit>>>
     {
         if (_pendingInput.Occupied)
         {
@@ -50,7 +50,7 @@ internal sealed partial class WarmProcessor<TKey, TValue, TGroup, TWarm>
     }
 
     private void AdvanceSource<TReader>(TReader reader)
-        where TReader : IAsyncConsumator<Watermarked<TValue>>
+        where TReader : IAsyncConsumator<Watermarked<Unio<TValue, Unit>>>
     {
         if (_pendingInput.Occupied)
         {
@@ -68,7 +68,7 @@ internal sealed partial class WarmProcessor<TKey, TValue, TGroup, TWarm>
     /// </summary>
     /// <param name="value"></param>
     /// <param name="occupied"></param>
-    internal struct PendingConsume(Watermarked<TValue> value, bool occupied)
+    internal struct PendingConsume(Watermarked<Unio<TValue, Unit>> value, bool occupied)
     {
         /// <summary>
         /// 
@@ -78,6 +78,6 @@ internal sealed partial class WarmProcessor<TKey, TValue, TGroup, TWarm>
         /// <summary>
         /// 
         /// </summary>
-        public readonly Watermarked<TValue> Value = value;
+        public readonly Watermarked<Unio<TValue, Unit>> Value = value;
     }
 }

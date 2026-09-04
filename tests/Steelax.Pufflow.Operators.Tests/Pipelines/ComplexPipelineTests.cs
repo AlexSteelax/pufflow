@@ -2,7 +2,6 @@ using Steelax.Pufflow.Operators.Abstractions;
 using Steelax.Pufflow.Operators.Aggregators.Warming;
 using Steelax.Pufflow.Operators.Common;
 using Steelax.Pufflow.Sdk.Test;
-using Unio;
 
 namespace Steelax.Pufflow.Operators.Tests.Pipelines;
 
@@ -53,9 +52,6 @@ public class ComplexPipelineTests
             .Map(static (scoped in w) => new Watermarked<int>(w.Value * 2, w.Watermark))
             .Buffering(128)
             .Warming(WarmOptions, new StubJobFactory(), IdentityKey, new NoWarmPolicy(), new QueueAccumulatorFactory())
-            .Watermarked()
-            .Map(static (scoped in w) => new Watermarked<string>(w.Value.ToString(), w.Watermark))
-            .Map(static (scoped in w) => w)
             .Buffering(256)
             .Consume(out var reader);
 
@@ -63,7 +59,12 @@ public class ComplexPipelineTests
         var results = await reader.ReadAllAsync(TestContext.Current.CancellationToken)
             .ToListAsync(TestContext.Current.CancellationToken);
 
-        Assert.Equal(Expected, results.Select(static w => w.Value));
+        // The short Warming collapses warmed groups and passthrough into the value branch (T0) of the
+        // Watermarked<Unio<int, Unit>> items; a trailing bare progress marker (Unit/T1) is dropped here.
+        Assert.Equal(Expected, results
+            .Where(static it => it.Value.IsT0)
+            .Select(static it => it.Value.AsT0.ToString())
+            .ToArray());
     }
 
     [Fact(Timeout = TimeoutMs)]
@@ -82,8 +83,6 @@ public class ComplexPipelineTests
             .Map(static (scoped in Watermarked<int> w) => new Watermarked<int>(w.Value + 1, w.Watermark))
             .Buffering(128)
             .Warming(WarmOptions, new StubJobFactory(), IdentityKey, new NoWarmPolicy(), new QueueAccumulatorFactory())
-            .Map(static (scoped in Unio<int, Watermark> u) => u)
-            .Map(static (scoped in Unio<int, Watermark> u) => u)
             .Buffering(256)
             .Consume(out var reader);
 
@@ -91,7 +90,9 @@ public class ComplexPipelineTests
         var results = await reader.ReadAllAsync(TestContext.Current.CancellationToken)
             .ToListAsync(TestContext.Current.CancellationToken);
 
-        Assert.Equal([2, 3, 4], results.Select(static u => u.AsT0));
+        Assert.Equal([2, 3, 4], results
+            .Where(static it => it.Value.IsT0)
+            .Select(static it => it.Value.AsT0));
     }
 
     [Fact(Timeout = TimeoutMs)]
@@ -109,19 +110,16 @@ public class ComplexPipelineTests
             .Map(static (scoped in Watermarked<int> w) => new Watermarked<int>(w.Value + 1, w.Watermark))
             .Buffering(128)
             .Warming(WarmOptions, new StubJobFactory(), IdentityKey, new NoWarmPolicy(), new QueueAccumulatorFactory())
-            .Map(static (scoped in Unio<int, Watermark> u) => u)
-            .Map(static (scoped in Unio<int, Watermark> u) => u)
-            .Watermarked()
             .Buffering(256)
-            .Chunking(128, TimeSpan.FromSeconds(2))
-            .ToAsyncProducator(static chunk => chunk)
             .Consume(out var reader);
 
         await flow.ExecuteAsync(TestContext.Current.CancellationToken);
         var results = await reader.ReadAllAsync(TestContext.Current.CancellationToken)
             .ToListAsync(TestContext.Current.CancellationToken);
 
-        Assert.Equal([2, 3, 4], results.SelectMany(static chunk => chunk).Select(static w => w.Value));
+        Assert.Equal([2, 3, 4], results
+            .Where(static it => it.Value.IsT0)
+            .Select(static it => it.Value.AsT0));
     }
 
     /// <summary>Warms nothing: every key is a passthrough.</summary>

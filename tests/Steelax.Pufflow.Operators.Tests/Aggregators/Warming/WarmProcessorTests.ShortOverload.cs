@@ -1,7 +1,6 @@
 using Steelax.Pufflow.Operators.Aggregators.Warming;
 using Steelax.Pufflow.Operators.Common;
 using Steelax.Pufflow.Sdk.Test;
-using Unio;
 
 namespace Steelax.Pufflow.Operators.Tests.Aggregators.Warming;
 
@@ -49,16 +48,16 @@ public static partial class WarmProcessorTests
                 .ToListAsync(TestContext.Current.CancellationToken);
 
             // The short overload collapses both passthrough values (T0) and warmed groups (T1 of the
-            // underlying 3-way union) into the single value slot — every input appears exactly once.
+            // underlying 3-way union) into the single value slot; every input appears exactly once.
             // Emission order: passthrough values are written immediately when handled (1, 3), while the
             // warmed groups (2, 4) are held in the delayed queue and only drained when the segment is
             // sealed at end-of-stream (no linger, segment not full).
-            var values = results.Where(static r => r.IsT0).Select(static r => r.AsT0).ToArray();
+            var values = results.Where(static r => r.Value.IsT0).Select(static r => r.Value.AsT0).ToArray();
             Assert.Equal(new[] { 1, 3, 2, 4 }, values);
 
-            // The progress watermark closes the stream as the final item.
-            Assert.True(results[^1].IsT1, "watermark should be the last item");
-            Assert.Equal(Watermark.From(40), results[^1].AsT1);
+            // The progress watermark closes the stream as the final bare progress marker item.
+            Assert.True(results[^1].Value.IsT1, "watermark should be the last item");
+            Assert.Equal(Watermark.From(40), results[^1].Watermark);
 
             Assert.Equal(2, policy.Warmed.Count);
         }

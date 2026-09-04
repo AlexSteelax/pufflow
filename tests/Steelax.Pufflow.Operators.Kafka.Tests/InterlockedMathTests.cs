@@ -1,4 +1,3 @@
-using Steelax.Pufflow.Operators.Kafka;
 using Xunit;
 
 namespace Steelax.Pufflow.Operators.Kafka.Tests;

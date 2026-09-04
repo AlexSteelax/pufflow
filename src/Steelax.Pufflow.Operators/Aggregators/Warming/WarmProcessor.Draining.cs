@@ -23,7 +23,7 @@ internal sealed partial class WarmProcessor<TKey, TValue, TGroup, TWarm>
     ///     <see cref="_pending" />); <see cref="FlowResult.Success" /> when at least one segment was drained
     ///     (the loop may retry immediately); <see cref="FlowResult.Idle" /> when there was nothing to drain.
     /// </returns>
-    private FlowResult DrainWarm(IAsyncProducator<Unio<TValue, TGroup, Watermark>> writer)
+    private FlowResult DrainWarm(IAsyncProducator<Watermarked<Unio<TValue, TGroup, Unit>>> writer)
     {
         var progressed = false;
 
@@ -68,7 +68,7 @@ internal sealed partial class WarmProcessor<TKey, TValue, TGroup, TWarm>
     ///     the watermark) was drained.
     /// </returns>
     private bool DrainSegment<TWriter>(ref PendingSegment segment, TWriter writer)
-        where TWriter : IAsyncProducator<Unio<TValue, TGroup, Watermark>>
+        where TWriter : IAsyncProducator<Watermarked<Unio<TValue, TGroup, Unit>>>
     {
         var keys = segment.Keys;
         var watermark = segment.Watermark;
@@ -88,7 +88,7 @@ internal sealed partial class WarmProcessor<TKey, TValue, TGroup, TWarm>
                     break;
                 }
 
-                if (!TryWriteOutput(writer, group))
+                if (!TryWriteOutput(writer, GroupItem(group)))
                 {
                     // Output is full — retain the rest of this segment (from this key plus the watermark).
                     segment = new PendingSegment(new ArraySegment<TKey>(keys.Array!, keys.Offset + i, keys.Count - i),
@@ -102,7 +102,7 @@ internal sealed partial class WarmProcessor<TKey, TValue, TGroup, TWarm>
         }
 
         // All keys drained — write the covering watermark.
-        if (!TryWriteOutput(writer, watermark))
+        if (!TryWriteOutput(writer, ProgressItem(watermark)))
         {
             // Output is full on the watermark — retain it (no keys left to drain).
             segment = new PendingSegment(ArraySegment<TKey>.Empty, watermark);

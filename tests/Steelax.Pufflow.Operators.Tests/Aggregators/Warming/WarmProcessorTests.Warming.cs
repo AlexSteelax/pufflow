@@ -27,10 +27,10 @@ public static partial class WarmProcessorTests
                 null,
                 TestContext.Current.CancellationToken);
 
-            var groups = results.Where(static r => r.IsT1).Select(static r => r.AsT1).ToArray();
+            var groups = Groups(results);
             Assert.Equal(new[] { "2", "4" }, groups);
 
-            Assert.Contains(results, static r => r.IsT2);
+            Assert.Contains(results, static r => r.Value.IsT2);
             Assert.Equal(2, policy.Warmed.Count);
         }
 
@@ -57,8 +57,8 @@ public static partial class WarmProcessorTests
                 null,
                 TestContext.Current.CancellationToken);
 
-            var values = results.Where(static r => r.IsT0).Select(static r => r.AsT0).ToArray();
-            var groups = results.Where(static r => r.IsT1).Select(static r => r.AsT1).ToArray();
+            var values = Values(results);
+            var groups = Groups(results);
 
             Assert.Equal(new[] { 1, 3 }, values);
             Assert.Equal(new[] { "2", "4" }, groups);

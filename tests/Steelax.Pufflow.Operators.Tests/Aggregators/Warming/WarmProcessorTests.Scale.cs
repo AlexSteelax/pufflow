@@ -28,8 +28,8 @@ public static partial class WarmProcessorTests
                 null,
                 TestContext.Current.CancellationToken);
 
-            var values = results.Where(static r => r.IsT0).Select(static r => r.AsT0).ToArray();
-            var groups = results.Where(static r => r.IsT1).Select(static r => r.AsT1).ToArray();
+            var values = Values(results);
+            var groups = Groups(results);
 
             // Odd keys pass through (in source order), even keys are groups (in segment order).
             Assert.Equal(
@@ -39,7 +39,7 @@ public static partial class WarmProcessorTests
                 Enumerable.Range(0, n).Where(static i => i % 2 == 0).Select(static i => i.ToString()),
                 groups);
 
-            Assert.Contains(results, static r => r.IsT2);
+            Assert.Contains(results, static r => r.Value.IsT2);
             Assert.Equal(n / 2, policy.Warmed.Count);
         }
 
@@ -65,8 +65,8 @@ public static partial class WarmProcessorTests
                 null,
                 TestContext.Current.CancellationToken);
 
-            var values = results.Where(static r => r.IsT0).Select(static r => r.AsT0).ToArray();
-            var groups = results.Where(static r => r.IsT1).Select(static r => r.AsT1).ToArray();
+            var values = Values(results);
+            var groups = Groups(results);
 
             // Each even key produced a group, each odd key passed through; nothing was lost.
             Assert.Equal(n / 2, values.Length);
@@ -81,7 +81,7 @@ public static partial class WarmProcessorTests
                 Enumerable.Range(0, n).Where(static i => i % 2 == 0).Select(static i => i.ToString()),
                 groups);
 
-            Assert.Contains(results, static r => r.IsT2);
+            Assert.Contains(results, static r => r.Value.IsT2);
             Assert.Equal(n / 2, policy.Warmed.Count);
         }
     }

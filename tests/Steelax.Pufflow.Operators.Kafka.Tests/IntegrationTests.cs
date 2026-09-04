@@ -1,10 +1,7 @@
-﻿using System.Runtime.CompilerServices;
-using System.Threading.Channels;
+﻿using System.Threading.Channels;
 using Confluent.Kafka;
 using Confluent.Kafka.Admin;
-using Steelax.Pufflow;
 using Steelax.Pufflow.Operators.Common;
-using Steelax.Pufflow.Operators.Kafka;
 using Steelax.Pufflow.Operators.Kafka.Tests.Fixtures;
 using Steelax.Pufflow.Sdk.Test;
 using Xunit;

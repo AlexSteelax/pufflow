@@ -4,7 +4,7 @@ namespace Steelax.Pufflow.Operators.Aggregators.Warming;
 
 internal sealed partial class WarmProcessor<TKey, TValue, TGroup, TWarm>
 {
-    private async Task InternalExecuteAsync(IAsyncConsumator<Watermarked<TValue>> reader, IAsyncProducator<Unio<TValue, TGroup, Watermark>> writer, FlowContext context)
+    private async Task InternalExecuteAsync(IAsyncConsumator<Watermarked<Unio<TValue, Unit>>> reader, IAsyncProducator<Watermarked<Unio<TValue, TGroup, Unit>>> writer, FlowContext context)
     {
         // FanInSlim does not accept a CancellationToken: on cancellation we signal a dedicated slot to
         // wake the loop sleeping on _fanIn.WaitAsync(). The loop observes the token and exits.

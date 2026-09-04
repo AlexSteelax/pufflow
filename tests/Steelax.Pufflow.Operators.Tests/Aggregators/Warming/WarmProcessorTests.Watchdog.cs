@@ -28,13 +28,13 @@ public static partial class WarmProcessorTests
                 TimeSpan.FromMilliseconds(10),
                 TestContext.Current.CancellationToken);
 
-            var values = results.Where(static r => r.IsT0).Select(static r => r.AsT0).ToArray();
-            var groups = results.Where(static r => r.IsT1).Select(static r => r.AsT1).ToArray();
+            var values = Values(results);
+            var groups = Groups(results);
 
             Assert.Equal(n / 2, values.Length);
             Assert.Equal(n / 2, groups.Length);
             Assert.Equal(n, values.Length + groups.Length);
-            Assert.Contains(results, static r => r.IsT2);
+            Assert.Contains(results, static r => r.Value.IsT2);
             Assert.Equal(n / 2, policy.Warmed.Count);
         }
 

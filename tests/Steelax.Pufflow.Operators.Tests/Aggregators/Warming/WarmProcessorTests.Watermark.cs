@@ -34,19 +34,19 @@ public static partial class WarmProcessorTests
                 TestContext.Current.CancellationToken);
 
             // Mixed mode: both passthrough values and warmed groups are present.
-            var values = results.Where(static r => r.IsT0).Select(static r => r.AsT0).ToArray();
-            var groups = results.Where(static r => r.IsT1).Select(static r => r.AsT1).ToArray();
+            var values = Values(results);
+            var groups = Groups(results);
             Assert.NotEmpty(values);
             Assert.NotEmpty(groups);
 
-            // Every value is released exactly once: passthrough values (T0) plus warmed groups (T1)
+            // Every value is released exactly once: passthrough values plus warmed groups
             // must total the number of input values — nothing is lost and nothing is duplicated.
             Assert.Equal(n, values.Length + groups.Length);
 
-            // All real (non-Nothing) output watermarks are non-decreasing: they may repeat, as the input
+            // All real (non-Nothing) progress watermarks are non-decreasing: they may repeat, as the input
             // watermarks repeat within a tick, but collapsing consecutive duplicates yields a strictly
             // increasing sequence — progress never goes backwards.
-            var watermarks = results.Where(static r => r.IsT2).Select(static r => r.AsT2).ToArray();
+            var watermarks = Progress(results);
             var real = watermarks.Where(static w => !w.IsNothing).ToArray();
             Assert.NotEmpty(real);
             Assert.DoesNotContain(watermarks, static w => w.IsNothing);
@@ -81,14 +81,14 @@ public static partial class WarmProcessorTests
                 TestContext.Current.CancellationToken);
 
             // The key is warmable — there must be no passthrough.
-            Assert.DoesNotContain(results, static r => r.IsT0);
+            Assert.DoesNotContain(results, static r => r.Value.IsT0);
 
             // All values of the key are accumulated into a single group (one group per key).
-            Assert.Equal(1, results.Count(static r => r.IsT1));
+            Assert.Equal(1, results.Count(static r => r.Value.IsT1));
 
-            // Real (non-Nothing) output watermarks are non-decreasing (consecutive duplicates collapsed)
+            // Real (non-Nothing) progress watermarks are non-decreasing (consecutive duplicates collapsed)
             // and never exceed the input maximum.
-            var watermarks = results.Where(static r => r.IsT2).Select(static r => r.AsT2).ToArray();
+            var watermarks = Progress(results);
             var real = watermarks.Where(static w => !w.IsNothing).ToArray();
             Assert.NotEmpty(real);
             Assert.DoesNotContain(watermarks, static w => w.IsNothing);
@@ -96,8 +96,8 @@ public static partial class WarmProcessorTests
             Assert.All(real, w => Assert.True(w <= Watermark.From((n / 3) * 10)));
 
             // The final (global progress) watermark is exactly the last of the input.
-            Assert.True(results[^1].IsT2, "watermark should be the last item");
-            Assert.Equal(Watermark.From((n / 3) * 10), results[^1].AsT2);
+            Assert.True(IsLastProgress(results), "watermark should be the last item");
+            Assert.Equal(Watermark.From((n / 3) * 10), results[^1].Watermark);
         }
 
         [Fact(Timeout = 1_000)]
@@ -123,17 +123,17 @@ public static partial class WarmProcessorTests
                 null,
                 TestContext.Current.CancellationToken);
 
-            Assert.DoesNotContain(results, static r => r.IsT0);
+            Assert.DoesNotContain(results, static r => r.Value.IsT0);
 
             // Each position is a separate group (in segment order).
-            var groups = results.Where(static r => r.IsT1).Select(static r => r.AsT1).ToArray();
+            var groups = Groups(results);
             Assert.Equal(n, groups.Length);
 
-            // Real (non-Nothing) output watermarks are non-decreasing. With repeated input watermarks the
+            // Real (non-Nothing) progress watermarks are non-decreasing. With repeated input watermarks the
             // same value may legitimately appear more than once (it lands in both the closing and the next
             // window), so collapse consecutive duplicates and require the remaining distinct sequence to be
             // strictly increasing — progress never goes backwards.
-            var watermarks = results.Where(static r => r.IsT2).Select(static r => r.AsT2).ToArray();
+            var watermarks = Progress(results);
             var real = watermarks.Where(static w => !w.IsNothing).ToArray();
             Assert.NotEmpty(real);
             Assert.DoesNotContain(watermarks, static w => w.IsNothing);

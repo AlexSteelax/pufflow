@@ -15,3 +15,14 @@
 /// </remarks>
 [PublicAPI]
 public delegate TTarget MapSelector<TSource, out TTarget>(scoped in TSource source);
+
+/// <summary>
+/// 
+/// </summary>
+/// <typeparam name="TSource"></typeparam>
+/// <typeparam name="TArgs"></typeparam>
+/// <typeparam name="TTarget"></typeparam>
+[PublicAPI]
+public delegate TTarget MapSelector<TSource, in TArgs, out TTarget>(scoped in TSource source, TArgs args);
+
+internal delegate TTarget MapSelector<TSource, in TScope, in TArgs, out TTarget>(scoped in TSource source, TScope scope, TArgs args);

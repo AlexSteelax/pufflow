@@ -1,4 +1,5 @@
-﻿using Steelax.Pufflow.Operators.Abstractions;
+﻿using System.Diagnostics.CodeAnalysis;
+using Steelax.Pufflow.Operators.Abstractions;
 using Steelax.Pufflow.Operators.Common;
 
 namespace Steelax.Pufflow.Operators.Transforms;
@@ -9,6 +10,8 @@ namespace Steelax.Pufflow.Operators.Transforms;
 /// </summary>
 /// <typeparam name="TSource">The input element type.</typeparam>
 /// <typeparam name="TTarget">The output element type.</typeparam>
+/// <typeparam name="TArgs"></typeparam>
+/// <typeparam name="TScope"></typeparam>
 /// <remarks>
 ///     <para>
 ///         The component implements <see cref="IAsyncProducator{TSource}" /> (the input the upstream source
@@ -24,7 +27,7 @@ namespace Steelax.Pufflow.Operators.Transforms;
 ///     </para>
 /// </remarks>
 [Flow]
-internal sealed partial class BypassMapProcessor<TSource, TTarget>(MapSelector<TSource, TTarget> selector)
+internal sealed partial class BypassMapProcessor<TSource, TScope, TArgs, TTarget>(MapSelector<TSource, TScope, TArgs, TTarget> selector, TScope scope, TArgs args)
 {
     /// <summary>
     ///     Hands out the push input producer (this component) and captures the downstream target to write into.
@@ -34,7 +37,12 @@ internal sealed partial class BypassMapProcessor<TSource, TTarget>(MapSelector<T
     /// <param name="context">The flow context providing cancellation for the pipeline.</param>
     public void Fuse(out IAsyncProducator<TSource> source, IAsyncProducator<TTarget> target, FlowContext context)
     {
-        source = new AsyncProducator(target, selector);
+        source = new AsyncProducator(target, selector, scope, args);
+    }
+    
+    public void Fuse(IAsyncConsumator<TSource> source, out IAsyncConsumator<TTarget> target, FlowContext context)
+    {
+        target = new AsyncConsumator(source, selector, scope, args);
     }
     
     /// <summary>
@@ -45,17 +53,22 @@ internal sealed partial class BypassMapProcessor<TSource, TTarget>(MapSelector<T
     /// <param name="context">The flow context providing cancellation for the pipeline.</param>
     public void Fuse(out IProducator<TSource> source, IProducator<TTarget> target, FlowContext context)
     {
-        source = new Producator(target, selector);
+        source = new Producator(target, selector, scope, args);
     }
-
-    private sealed class AsyncProducator(IAsyncProducator<TTarget> writer, MapSelector<TSource, TTarget> selector) :IAsyncProducator<TSource>
+    
+    public void Fuse(IConsumator<TSource> source, out IConsumator<TTarget> target, FlowContext context)
+    {
+        target = new Consumator(source, selector, scope, args);
+    }
+    
+    private sealed class AsyncProducator(IAsyncProducator<TTarget> writer, MapSelector<TSource, TScope, TArgs, TTarget> selector, TScope scope, TArgs args) :IAsyncProducator<TSource>
     {
         public bool TryWrite(TSource value)
         {
             if (writer.IsFull)
                 return false;
             
-            var mapped = selector.Invoke(value);
+            var mapped = selector.Invoke(value, scope, args);
 
             return writer.TryWrite(mapped);
         }
@@ -67,14 +80,14 @@ internal sealed partial class BypassMapProcessor<TSource, TTarget>(MapSelector<T
         public ValueTask<bool> WaitToWriteAsync() => writer.WaitToWriteAsync();
     }
     
-    private sealed class Producator(IProducator<TTarget> writer, MapSelector<TSource, TTarget> selector) : IProducator<TSource>
+    private sealed class Producator(IProducator<TTarget> writer, MapSelector<TSource, TScope, TArgs, TTarget> selector, TScope scope, TArgs args) : IProducator<TSource>
     {
         public bool TryWrite(TSource value)
         {
             if (writer.IsFull)
                 return false;
             
-            var mapped = selector.Invoke(value);
+            var mapped = selector.Invoke(value, scope, args);
 
             return writer.TryWrite(mapped);
         }
@@ -82,5 +95,41 @@ internal sealed partial class BypassMapProcessor<TSource, TTarget>(MapSelector<T
         public bool TryComplete(Exception? ex = null) => writer.TryComplete(ex);
 
         public bool IsFull => writer.IsFull;
+    }
+    
+    private sealed class AsyncConsumator(IAsyncConsumator<TSource> reader, MapSelector<TSource, TScope, TArgs, TTarget> selector, TScope scope, TArgs args) :IAsyncConsumator<TTarget>
+    {
+        public bool TryRead([MaybeNullWhen(false)] out TTarget value)
+        {
+            if (reader.TryRead(out var original))
+            {
+                value = selector.Invoke(original, scope, args);
+                return true;
+            }
+            
+            value = default;
+            return false;
+        }
+
+        public bool IsCompleted => reader.IsCompleted;
+        
+        public ValueTask<bool> WaitToReadAsync() => reader.WaitToReadAsync();
+    }
+    
+    private sealed class Consumator(IConsumator<TSource> reader, MapSelector<TSource, TScope, TArgs, TTarget> selector, TScope scope, TArgs args) : IConsumator<TTarget>
+    {
+        public bool TryRead([MaybeNullWhen(false)] out TTarget value)
+        {
+            if (reader.TryRead(out var original))
+            {
+                value = selector.Invoke(original, scope, args);
+                return true;
+            }
+            
+            value = default;
+            return false;
+        }
+
+        public bool IsCompleted => reader.IsCompleted;
     }
 }

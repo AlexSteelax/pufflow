@@ -1,5 +1,4 @@
-﻿using System.Diagnostics;
-using System.Runtime.CompilerServices;
+﻿using System.Runtime.CompilerServices;
 using Confluent.Kafka;
 using Steelax.Pufflow.Abstractions;
 using Steelax.Pufflow.Operators.Common;

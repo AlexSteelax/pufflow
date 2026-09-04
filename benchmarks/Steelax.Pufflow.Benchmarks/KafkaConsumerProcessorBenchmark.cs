@@ -1,6 +1,4 @@
-using System.Threading.Channels;
 using BenchmarkDotNet.Attributes;
-using Steelax.Pufflow;
 using Steelax.Pufflow.Operators.Kafka;
 using Steelax.Pufflow.Sdk.Test;
 using Steelax.Pufflow.Sdk.Test.Kafka;
