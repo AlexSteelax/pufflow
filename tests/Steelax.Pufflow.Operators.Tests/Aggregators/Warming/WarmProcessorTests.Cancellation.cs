@@ -27,7 +27,7 @@ public static partial class WarmProcessorTests
             };
 
             flow
-                .OnAsyncConsumatorSource([new Watermarked<int>(2, Watermark.From(20))])
+                .OnAsyncConsumatorSource([new Carrier<int>(2, Watermark.From(20))])
                 .Warming(
                     options,
                     new TcsJobFactory(job),

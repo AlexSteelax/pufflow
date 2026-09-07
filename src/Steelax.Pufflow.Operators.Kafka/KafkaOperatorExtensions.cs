@@ -1,7 +1,6 @@
 ﻿using Confluent.Kafka;
 using Steelax.Pufflow.Abstractions;
 using Steelax.Pufflow.Operators.Common;
-using Unio;
 
 namespace Steelax.Pufflow.Operators.Kafka;
 
@@ -12,9 +11,9 @@ namespace Steelax.Pufflow.Operators.Kafka;
 public static class KafkaOperatorExtensions
 {
     /// <summary>
-    ///     Attaches a Kafka consumer source to the flow: emits watermarked items whose payload is either a
-    ///     consumed <see cref="ConsumeResult{TKey,TValue}" /> (branch T0) or a bare <see cref="Unit" /> marker
-    ///     (branch T1) that carries a progress watermark when consumption has been quiet.
+    ///     Attaches a Kafka consumer source to the flow: emits <see cref="Carrier{T}" /> elements carrying either a
+    ///     consumed <see cref="ConsumeResult{TKey,TValue}" /> (when a record is available) or no payload — only a
+    ///     bare progress watermark — when consumption has been quiet.
     /// </summary>
     /// <typeparam name="TKey">The Kafka message key type.</typeparam>
     /// <typeparam name="TValue">The Kafka message value type.</typeparam>
@@ -29,10 +28,10 @@ public static class KafkaOperatorExtensions
     /// <param name="watermarkProvider">The watermark source; defaults to monotonic time.</param>
     /// <param name="timeProvider">The time source for timers; defaults to the system one.</param>
     /// <returns>
-    ///     A source emitting <see cref="Watermarked{T}" /> items whose payload is a
-    ///     <c>Unio&lt;<see cref="ConsumeResult{TKey,TValue}" />, <see cref="Unit" />&gt;</c>.
+    ///     A source emitting <see cref="Carrier{T}" /> elements whose payload is a
+    ///     <see cref="ConsumeResult{TKey,TValue}" /> when data is available, or empty (bare progress) otherwise.
     /// </returns>
-    public static Source<IProducator<Watermarked<Unio<ConsumeResult<TKey, TValue>, Unit>>>> OnKafkaSource<TKey, TValue>(
+    public static Source<IProducator<Carrier<ConsumeResult<TKey, TValue>>>> OnKafkaSource<TKey, TValue>(
         this FlowSource flowSource,
         IConsumer<TKey, TValue> consumer,
         KafkaConsumerOptions options,

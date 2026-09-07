@@ -3,11 +3,12 @@ using Steelax.Pufflow.Operators.Common;
 namespace Steelax.Pufflow.Operators.Aggregators.Warming;
 
 /// <summary>
-///     Input handling for the <see cref="WarmProcessor{TKey,TValue,TGroup,TWarm}" />: reads watermarked
-///     <see cref="Unio{T,Unit}" /> items from the supplied <see cref="IAsyncConsumator{T}" /> without a buffer,
-///     retaining the current item in a single pending slot when it cannot be processed yet. Readiness is
-///     observed through <see cref="WarmProcessor{TKey,TValue,TGroup,TWarm}._input" /> so the loop sleeps on the
-///     fan-in instead of polling.
+///     Input handling for the <see cref="WarmProcessor{TKey,TValue,TGroup,TWarm}" />: reads
+///     <see cref="Carrier{T}" /> items (of <typeparamref name="TValue" />) from the supplied
+///     <see cref="IAsyncConsumator{T}" /> without a buffer, retaining the current item in a single pending slot
+///     when it cannot be processed yet. Readiness is observed through
+///     <see cref="WarmProcessor{TKey,TValue,TGroup,TWarm}._input" /> so the loop sleeps on the fan-in instead of
+///     polling.
 /// </summary>
 internal sealed partial class WarmProcessor<TKey, TValue, TGroup, TWarm>
 {
@@ -16,8 +17,8 @@ internal sealed partial class WarmProcessor<TKey, TValue, TGroup, TWarm>
 
     private bool _completedInput;
 
-    private bool TryPeekSource<TReader>(TReader reader, out Watermarked<Unio<TValue, Unit>> item)
-        where TReader : IAsyncConsumator<Watermarked<Unio<TValue, Unit>>>
+    private bool TryPeekSource<TReader>(TReader reader, out Carrier<TValue> item)
+        where TReader : IAsyncConsumator<Carrier<TValue>>
     {
         if (_pendingInput.Occupied)
         {
@@ -50,7 +51,7 @@ internal sealed partial class WarmProcessor<TKey, TValue, TGroup, TWarm>
     }
 
     private void AdvanceSource<TReader>(TReader reader)
-        where TReader : IAsyncConsumator<Watermarked<Unio<TValue, Unit>>>
+        where TReader : IAsyncConsumator<Carrier<TValue>>
     {
         if (_pendingInput.Occupied)
         {
@@ -62,22 +63,17 @@ internal sealed partial class WarmProcessor<TKey, TValue, TGroup, TWarm>
     }
 
     private bool IsCompletedSource => _completedInput;
-    
+
     /// <summary>
-    /// 
+    ///     The source item currently read and held until fully handled. An empty
+    ///     <see cref="Carrier{T}" /> marks a pure progress point.
     /// </summary>
-    /// <param name="value"></param>
-    /// <param name="occupied"></param>
-    internal struct PendingConsume(Watermarked<Unio<TValue, Unit>> value, bool occupied)
+    internal struct PendingConsume(Carrier<TValue> value, bool occupied)
     {
-        /// <summary>
-        /// 
-        /// </summary>
+        /// <summary>Whether this slot currently holds an item awaiting handling.</summary>
         public readonly bool Occupied = occupied;
 
-        /// <summary>
-        /// 
-        /// </summary>
-        public readonly Watermarked<Unio<TValue, Unit>> Value = value;
+        /// <summary>The held source item.</summary>
+        public readonly Carrier<TValue> Value = value;
     }
 }

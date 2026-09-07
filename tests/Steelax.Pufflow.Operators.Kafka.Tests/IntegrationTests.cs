@@ -4,7 +4,6 @@ using Confluent.Kafka.Admin;
 using Steelax.Pufflow.Operators.Common;
 using Steelax.Pufflow.Operators.Kafka.Tests.Fixtures;
 using Steelax.Pufflow.Sdk.Test;
-using Unio;
 using Xunit;
 
 namespace Steelax.Pufflow.Operators.Kafka.Tests;
@@ -72,16 +71,16 @@ public class IntegrationTests(ApplicationFixture application, ITestOutputHelper 
         }).Build();
 
     /// <summary>
-    ///     Collects raw items from the reader until exactly <paramref name="count" /> consumed <b>records</b>
-    ///     (payload branch T0) have been seen. Bare progress markers (payload branch T1) that may appear while
-    ///     idle are collected as well, so watermark assertions still see the full emitted sequence.
+    ///     Collects raw items from the reader until exactly <paramref name="count" /> carried <b>records</b>
+    ///     (<see cref="Carrier{T}.HasValue" /> elements) have been seen. Empty (bare-progress) carriers that may
+    ///     appear while idle are collected as well, so watermark assertions still see the full emitted sequence.
     /// </summary>
-    private static async Task<List<Watermarked<Unio<ConsumeResult<string, string>, Unit>>>> CollectAsync(
-        ChannelReader<Watermarked<Unio<ConsumeResult<string, string>, Unit>>> reader,
+    private static async Task<List<Carrier<ConsumeResult<string, string>>>> CollectAsync(
+        ChannelReader<Carrier<ConsumeResult<string, string>>> reader,
         int count,
         CancellationToken cancellationToken)
     {
-        var items = new List<Watermarked<Unio<ConsumeResult<string, string>, Unit>>>();
+        var items = new List<Carrier<ConsumeResult<string, string>>>();
         var records = 0;
 
         while (records < count)
@@ -92,7 +91,7 @@ public class IntegrationTests(ApplicationFixture application, ITestOutputHelper 
             while (records < count && reader.TryRead(out var item))
             {
                 items.Add(item);
-                if (item.Value.IsT0)
+                if (item.HasValue)
                     records++;
             }
         }
@@ -122,22 +121,21 @@ public class IntegrationTests(ApplicationFixture application, ITestOutputHelper 
 
         try
         {
-            // Collect raw items (union of progress markers + records) until we have seen all records.
+            // Collect raw items (records + bare progress) until we have seen all records.
             var items = await CollectAsync(reader, count, cts.Token);
-            var records = items.Where(static it => it.Value.IsT0).Select(static it => it.Value.AsT0).ToList();
+            var records = items.Where(static it => it.HasValue).Select(static it => it.Value).ToList();
 
             // All messages are delivered, in the produced order.
             Assert.Equal(count, records.Count);
             Assert.Equal(Enumerable.Range(0, count).Select(i => $"value-{i}"), records.Select(i => i.Message.Value));
 
-            // Records carry a real wrapper watermark (never Nothing) and progress across records never goes
+            // Records carry a real watermark (never Nothing) and progress across records never goes
             // backwards (values may repeat within a single running tick — no strict advancement required).
-            var progress = items.Where(static it => it.Value.IsT0).Select(static it => it.Watermark).ToList();
-            Assert.NotEmpty(progress);
-            Assert.DoesNotContain(progress, static w => w.IsNothing);
+            var progressWatermarks = items.Where(static it => it.HasValue).Select(static it => it.Watermark).ToList();
+            Assert.DoesNotContain(items.Where(static it => it.HasValue), static it => it.Watermark.IsNothing);
 
-            for (var i = 1; i < progress.Count; i++)
-                Assert.True(progress[i - 1] <= progress[i],
+            for (var i = 1; i < progressWatermarks.Count; i++)
+                Assert.True(progressWatermarks[i - 1] <= progressWatermarks[i],
                     "watermarks must be non-decreasing — progress never goes backwards");
         }
         finally
@@ -175,9 +173,9 @@ public class IntegrationTests(ApplicationFixture application, ITestOutputHelper 
             var sawMarker = false;
             while (reader.TryRead(out var item))
             {
-                if (item.Value.IsT0)
+                if (item.HasValue)
                     sawRecord = true;
-                else if (item.Value.IsT1)
+                else
                     sawMarker = true;
             }
 
@@ -245,9 +243,9 @@ public class IntegrationTests(ApplicationFixture application, ITestOutputHelper 
             bool sawRecordOnIdle = false, sawMarkerOnIdle = false;
             while (reader.TryRead(out var idleItem))
             {
-                if (idleItem.Value.IsT0)
+                if (idleItem.HasValue)
                     sawRecordOnIdle = true;
-                else if (idleItem.Value.IsT1)
+                else
                     sawMarkerOnIdle = true;
             }
 
@@ -258,8 +256,8 @@ public class IntegrationTests(ApplicationFixture application, ITestOutputHelper 
             await ProduceAsync(bootstrap, topic, 1);
 
             var collected = await CollectAsync(reader, 1, cts.Token);
-            var value = Assert.Single(collected.Where(static it => it.Value.IsT0).Select(static it => it.Value.AsT0));
-            Assert.Equal("value-0", value.Message.Value);
+            var value = Assert.Single(collected, static it => it.HasValue);
+            Assert.Equal("value-0", value.Value.Message.Value);
         }
         finally
         {

@@ -13,11 +13,11 @@ public static partial class WarmProcessorTests
 {
     private const int NoLingerMs = 60_000;
 
-    private static async Task<List<Watermarked<Unio<int, TGroup, Unit>>>> RunAsync<TGroup>(
+    private static async Task<List<Carrier<Unio<int, TGroup>>>> RunAsync<TGroup>(
         IJobFactory<int, string> jobFactory,
         IWarmPolicy<int, string> policy,
         IWarmAccumulatorFactory<int, int, TGroup> accumulatorFactory,
-        IReadOnlyList<Watermarked<int>> input,
+        IReadOnlyList<Carrier<int>> input,
         FlowSource flow,
         TimeSpan? watchdogPeriod,
         CancellationToken cancellationToken)
@@ -54,30 +54,30 @@ public static partial class WarmProcessorTests
             await Task.Delay(10, token);
     }
 
-    // -- Value/group/progress extraction helpers over the Watermarked<Unio<...>> output -------------
+    // -- Value/group/progress extraction helpers over the Carrier<Unio<...>> output ------------------
 
-    /// <summary>Pass-through values (payload branch T0) present in the output.</summary>
-    private static int[] Values<TGroup>(IReadOnlyList<Watermarked<Unio<int, TGroup, Unit>>> results)
+    /// <summary>Pass-through values (carrier payload union T0) present in the output.</summary>
+    private static int[] Values<TGroup>(IReadOnlyList<Carrier<Unio<int, TGroup>>> results)
     {
-        return results.Where(static r => r.Value.IsT0).Select(static r => r.Value.AsT0).ToArray();
+        return results.Where(static r => r.HasValue && r.Value.IsT0).Select(static r => r.Value.AsT0).ToArray();
     }
 
-    /// <summary>Accumulated group results (payload branch T1) present in the output.</summary>
-    private static TGroup[] Groups<TGroup>(IReadOnlyList<Watermarked<Unio<int, TGroup, Unit>>> results)
+    /// <summary>Accumulated group results (carrier payload union T1) present in the output.</summary>
+    private static TGroup[] Groups<TGroup>(IReadOnlyList<Carrier<Unio<int, TGroup>>> results)
     {
-        return results.Where(static r => r.Value.IsT1).Select(static r => r.Value.AsT1).ToArray();
+        return results.Where(static r => r.HasValue && r.Value.IsT1).Select(static r => r.Value.AsT1).ToArray();
     }
 
-    /// <summary>The real progress watermarks carried by bare progress markers (payload branch T2).</summary>
-    private static Watermark[] Progress<TGroup>(IReadOnlyList<Watermarked<Unio<int, TGroup, Unit>>> results)
+    /// <summary>The real progress watermarks carried by empty (bare) carriers.</summary>
+    private static Watermark[] Progress<TGroup>(IReadOnlyList<Carrier<Unio<int, TGroup>>> results)
     {
-        return results.Where(static r => r.Value.IsT2).Select(static r => r.Watermark).ToArray();
+        return results.Where(static r => !r.HasValue).Select(static r => r.Watermark).ToArray();
     }
 
-    /// <summary>Indicates whether the last output item is a bare progress marker.</summary>
-    private static bool IsLastProgress<TGroup>(IReadOnlyList<Watermarked<Unio<int, TGroup, Unit>>> results)
+    /// <summary>Indicates whether the last output item is an empty (bare-progress) carrier.</summary>
+    private static bool IsLastProgress<TGroup>(IReadOnlyList<Carrier<Unio<int, TGroup>>> results)
     {
-        return results.Count > 0 && results[^1].Value.IsT2;
+        return results.Count > 0 && !results[^1].HasValue;
     }
 
     // Accumulator: collects int values and emits a single string group on consumption.

@@ -131,6 +131,29 @@ internal sealed class JobSegment<TKey, TWarm>(int capacity) : IDisposable
             Watermark = watermark;
     }
 
+    /// <summary>
+    ///     Advances the segment's covering watermark when a newer event for a key that already lives in this
+    ///     accepting segment arrives. The segment must reflect the maximum watermark of all the data it ultimately
+    ///     covers; no second registration of the key is needed.
+    /// </summary>
+    /// <param name="watermark">The newer watermark to fold into the segment, if it advances it.</param>
+    /// <returns>
+    ///     <see langword="true" /> when the segment was still accepting keys and the watermark was folded;
+    ///     <see langword="false" /> when it is sealed or running.
+    /// </returns>
+    [PublicAPI]
+    public bool Advance(Watermark watermark)
+    {
+        // The watermark cannot be touched once the segment has been handed to a job.
+        if (!CanAccept)
+            return false;
+
+        if (watermark > Watermark)
+            Watermark = watermark;
+
+        return true;
+    }
+
     /// <summary>Resets the segment for reuse in the ring.</summary>
     [PublicAPI]
     public void Reuse()

@@ -9,7 +9,7 @@ public static partial class WarmProcessorTests
         [Fact(Timeout = 1_000)]
         public async Task NonWarmableValues_PassThroughInOrder_ThenProgressWatermark()
         {
-            var input = new List<Watermarked<int>>
+            var input = new List<Carrier<int>>
             {
                 new(1, Watermark.From(10)),
                 new(3, Watermark.From(30)),

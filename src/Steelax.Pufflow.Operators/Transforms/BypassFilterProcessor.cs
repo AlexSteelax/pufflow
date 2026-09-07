@@ -25,19 +25,18 @@ namespace Steelax.Pufflow.Operators.Transforms;
 ///         while a rejected input produces nothing. Because it never changes the element type, the same
 ///         <typeparamref name="TSource" /> flows on the input and the output side of every exposed endpoint.
 ///     </para>
-///     <para>
-///         The component is stateless and allocation-free on the hot path: no buffering and no background task are
-///         used. Backpressure is propagated unchanged by delegating <c>IsFull</c>/<c>WaitToWriteAsync</c> and
-///         <c>IsCompleted</c>/<c>WaitToReadAsync</c> to the neighbouring endpoint, and completion is proxied verbatim.
-///     </para>
-///     <para>
-///         <b>Note on design</b> — this class only backs plain (non-watermarked) <c>Filter</c>. For a
-///         <see cref="Watermarked{T}" /> input a dropped element is <i>not</i> silently removed: it is turned into a
-///         bare <see cref="Unit" /> progress marker inside a <c>Unio</c> payload under the same watermark, so the
-///         stream's progress state keeps flowing. Such watermarked cases reuse the 1:1 mapping processor and are not
-///         handled here.
-///     </para>
-/// </remarks>
+    ///     <para>
+    ///         <b>Note on design</b> — this class only backs plain (non-wrapped) <c>Filter</c> over value elements.
+    ///         Progress-carrying streams use <c>Carrier</c>: an empty (bare-progress) carrier carries no value to
+    ///         evaluate and is forwarded as a structural element, while the value of a data-carrying carrier decides
+    ///         whether it is kept. Such carrier cases have their own processor and are not handled here.
+    ///     </para>
+    ///     <para>
+    ///         The component is stateless and allocation-free on the hot path: no buffering and no background task are
+    ///         used. Backpressure is propagated unchanged by delegating <c>IsFull</c>/<c>WaitToWriteAsync</c> and
+    ///         <c>IsCompleted</c>/<c>WaitToReadAsync</c> to the neighbouring endpoint, and completion is proxied verbatim.
+    ///     </para>
+    /// </remarks>
 [Flow]
 internal sealed partial class BypassFilterProcessor<TSource, TScope, TArgs>(FilterPredicate<TSource, TScope, TArgs> predicate, TScope scope, TArgs args)
 {

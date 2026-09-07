@@ -187,6 +187,21 @@ internal sealed class Warmer<TKey, TWarm> : IDisposable, IAsyncDisposable
     }
 
     /// <summary>
+    ///     Advances the covering watermark of the current accepting tail segment so it reflects the maximum watermark
+    ///     of all the data it ultimately covers (including later, hotter events for keys that are already registered
+    ///     there). A no-op when there is no accepting tail segment or that segment has already been sealed/running.
+    /// </summary>
+    /// <param name="watermark">The newer watermark to fold into the segment, if it advances it.</param>
+    [PublicAPI]
+    public void AdvanceOpenWatermark(Watermark watermark)
+    {
+        if (!_queue.TryPeekLast(out var tail) || !tail.CanAccept)
+            return;
+
+        tail.Advance(watermark);
+    }
+
+    /// <summary>
     ///     Pumps all segment work on the consumer loop: drains completed jobs, seals the tail when
     ///     the linger interval elapsed, starts pending jobs, and applies the result of the next
     ///     completed head segment (head-of-line).

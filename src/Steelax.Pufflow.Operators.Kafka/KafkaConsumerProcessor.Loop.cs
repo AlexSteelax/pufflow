@@ -1,7 +1,6 @@
 using Confluent.Kafka;
 using Steelax.Pufflow.Abstractions;
 using Steelax.Pufflow.Operators.Common;
-using Unio;
 
 namespace Steelax.Pufflow.Operators.Kafka;
 
@@ -44,7 +43,7 @@ internal partial class KafkaConsumerProcessor<TKey, TValue>
     ///     reactions (advance/watermark timers), with the <see cref="LoopMode" /> deciding the
     ///     advance-timer pace.
     /// </summary>
-    private async Task InternalExecuteAsync(IProducator<Watermarked<Unio<ConsumeResult<TKey, TValue>, Unit>>> buffer, FlowContext context)
+    private async Task InternalExecuteAsync(IProducator<Carrier<ConsumeResult<TKey, TValue>>> buffer, FlowContext context)
     {
         var abortToken = context.Token;
         _watermarkTimer.Change(_options.WindowLifetime, _options.WindowLifetime);

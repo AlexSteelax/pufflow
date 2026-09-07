@@ -13,7 +13,7 @@ public static partial class WarmProcessorTests
             // odd keys pass through. Verifies no loss and correct output.
             const int n = 1_000;
             var input = Enumerable.Range(0, n)
-                .Select(i => new Watermarked<int>(i, Watermark.From(i)))
+                .Select(i => new Carrier<int>(i, Watermark.From(i)))
                 .ToArray();
 
             await using var flow = new FlowSource();
@@ -39,7 +39,7 @@ public static partial class WarmProcessorTests
                 Enumerable.Range(0, n).Where(static i => i % 2 == 0).Select(static i => i.ToString()),
                 groups);
 
-            Assert.Contains(results, static r => r.Value.IsT2);
+            Assert.Contains(results, static r => !r.HasValue);
             Assert.Equal(n / 2, policy.Warmed.Count);
         }
 
@@ -50,7 +50,7 @@ public static partial class WarmProcessorTests
             // T1 groups) as were fed in — nothing is lost or duplicated.
             const int n = 1_000;
             var input = Enumerable.Range(0, n)
-                .Select(i => new Watermarked<int>(i, Watermark.From(i)))
+                .Select(i => new Carrier<int>(i, Watermark.From(i)))
                 .ToArray();
 
             await using var flow = new FlowSource();
@@ -81,7 +81,7 @@ public static partial class WarmProcessorTests
                 Enumerable.Range(0, n).Where(static i => i % 2 == 0).Select(static i => i.ToString()),
                 groups);
 
-            Assert.Contains(results, static r => r.Value.IsT2);
+            Assert.Contains(results, static r => !r.HasValue);
             Assert.Equal(n / 2, policy.Warmed.Count);
         }
     }

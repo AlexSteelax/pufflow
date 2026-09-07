@@ -16,12 +16,15 @@ public class ComplexPipelineTests
 {
     private const int TimeoutMs = 1_000;
 
-    private static readonly Watermarked<int>[] Input =
+    private static readonly Carrier<int>[] Input =
     [
         new(1, Watermark.From(1)),
         new(2, Watermark.From(2)),
         new(3, Watermark.From(3))
     ];
+
+    private static readonly Carrier<int>[] CarrierSource =
+        Input.Select(static w => new Carrier<int>(w.Value, w.Watermark)).ToArray();
 
     private static readonly string[] Expected =
     [
@@ -47,9 +50,9 @@ public class ComplexPipelineTests
         await using var flow = new FlowSource();
 
         flow
-            .OnAsyncProducatorSource(Input)
-            .Map(static (scoped in w) => new Watermarked<int>(w.Value + 1, w.Watermark))
-            .Map(static (scoped in w) => new Watermarked<int>(w.Value * 2, w.Watermark))
+            .OnAsyncProducatorSource(CarrierSource)
+            .Map(static (scoped in int v) => v + 1)
+            .Map(static (scoped in int v) => v * 2)
             .Buffering(128)
             .Warming(WarmOptions, new StubJobFactory(), IdentityKey, new NoWarmPolicy(), new QueueAccumulatorFactory())
             .Buffering(256)
@@ -59,11 +62,11 @@ public class ComplexPipelineTests
         var results = await reader.ReadAllAsync(TestContext.Current.CancellationToken)
             .ToListAsync(TestContext.Current.CancellationToken);
 
-        // The short Warming collapses warmed groups and passthrough into the value branch (T0) of the
-        // Watermarked<Unio<int, Unit>> items; a trailing bare progress marker (Unit/T1) is dropped here.
+        // The short Warming collapses warmed groups and passthrough into plain values (Carrier<int>), keeping
+        // any trailing bare progress as an empty carrier. Only data carriers carry the final values.
         Assert.Equal(Expected, results
-            .Where(static it => it.Value.IsT0)
-            .Select(static it => it.Value.AsT0.ToString())
+            .Where(static it => it.HasValue)
+            .Select(static it => it.Value.ToString())
             .ToArray());
     }
 
@@ -71,16 +74,15 @@ public class ComplexPipelineTests
     public async Task SyncKafkaLikePipeline_FlowsThroughTwoBuffersAndWarming()
     {
         // Mirrors the production AnalogProcessor exactly: OnKafkaSource is a SYNC push source
-        // (IProducator<Watermarked<...>>), so the first segment (source → sync push-push → sync
+        // (IProducator<Carrier<...>>), so the first segment (source → sync push-push → sync
         // push-push → sync composite) is synchronous, while the second segment (hybrid → async
         // push-push → async push-push → async composite) is asynchronous. The two segments are
         // separated by the pull→push hybrid and must not be mixed when the chain is resolved.
         await using var flow = new FlowSource();
 
         flow
-            .OnProducatorSource(Input.Select(static w => w.Value))
-            .Map(static (scoped in int v) => new Watermarked<int>(v, Watermark.Nothing()))
-            .Map(static (scoped in Watermarked<int> w) => new Watermarked<int>(w.Value + 1, w.Watermark))
+            .OnProducatorSource(CarrierSource)
+            .Map(static (scoped in int v) => v + 1)
             .Buffering(128)
             .Warming(WarmOptions, new StubJobFactory(), IdentityKey, new NoWarmPolicy(), new QueueAccumulatorFactory())
             .Buffering(256)
@@ -91,8 +93,8 @@ public class ComplexPipelineTests
             .ToListAsync(TestContext.Current.CancellationToken);
 
         Assert.Equal([2, 3, 4], results
-            .Where(static it => it.Value.IsT0)
-            .Select(static it => it.Value.AsT0));
+            .Where(static it => it.HasValue)
+            .Select(static it => it.Value));
     }
 
     [Fact(Timeout = TimeoutMs)]
@@ -105,9 +107,8 @@ public class ComplexPipelineTests
         await using var flow = new FlowSource();
 
         flow
-            .OnProducatorSource(Input.Select(static w => w.Value))
-            .Map(static (scoped in int v) => new Watermarked<int>(v, Watermark.Nothing()))
-            .Map(static (scoped in Watermarked<int> w) => new Watermarked<int>(w.Value + 1, w.Watermark))
+            .OnProducatorSource(CarrierSource)
+            .Map(static (scoped in int v) => v + 1)
             .Buffering(128)
             .Warming(WarmOptions, new StubJobFactory(), IdentityKey, new NoWarmPolicy(), new QueueAccumulatorFactory())
             .Buffering(256)
@@ -118,8 +119,8 @@ public class ComplexPipelineTests
             .ToListAsync(TestContext.Current.CancellationToken);
 
         Assert.Equal([2, 3, 4], results
-            .Where(static it => it.Value.IsT0)
-            .Select(static it => it.Value.AsT0));
+            .Where(static it => it.HasValue)
+            .Select(static it => it.Value));
     }
 
     /// <summary>Warms nothing: every key is a passthrough.</summary>

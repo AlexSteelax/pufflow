@@ -23,7 +23,7 @@ internal sealed partial class WarmProcessor<TKey, TValue, TGroup, TWarm>
     ///     <see cref="_pending" />); <see cref="FlowResult.Success" /> when at least one segment was drained
     ///     (the loop may retry immediately); <see cref="FlowResult.Idle" /> when there was nothing to drain.
     /// </returns>
-    private FlowResult DrainWarm(IAsyncProducator<Watermarked<Unio<TValue, TGroup, Unit>>> writer)
+    private FlowResult DrainWarm(IAsyncProducator<Carrier<Unio<TValue, TGroup>>> writer)
     {
         var progressed = false;
 
@@ -68,7 +68,7 @@ internal sealed partial class WarmProcessor<TKey, TValue, TGroup, TWarm>
     ///     the watermark) was drained.
     /// </returns>
     private bool DrainSegment<TWriter>(ref PendingSegment segment, TWriter writer)
-        where TWriter : IAsyncProducator<Watermarked<Unio<TValue, TGroup, Unit>>>
+        where TWriter : IAsyncProducator<Carrier<Unio<TValue, TGroup>>>
     {
         var keys = segment.Keys;
         var watermark = segment.Watermark;
@@ -91,8 +91,7 @@ internal sealed partial class WarmProcessor<TKey, TValue, TGroup, TWarm>
                 if (!TryWriteOutput(writer, GroupItem(group)))
                 {
                     // Output is full — retain the rest of this segment (from this key plus the watermark).
-                    segment = new PendingSegment(new ArraySegment<TKey>(keys.Array!, keys.Offset + i, keys.Count - i),
-                        watermark);
+                    segment = new PendingSegment(new ArraySegment<TKey>(keys.Array!, keys.Offset + i, keys.Count - i), watermark);
                     return false;
                 }
 
@@ -101,13 +100,17 @@ internal sealed partial class WarmProcessor<TKey, TValue, TGroup, TWarm>
             }
         }
 
-        // All keys drained — write the covering watermark.
-        if (!TryWriteOutput(writer, ProgressItem(watermark)))
+        // All keys drained — write the covering watermark (empty carrier carrying the progress watermark).
+        if (!TryWriteOutput(writer, BareItem(watermark)))
         {
             // Output is full on the watermark — retain it (no keys left to drain).
             segment = new PendingSegment(ArraySegment<TKey>.Empty, watermark);
             return false;
         }
+
+        // The released covering watermark equals the remembered global progress: everything up to it has
+        // already been delivered, so forget it — the end-of-stream flush must not re-emit this same value.
+        ResetGlobalAfterRelease(watermark);
 
         // Fully drained — clear the segment.
         segment = default;

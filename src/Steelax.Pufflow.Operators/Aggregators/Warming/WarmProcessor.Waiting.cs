@@ -20,7 +20,7 @@ internal sealed partial class WarmProcessor<TKey, TValue, TGroup, TWarm>
     /// <param name="writer"></param>
     /// <returns></returns>
     private bool PrepareWait<TWriter>(FlowResult result, TWriter writer)
-        where TWriter : IAsyncProducator<Watermarked<Unio<TValue, TGroup, Unit>>>
+        where TWriter : IAsyncProducator<Carrier<Unio<TValue, TGroup>>>
     {
         switch (result)
         {

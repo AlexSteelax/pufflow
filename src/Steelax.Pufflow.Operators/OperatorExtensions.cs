@@ -26,20 +26,6 @@ public static partial class OperatorExtensions
         }
     }
 
-    extension<TValue>(Source<IAsyncProducator<Unio<TValue, Watermark>>> left)
-    {
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <returns></returns>
-        [PublicAPI]
-        public Source<IAsyncProducator<Watermarked<TValue>>> Watermarked()
-        {
-            var processor = new PairValueWatermarkProcessor<TValue>();
-            return left.Next(processor.FlowAProdToAProd);
-        }
-    }
-
     extension<T>(Source<IAsyncConsumator<T>> left)
     {
         /// <summary>

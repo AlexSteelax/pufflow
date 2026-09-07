@@ -5,7 +5,6 @@ using Steelax.Pufflow.Abstractions;
 using Steelax.Pufflow.Operators;
 using Steelax.Pufflow.Operators.Common;
 using Steelax.Pufflow.Operators.Kafka;
-using Unio;
 
 namespace Steelax.Pufflow.Sdk.Test.Kafka;
 
@@ -23,7 +22,7 @@ public static class TestSourceExtensions
     
     extension(FlowSource flowSource)
     {
-        public Source<IProducator<Watermarked<Unio<ConsumeResult<TKey, TValue>, Unit>>>> OnKafkaSource<TKey, TValue>(
+        public Source<IProducator<Carrier<ConsumeResult<TKey, TValue>>>> OnKafkaSource<TKey, TValue>(
             KafkaConsumerOptions options,
             out ChannelWriter<KeyValuePair<TKey, TValue>> writer,
             out IWatermarkCommiter commiter,
@@ -49,7 +48,7 @@ public static class TestSourceExtensions
     
     extension(FlowSource flowSource)
     {
-        public Source<IProducator<Watermarked<Unio<ConsumeResult<TKey, TValue>, Unit>>>> OnKafkaSource<TKey, TValue>(
+        public Source<IProducator<Carrier<ConsumeResult<TKey, TValue>>>> OnKafkaSource<TKey, TValue>(
             KafkaConsumerOptions options,
             IEnumerable<KeyValuePair<TKey, TValue>> items,
             out IWatermarkCommiter commiter,

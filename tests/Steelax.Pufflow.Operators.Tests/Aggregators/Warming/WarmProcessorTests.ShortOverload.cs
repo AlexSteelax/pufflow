@@ -11,7 +11,7 @@ public static partial class WarmProcessorTests
         [Fact(Timeout = 1_000)]
         public async Task CollapsesPassthroughAndGroupsIntoValues_WithFinalProgressWatermark()
         {
-            var input = new List<Watermarked<int>>
+            var input = new List<Carrier<int>>
             {
                 new(1, Watermark.From(10)), // passthrough (odd)
                 new(2, Watermark.From(20)), // warm
@@ -32,8 +32,11 @@ public static partial class WarmProcessorTests
                 WatchdogPeriod = Timeout.InfiniteTimeSpan
             };
 
+            // The short overload consumes Carrier<int> and collapses warmed groups into plain values.
+            var carriers = input.Select(static w => new Carrier<int>(w.Value, w.Watermark)).ToArray();
+
             flow
-                .OnAsyncConsumatorSource(input)
+                .OnAsyncConsumatorSource(carriers)
                 .Warming(
                     options,
                     new SyncJobFactory(),
@@ -47,16 +50,16 @@ public static partial class WarmProcessorTests
             var results = await reader.ReadAllAsync(TestContext.Current.CancellationToken)
                 .ToListAsync(TestContext.Current.CancellationToken);
 
-            // The short overload collapses both passthrough values (T0) and warmed groups (T1 of the
-            // underlying 3-way union) into the single value slot; every input appears exactly once.
-            // Emission order: passthrough values are written immediately when handled (1, 3), while the
-            // warmed groups (2, 4) are held in the delayed queue and only drained when the segment is
-            // sealed at end-of-stream (no linger, segment not full).
-            var values = results.Where(static r => r.Value.IsT0).Select(static r => r.Value.AsT0).ToArray();
+            // The short overload collapses both passthrough values and warmed results into the single value slot;
+            // every input appears exactly once. Emission order: passthrough values are written immediately when
+            // handled (1, 3), while the warmed values (2, 4) are held in the delayed queue and drained when the
+            // segment is sealed at end-of-stream (no linger, segment not full). The closing watermark is an
+            // empty (bare-progress) carrier, so only data carriers contain the emitted values.
+            var values = results.Where(static r => r.HasValue).Select(static r => r.Value).ToArray();
             Assert.Equal(new[] { 1, 3, 2, 4 }, values);
 
-            // The progress watermark closes the stream as the final bare progress marker item.
-            Assert.True(results[^1].Value.IsT1, "watermark should be the last item");
+            // The progress watermark closes the stream as the final empty (bare-progress) carrier item.
+            Assert.True(!results[^1].HasValue, "watermark should be the last item");
             Assert.Equal(Watermark.From(40), results[^1].Watermark);
 
             Assert.Equal(2, policy.Warmed.Count);

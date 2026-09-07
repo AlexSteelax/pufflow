@@ -13,7 +13,7 @@ public static partial class WarmProcessorTests
             // break correctness — all records are delivered and the stream completes.
             const int n = 500;
             var input = Enumerable.Range(0, n)
-                .Select(i => new Watermarked<int>(i, Watermark.From(i)))
+                .Select(i => new Carrier<int>(i, Watermark.From(i)))
                 .ToArray();
 
             await using var flow = new FlowSource();
@@ -34,7 +34,7 @@ public static partial class WarmProcessorTests
             Assert.Equal(n / 2, values.Length);
             Assert.Equal(n / 2, groups.Length);
             Assert.Equal(n, values.Length + groups.Length);
-            Assert.Contains(results, static r => r.Value.IsT2);
+            Assert.Contains(results, static r => !r.HasValue);
             Assert.Equal(n / 2, policy.Warmed.Count);
         }
 

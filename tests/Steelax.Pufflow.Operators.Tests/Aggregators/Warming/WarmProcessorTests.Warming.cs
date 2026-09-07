@@ -9,7 +9,7 @@ public static partial class WarmProcessorTests
         [Fact(Timeout = 1_000)]
         public async Task WarmableValues_ProduceGroups_AndWatermark()
         {
-            var input = new List<Watermarked<int>>
+            var input = new List<Carrier<int>>
             {
                 new(2, Watermark.From(20)),
                 new(4, Watermark.From(40))
@@ -30,14 +30,14 @@ public static partial class WarmProcessorTests
             var groups = Groups(results);
             Assert.Equal(new[] { "2", "4" }, groups);
 
-            Assert.Contains(results, static r => r.Value.IsT2);
+            Assert.Contains(results, static r => !r.HasValue);
             Assert.Equal(2, policy.Warmed.Count);
         }
 
         [Fact(Timeout = 1_000)]
         public async Task Mixed_PassthroughAndWarmable_AllEmitted()
         {
-            var input = new List<Watermarked<int>>
+            var input = new List<Carrier<int>>
             {
                 new(1, Watermark.From(10)), // passthrough
                 new(2, Watermark.From(20)), // warm
