@@ -49,6 +49,12 @@ internal partial class KafkaConsumerProcessor<TKey, TValue>
         var abortToken = context.Token;
         _watermarkTimer.Change(_options.WindowLifetime, _options.WindowLifetime);
 
+        // Worker-owned delayed progress state (only touched by this loop).
+        // pendingWatermark mirrors the newest published value the loop has accepted; commit is the confirmed
+        // point windows are flushed against — it always lags the newest reader progress by one significant step.
+        var pendingWatermark = Watermark.Nothing();
+        var commitWatermark = Watermark.Nothing();
+
         try
         {
             while (!abortToken.IsCancellationRequested)
@@ -87,7 +93,19 @@ internal partial class KafkaConsumerProcessor<TKey, TValue>
                 if (fanSet.IsSet(WatermarkTimerSignal))
                 {
                     NextWindow();
-                    FlushReadyWindows();
+
+                    // Derive the delayed commit point from the single cross-thread field: only when the reader
+                    // reports a strictly newer mark does the previously accepted value become confirmed and
+                    // flushable; the newest value is merely adopted as the next step. Repeated values never
+                    // promote a commit by themselves.
+                    var latest = Watermark.From(Volatile.Read(ref _publishedWatermark));
+                    if (latest > pendingWatermark)
+                    {
+                        commitWatermark = pendingWatermark;
+                        pendingWatermark = latest;
+                    }
+
+                    FlushReadyWindows(commitWatermark);
                 }
 
                 // Normal mode keeps spinning; otherwise stand by until a timer wakes the loop.
