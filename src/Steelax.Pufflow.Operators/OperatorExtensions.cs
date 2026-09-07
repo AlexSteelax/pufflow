@@ -26,27 +26,6 @@ public static partial class OperatorExtensions
         }
     }
 
-    extension<T>(Source<IAsyncConsumator<T>> left)
-    {
-        /// <summary>
-        ///     Groups consecutive elements into chunks of at least <paramref name="minimumSize" /> elements,
-        ///     emitted when the size is reached or after <paramref name="linger" /> elapses.
-        /// </summary>
-        /// <param name="minimumSize">The minimum number of elements per chunk.</param>
-        /// <param name="linger">The maximum time to wait for a partial chunk before emitting it.</param>
-        /// <param name="strategy">The buffer-capacity strategy used to size each chunk.</param>
-        /// <returns>A source emitting pooled <see cref="Chunk{T}" /> items.</returns>
-        [PublicAPI]
-        public Source<IAsyncConsumator<Chunk<T>>> Chunking(int minimumSize, TimeSpan linger, ChunkCapacityStrategy strategy = ChunkCapacityStrategy.Exact)
-        {
-            var chunker = new Chunker<T>(strategy);
-            var processor = new ChunkProcessor<T, Chunk<T>>(chunker, minimumSize, linger);
-            return left.Next(processor);
-        }
-    }
-
-    
-
     /// <summary>
     ///     Decouples a push producer from a pull consumer over a bounded passive buffer.
     /// </summary>
