@@ -13,39 +13,34 @@ namespace Steelax.Pufflow.Operators.Aggregators.Warming;
 /// <typeparam name="TWarm">The warming data type produced by an <see cref="IAsyncJob{TKey,TWarm}" />.</typeparam>
 /// <remarks>
 ///     <para>
-///         Keys are accumulated into fixed-capacity segments (sealed by size, or by <c>segmentLinger</c>
-///         elapsed while the segment is idle). A segment is "open until run": it keeps accepting keys
-///         until it is actually handed to a warming job. Jobs run on a bounded pool of concurrent workers
-///         (<see cref="BitTaskAny" />, at most <c>maxConcurrency</c>), while the segments themselves wait
-///         in a bounded ring (<c>maxQueued</c>). Completed segments are extracted strictly in order
+///         Keys are accumulated into fixed-capacity segments, which are handed to a warming job once they are
+///         full (or explicitly sealed via <see cref="WarmMode.SealTail" />). A segment is "open until run":
+///         it keeps accepting keys until a job actually starts over it. Jobs run on a bounded pool of concurrent
+///         workers (<see cref="BitTaskAny" />, at most <c>maxConcurrency</c>), while the segments themselves
+///         wait in a bounded ring (<c>maxQueued</c>). Completed segments are extracted strictly in order
 ///         (head-of-line), preserving watermark monotonicity.
 ///     </para>
 ///     <para>
 ///         The consumer loop checks <see cref="CanAdd" />, feeds via <see cref="AddKey" />, and pumps work
-///         via <see cref="WarmNext{TWarmable}" /> until it returns <see langword="false" />, after which it
-///         waits on the <see cref="OnReady" /> event (a job completion or the linger timer). Faults and
-///         cancellations of a segment's job surface when that segment reaches the head.
+    ///         via <see cref="WarmNext" /> until it returns <see langword="false" />, after which it
+///         waits on the <see cref="OnReady" /> event (a job completion). A <see cref="WarmMode.SealTail" /> pass
+///         attempts to start a partially filled tail when a job slot is free; it carries no guarantee — if the
+///         pool is busy the tail stays open (and keeps accepting keys) until a slot frees up on a later pass.
+///         Faults and cancellations of a segment's job surface when that segment reaches the head.
 ///     </para>
 /// </remarks>
-internal sealed class Warmer<TKey, TWarm> : IDisposable, IAsyncDisposable
+internal sealed class Warmer<TKey, TWarm> : IAsyncDisposable
+    where TKey : notnull
 {
     private readonly CancellationTokenSource _cts = new();
     private readonly Stack<JobSegment<TKey, TWarm>> _free = new();
     private readonly IJobFactory<TKey, TWarm> _jobFactory;
     private readonly Deque<JobSegment<TKey, TWarm>> _queue;
-    private readonly int _segmentCapacity;
-    private readonly TimeSpan _segmentLinger;
     private readonly BitTaskAny _taskAny;
-    private readonly ITimer _timer;
 
     /// <summary>The number of segments from the head already handed to <see cref="_taskAny" /> (the run frontier).</summary>
     private int _assignedJobs;
-
-    /// <summary>Diagnostic: has Flush() been called (source exhausted) — used to spot seal refusals.</summary>
-    private bool _flushPending;
-
-    /// <summary>The linger-fired flag; read and reset atomically.</summary>
-    private bool _lingerPending;
+    private readonly int _segmentCapacity;
 
     /// <summary>
     ///     Initializes a new <see cref="Warmer{TKey,TWarm}" />.
@@ -53,38 +48,23 @@ internal sealed class Warmer<TKey, TWarm> : IDisposable, IAsyncDisposable
     /// <param name="maxConcurrency">The maximum number of concurrently running jobs (1..32).</param>
     /// <param name="maxQueued">The maximum number of segments buffered in the ring.</param>
     /// <param name="segmentCapacity">The maximum number of keys per segment.</param>
-    /// <param name="segmentLinger">The idle interval after which a partial segment is sealed.</param>
     /// <param name="jobFactory">Factory used to create warming jobs.</param>
-    /// <param name="timeProvider">The time provider used for the linger timer; defaults to <see cref="TimeProvider.System" />.</param>
     public Warmer(
         int maxConcurrency,
         int maxQueued,
         int segmentCapacity,
-        TimeSpan segmentLinger,
-        IJobFactory<TKey, TWarm> jobFactory,
-        TimeProvider? timeProvider = null)
+        IJobFactory<TKey, TWarm> jobFactory)
     {
         ArgumentNullException.ThrowIfNull(jobFactory);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxConcurrency);
         ArgumentOutOfRangeException.ThrowIfGreaterThan(maxConcurrency, BitTaskAny.MaxCapacity);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxQueued);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(segmentCapacity);
-        ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(segmentLinger, TimeSpan.Zero);
 
         _jobFactory = jobFactory;
-        _segmentLinger = segmentLinger;
         _segmentCapacity = segmentCapacity;
         _taskAny = new BitTaskAny(OnSignal, maxConcurrency);
         _queue = new Deque<JobSegment<TKey, TWarm>>(maxQueued);
-        _timer = (timeProvider ?? TimeProvider.System).CreateTimer(
-            _ =>
-            {
-                Volatile.Write(ref _lingerPending, true);
-                OnReady?.Invoke();
-            },
-            null,
-            Timeout.InfiniteTimeSpan,
-            Timeout.InfiniteTimeSpan);
     }
 
     /// <summary>
@@ -94,7 +74,7 @@ internal sealed class Warmer<TKey, TWarm> : IDisposable, IAsyncDisposable
     [PublicAPI]
     public bool CanAdd =>
         !_queue.IsFull ||
-        (_queue.TryPeekLast(out var tail) && tail.CanAccept);
+        (_queue.TryPeekLast(out var tail) && tail.CanAdvance);
 
     /// <summary>Indicates whether the warmer has no segments in flight and no completed work left.</summary>
     [PublicAPI]
@@ -107,26 +87,23 @@ internal sealed class Warmer<TKey, TWarm> : IDisposable, IAsyncDisposable
     [PublicAPI]
     public bool QueueFilled => _taskAny.CountReady == _taskAny.Capacity;
 
+    [PublicAPI]
+    public bool IsSinglePartial => _taskAny.Count == 0 && _queue.Count == 1;
+
     /// <inheritdoc />
     public async ValueTask DisposeAsync()
     {
-        _timer.Dispose();
         await _cts.CancelAsync();
-        DisposeJobs();
-        _cts.Dispose();
-    }
+        
+        // Segments in _free have already been reused (their job was disposed on apply) — dispose only the live ring segments.
+        while (_queue.TryPopLast(out var segment))
+            await segment.DisposeAsync();
 
-    /// <inheritdoc />
-    public void Dispose()
-    {
-        _timer.Dispose();
-        _cts.Cancel();
-        DisposeJobs();
         _cts.Dispose();
     }
 
     /// <summary>
-    ///     Raised when a warm job completes or the linger timer fires, so a consumer can wake and drain.
+    ///     Raised when a warm job completes, so a consumer can wake and drain.
     /// </summary>
     [PublicAPI]
     public event Action? OnReady;
@@ -143,16 +120,23 @@ internal sealed class Warmer<TKey, TWarm> : IDisposable, IAsyncDisposable
         return _free.TryPop(out var segment) ? segment : new JobSegment<TKey, TWarm>(_segmentCapacity);
     }
 
-    /// <summary>Reuses the segment and returns it to the free pool.</summary>
+    /// <summary>Returns the segment (already reset by its <see cref="JobSegment{TKey,TWarm}.ApplyResult" />) to the free pool.</summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private void ReturnSegment(JobSegment<TKey, TWarm> segment)
     {
-        segment.Reuse();
         _free.Push(segment);
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private void Truncate()
+    {
+        if (_free.Count != 0 && _queue.IsEmpty && _taskAny.Count == 0)
+            _free.Clear();
+    }
+
     /// <summary>
-    ///     Adds a key (with its watermark) to the current tail segment.
+    ///     Adds a key (with its watermark) to the current tail segment. Creates a new segment when there is
+    ///     no tail or the tail is no longer accepting keys.
     /// </summary>
     /// <param name="key">The key to add.</param>
     /// <param name="watermark">The key's watermark; the segment keeps the maximum.</param>
@@ -160,14 +144,14 @@ internal sealed class Warmer<TKey, TWarm> : IDisposable, IAsyncDisposable
     ///     Must be called only when <see cref="CanAdd" /> is <see langword="true" /> (the caller reacts
     ///     to backpressure by draining completed segments first).
     /// </remarks>
-    /// <exception cref="InvalidOperationException">Thrown when <see cref="CanAdd" /> is violated (unreachable in practice).</exception>
+    /// <exception cref="InvalidOperationException">Thrown when the ring is full (backpressure was ignored).</exception>
     [PublicAPI]
     public void AddKey(TKey key, Watermark watermark)
     {
         Debug.Assert(CanAdd, "AddKey requires CanAdd.");
 
-        // Create a new segment when there is no tail (the ring is empty) or the tail no longer accepts keys.
-        if (!_queue.TryPeekLast(out var tail) || !tail.CanAccept)
+        // Create a new segment when there is no tail or the tail no longer accepts keys.
+        if (!_queue.TryPeekLast(out var tail) || !tail.CanAdvance)
         {
             tail = GetSegment();
 
@@ -175,15 +159,11 @@ internal sealed class Warmer<TKey, TWarm> : IDisposable, IAsyncDisposable
                 throw new InvalidOperationException();
         }
 
-        // Arm the linger timer with the segment's first element.
-        if (!tail.HasAny)
-            _timer.Change(_segmentLinger, Timeout.InfiniteTimeSpan);
-
         // Register the data.
-        tail.Add(key, watermark);
+        tail.Advance(key, watermark);
 
         // The segment may have just filled — try to start it for warming right away.
-        _ = AssignNextJob();
+        AssignNextJobs();
     }
 
     /// <summary>
@@ -195,18 +175,19 @@ internal sealed class Warmer<TKey, TWarm> : IDisposable, IAsyncDisposable
     [PublicAPI]
     public void AdvanceOpenWatermark(Watermark watermark)
     {
-        if (!_queue.TryPeekLast(out var tail) || !tail.CanAccept)
-            return;
-
-        tail.Advance(watermark);
+        if (_queue.TryPeekLast(out var tail) && tail.CanAdvance)
+            tail.Advance(watermark);
     }
 
     /// <summary>
-    ///     Pumps all segment work on the consumer loop: drains completed jobs, seals the tail when
-    ///     the linger interval elapsed, starts pending jobs, and applies the result of the next
-    ///     completed head segment (head-of-line).
+    ///     Pumps all segment work on the consumer loop: drains completed jobs, starts sealable/pending jobs
+    ///     in order from the head, and applies the result of the next completed head segment (head-of-line).
     /// </summary>
-    /// <param name="warmable">The sink that consumes per-key warming data on the loop thread.</param>
+    /// <param name="mode">
+    ///     The sealing policy for the current open tail: <see cref="WarmMode.Normal" /> leaves it accepting,
+    ///     <see cref="WarmMode.SealTail" /> attempts to start a partially filled tail when a job slot is free.
+    /// </param>
+    /// <param name="policy">The sink that consumes per-key warming data on the loop thread.</param>
     /// <param name="keys">The keys warmed by the extracted segment, when one was available.</param>
     /// <param name="watermark">The maximum watermark of the extracted segment (may be <see cref="Watermark.Nothing()" />).</param>
     /// <returns>
@@ -214,134 +195,107 @@ internal sealed class Warmer<TKey, TWarm> : IDisposable, IAsyncDisposable
     /// </returns>
     /// <remarks>
     ///     Called in a loop until it returns <see langword="false" />, after which the caller waits on
-    ///     the <see cref="OnReady" /> event (a job completion or the linger timer). If the head segment's job
-    ///     faulted or was canceled, the exception is rethrown when the segment is extracted.
+    ///     the <see cref="OnReady" /> event (a job completion). If the head segment's job faulted or was
+    ///     canceled, the exception is rethrown when the segment is extracted.
     /// </remarks>
     [PublicAPI]
-    public bool WarmNext<TWarmable>(TWarmable warmable, [MaybeNullWhen(false)] out TKey[] keys, out Watermark watermark)
-        where TWarmable : IWarmPolicy<TKey, TWarm>
+    public bool WarmNext(IWarmPolicy<TKey, TWarm> policy, WarmMode mode, [MaybeNullWhen(false)] out TKey[] keys, out Watermark watermark)
     {
         // Free completed slots (the result stays in the segment).
-        _ = DrainCompleted();
+        // Assign jobs; SealTail lets the accepting tail start even while partially filled.
+        AssignNextJobs(mode == WarmMode.SealTail);
 
-        // Linger may have fired — capture and reset the flag atomically.
-        var linger = Interlocked.Exchange(ref _lingerPending, false);
-
-        // Assign jobs; linger allows sealing the accepting tail.
-        while (AssignNextJob(linger))
+        // Strict head-of-line emission: apply the result of the next completed head segment.
+        if (TryExtractCompleted(out var segment))
         {
-        }
+            watermark = segment.Watermark;
+            keys = segment.ApplyResult(policy);
 
-        // If linger fired (including while processing) but the tail is still open
-        // (no free slot), re-arm the timer so the signal repeats.
-        if ((linger || Volatile.Read(ref _lingerPending)) && TryPeekAcceptingTail())
-            _timer.Change(_segmentLinger, Timeout.InfiniteTimeSpan);
-
-        if (_queue.IsEmpty && _taskAny.Count == 0)
-            _free.Clear();
-
-        var extracted = TryExtractHead(warmable, out keys, out watermark);
-
-        return extracted;
-    }
-
-    /// <summary>
-    ///     Force-seals the accepting tail and starts pending jobs as slots free up. Used at
-    ///     end-of-stream to flush a partial tail that the linger timer has not sealed yet.
-    /// </summary>
-    /// <remarks>
-    ///     Call alongside <see cref="WarmNext{TWarmable}" /> until <see cref="IsEmpty" /> becomes
-    ///     <see langword="true" />. If the job pool is full, the tail is sealed as soon as a slot frees.
-    /// </remarks>
-    [PublicAPI]
-    public void Flush()
-    {
-        Volatile.Write(ref _flushPending, true);
-        while (AssignNextJob(true))
-        {
-        }
-    }
-
-    /// <summary>Frees completed slots in <see cref="_taskAny" />; the result stays in the segment.</summary>
-    /// <returns>The number of completed slots freed.</returns>
-    private int DrainCompleted()
-    {
-        var count = 0;
-        while (_taskAny.TryTake(out _, out _))
-            count++;
-        return count;
-    }
-
-    /// <summary>Returns the accepting tail, if any (i.e. there is still a segment to seal).</summary>
-    private bool TryPeekAcceptingTail()
-    {
-        return _queue.TryPeekLast(out var tail) && tail.CanAccept;
-    }
-
-    /// <summary>
-    ///     Assigns a job to the next unassigned segment (in order from the head).
-    /// </summary>
-    /// <param name="forceSeal">
-    ///     Allows sealing an accepting (partially filled) segment — used by the linger timer.
-    /// </param>
-    /// <returns>
-    ///     <see langword="true" /> when a job was assigned and the loop should continue; otherwise <see langword="false" />.
-    /// </returns>
-    private bool AssignNextJob(bool forceSeal = false)
-    {
-        // After Flush() the source is exhausted, so an accepting tail must be sealed as soon as a
-        // task slot frees up — otherwise the partial tail would never be assigned or drained.
-        var seal = forceSeal || Volatile.Read(ref _flushPending);
-
-        if (!_taskAny.CanAdd || _assignedJobs == _queue.Count)
-            return false;
-
-        // Get the next unassigned segment in the queue.
-        if (!_queue.TryGetAt(_assignedJobs, out var job))
-            throw new InvalidOperationException();
-
-        // The segment still accepts keys and is not sealed — nothing to assign, stop.
-        if (job.CanAccept && !seal)
-            return false;
-
-        var task = job.RunJob(_jobFactory, _cts.Token);
-        _taskAny.Insert(task);
-        _assignedJobs++;
-        return true;
-    }
-
-    /// <summary>Extracts the completed head and applies its result (strict head-of-line emission).</summary>
-    private bool TryExtractHead<TWarmable>(TWarmable warmable, [MaybeNullWhen(false)] out TKey[] keys,
-        out Watermark watermark)
-        where TWarmable : IWarmPolicy<TKey, TWarm>
-    {
-        var headExist = _queue.TryPeekFirst(out var head);
-        if (headExist && head is not null && head.IsJobCompleted)
-        {
-            Debug.Assert(_assignedJobs > 0, "A completed head must have been assigned.");
-
-            keys = head.ApplyResult(warmable);
-            watermark = head.Watermark;
-
-            // The head was already observed completed — dequeue must succeed.
-            _ = _queue.TryPopFirst(out _);
-            _assignedJobs--;
-
-            ReturnSegment(head);
+            // ApplyResult already reset the segment; return it to the free pool.
+            ReturnSegment(segment);
 
             return true;
         }
+        
+        Truncate();
 
         keys = null;
         watermark = Watermark.Nothing();
         return false;
     }
 
-    /// <summary>Disposes the jobs of the live segments in the ring.</summary>
-    private void DisposeJobs()
+    /// <summary>
+    ///     Progresses only the warming machinery — assigns jobs to pending segments (draining completed job
+    ///     slots as needed) — without extracting or emitting any completed segment. Used when the warmer's
+    ///     output capacity is unavailable and the caller wants to keep the warming pipeline moving (e.g.
+    ///     sealing a tail, running full segments) without touching the output. Unlike <see cref="WarmNext" />,
+    ///     it returns nothing and does not apply any result.
+    /// </summary>
+    /// <param name="mode">
+    ///     The sealing policy for the current open tail, as in <see cref="WarmNext" /> — see
+    ///     <see cref="WarmMode" />.
+    /// </param>
+    [PublicAPI]
+    public void Progress(WarmMode mode)
     {
-        // Segments in _free have already been reused (_job == null) — dispose only the live ring segments.
-        for (var i = 0; i < _queue.Count; i++)
-            _queue[i].Dispose();
+        AssignNextJobs(mode == WarmMode.SealTail);
+        
+        Truncate();
+    }
+
+    /// <summary>
+    ///     Assigns a job to the next unassigned segment (in order from the head).
+    /// </summary>
+    /// <param name="forceSeal">
+    ///     Allows starting an accepting (partially filled) segment — used by <see cref="WarmMode.SealTail" />.
+    /// </param>
+    private void AssignNextJobs(bool forceSeal = false)
+    {
+        // Frees completed slots. The result stays in the segment.
+        while (_taskAny.TryTake(out _, out _)) ;
+        
+        while (_taskAny.CanAdd)
+        {
+            // Get the next unassigned segment in the queue.
+            if (!_queue.TryGetAt(_assignedJobs, out var job))
+                break;
+
+            // The segment is still open and not sealed — nothing to assign, stop.
+            if (job.CanAdvance && !forceSeal)
+                break;
+
+            var task = job.RunJob(_jobFactory, _cts.Token);
+            _taskAny.Insert(task);
+            _assignedJobs++;
+        }
+    }
+
+    /// <summary>
+    ///     Dequeues the next completed head segment (strict head-of-line), without applying its result.
+    ///     The caller proceeds to apply the result via <see cref="JobSegment{TKey,TWarm}.ApplyResult" /> once
+    ///     the segment is out; the caller is also responsible for returning it to the pool. A no-op when
+    ///     the head is not yet complete.
+    /// </summary>
+    /// <param name="segment">The completed head segment, when one was available.</param>
+    /// <returns>
+    ///     <see langword="true" /> when a completed head segment was extracted; otherwise <see langword="false" />.
+    /// </returns>
+    private bool TryExtractCompleted([MaybeNullWhen(false)] out JobSegment<TKey, TWarm> segment)
+    {
+        if (_queue.TryPeekFirst(out var head) && head.IsJobCompleted)
+        {
+            Debug.Assert(_assignedJobs > 0, "A completed head must have been assigned.");
+
+            // The head was already observed completed — dequeue must succeed.
+            _ = _queue.TryPopFirst(out _);
+            _assignedJobs--;
+
+            segment = head;
+
+            return true;
+        }
+
+        segment = null;
+        return false;
     }
 }

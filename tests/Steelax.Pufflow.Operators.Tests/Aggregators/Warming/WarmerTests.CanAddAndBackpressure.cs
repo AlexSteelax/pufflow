@@ -1,46 +1,48 @@
-﻿namespace Steelax.Pufflow.Operators.Tests.Aggregators.Warming;
+﻿using Steelax.Pufflow.Operators.Aggregators.Warming;
+
+namespace Steelax.Pufflow.Operators.Tests.Aggregators.Warming;
 
 public static partial class WarmerTests
 {
     public sealed class CanAddAndBackpressure
     {
         [Fact]
-        public void InitiallyTrue()
+        public async Task InitiallyTrue()
         {
-            using var warmer = Create();
+            await using var warmer = Create();
             Assert.True(warmer.CanAdd);
         }
 
         [Fact]
-        public void PartialTail_RemainsAddable()
+        public async Task PartialTail_RemainsAddable()
         {
-            using var warmer = Create(segmentCapacity: 5);
+            await using var warmer = Create(segmentCapacity: 5);
 
-            AddKeys(warmer, (1, 10), (2, 20));
+            AddKeys(warmer, [1, 2]);
 
             Assert.True(warmer.CanAdd);
         }
 
         [Fact]
-        public void FullRingWithFullTail_Backpressures()
+        public async Task FullRingWithFullTail_Backpressure()
         {
-            using var warmer = Create(maxConcurrency: 1, maxQueued: 2, segmentCapacity: 2);
+            await using var warmer = Create(maxConcurrency: 1, maxQueued: 2, segmentCapacity: 2);
 
-            AddKeys(warmer, (1, 10), (2, 20), (3, 30), (4, 40));
+            AddKeys(warmer, [1, 2, 3, 4]);
 
             Assert.False(warmer.CanAdd);
         }
 
         [Fact]
-        public void WarmNext_DrainsAndRestoresCanAdd()
+        public async Task WarmNext_DrainsAndRestoresCanAdd()
         {
-            using var warmer = Create(maxConcurrency: 1, maxQueued: 2, segmentCapacity: 2);
-            var sink = new WarmSink();
+            await using var warmer = Create(maxConcurrency: 1, maxQueued: 2, segmentCapacity: 2);
+            var sink = new WarmingHelper.DefaultPolicy();
 
-            AddKeys(warmer, (1, 10), (2, 20), (3, 30), (4, 40));
+            AddKeys(warmer, [1, 2, 3, 4]);
             Assert.False(warmer.CanAdd);
 
-            Assert.True(warmer.WarmNext(sink, out _, out _));
+            Assert.True(warmer.WarmNext(sink, WarmMode.Normal, out _, out _));
             Assert.True(warmer.CanAdd);
         }
     }

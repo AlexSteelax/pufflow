@@ -1,4 +1,4 @@
-using Steelax.Pufflow.Operators.Aggregators.Warming;
+﻿using Steelax.Pufflow.Operators.Aggregators.Warming;
 using Steelax.Pufflow.Operators.Common;
 using Steelax.Pufflow.Sdk.Test;
 using Unio;
@@ -13,25 +13,26 @@ public static partial class WarmProcessorTests
 {
     private const int NoLingerMs = 60_000;
 
+    /// <summary>Default tuning for the black-box tests: a very large TTL so segments are only sealed by size.</summary>
+    private static WarmOptions DefaultOptions(TimeSpan? watchdogPeriod = null) => new WarmOptions
+    {
+        MaxConcurrency = 1,
+        MaxQueued = 8,
+        SegmentCapacity = 4,
+        SegmentTtl = TimeSpan.FromMilliseconds(NoLingerMs),
+        QueueWeightLimit = 1000,
+        WatchdogPeriod = watchdogPeriod ?? Timeout.InfiniteTimeSpan
+    };
+
     private static async Task<List<Carrier<Unio<int, TGroup>>>> RunAsync<TGroup>(
         IJobFactory<int, string> jobFactory,
         IWarmPolicy<int, string> policy,
         IWarmAccumulatorFactory<int, int, TGroup> accumulatorFactory,
         IReadOnlyList<Carrier<int>> input,
         FlowSource flow,
-        TimeSpan? watchdogPeriod,
+        WarmOptions options,
         CancellationToken cancellationToken)
     {
-        var options = new WarmOptions
-        {
-            MaxConcurrency = 1,
-            MaxQueued = 8,
-            SegmentCapacity = 4,
-            SegmentLinger = TimeSpan.FromMilliseconds(NoLingerMs),
-            QueueWeightLimit = 1000,
-            WatchdogPeriod = watchdogPeriod ?? Timeout.InfiniteTimeSpan
-        };
-
         flow
             .OnAsyncConsumatorSource(input)
             .Warming(
@@ -48,34 +49,28 @@ public static partial class WarmProcessorTests
             .ToListAsync(TestContext.Current.CancellationToken);
     }
 
-    private static async Task WaitUntilAsync(Func<bool> condition, CancellationToken token)
-    {
-        while (!condition() && !token.IsCancellationRequested)
-            await Task.Delay(10, token);
-    }
-
     // -- Value/group/progress extraction helpers over the Carrier<Unio<...>> output ------------------
 
     /// <summary>Pass-through values (carrier payload union T0) present in the output.</summary>
-    private static int[] Values<TGroup>(IReadOnlyList<Carrier<Unio<int, TGroup>>> results)
+    private static TValue[] Values<TValue, TGroup>(IReadOnlyList<Carrier<Unio<TValue, TGroup>>> results)
     {
-        return results.Where(static r => r.HasValue && r.Value.IsT0).Select(static r => r.Value.AsT0).ToArray();
+        return results.Where(static r => r is { HasValue: true, Value.IsT0: true }).Select(static r => r.Value.AsT0).ToArray();
     }
 
     /// <summary>Accumulated group results (carrier payload union T1) present in the output.</summary>
     private static TGroup[] Groups<TGroup>(IReadOnlyList<Carrier<Unio<int, TGroup>>> results)
     {
-        return results.Where(static r => r.HasValue && r.Value.IsT1).Select(static r => r.Value.AsT1).ToArray();
+        return results.Where(static r => r is { HasValue: true, Value.IsT1: true }).Select(static r => r.Value.AsT1).ToArray();
     }
 
     /// <summary>The real progress watermarks carried by empty (bare) carriers.</summary>
-    private static Watermark[] Progress<TGroup>(IReadOnlyList<Carrier<Unio<int, TGroup>>> results)
+    private static Watermark[] Progress<TValue, TGroup>(IReadOnlyList<Carrier<Unio<TValue, TGroup>>> results)
     {
-        return results.Where(static r => !r.HasValue).Select(static r => r.Watermark).ToArray();
+        return results.Where(static w => w.HasWatermark).Select(static c => c.Watermark).ToArray();
     }
 
     /// <summary>Indicates whether the last output item is an empty (bare-progress) carrier.</summary>
-    private static bool IsLastProgress<TGroup>(IReadOnlyList<Carrier<Unio<int, TGroup>>> results)
+    private static bool IsLastProgress<TValue, TGroup>(IReadOnlyList<Carrier<Unio<TValue, TGroup>>> results)
     {
         return results.Count > 0 && !results[^1].HasValue;
     }
@@ -83,7 +78,7 @@ public static partial class WarmProcessorTests
     // Accumulator: collects int values and emits a single string group on consumption.
     private sealed class ListAccumulator : WarmAccumulator<int, string>
     {
-        private readonly List<int> _values = new();
+        private readonly List<int> _values = [];
         private int _consumed;
 
         protected internal override int EstimatedWeight => 1;
@@ -118,7 +113,7 @@ public static partial class WarmProcessorTests
     }
 
     // Honest queue accumulator: TValue == TGroup, each value is stored in a queue and
-    // released exactly one at a time — without collapsing into a string group.
+    // released exactly one at a time вЂ” without collapsing into a string group.
     private sealed class QueueAccumulator : WarmAccumulator<int, int>
     {
         private readonly Queue<int> _values = new();
@@ -152,131 +147,8 @@ public static partial class WarmProcessorTests
             return new QueueAccumulator();
         }
     }
-
-    // Policy: warms even keys by default; OnWarmed collects the results.
-    private sealed class TestPolicy : IWarmPolicy<int, string>
-    {
-        public bool WarmEvenOnly { get; } = true;
-
-        public List<(int Key, string Warm)> Warmed { get; } = new();
-
-        public bool ShouldWarm(int key)
-        {
-            return WarmEvenOnly ? key % 2 == 0 : key % 2 != 0;
-        }
-
-        public void OnWarmed(int key, string warm)
-        {
-            Warmed.Add((key, warm));
-        }
-    }
-
-    // Policy with an arbitrary predicate: warms keys matching the condition (for a non-uniform mixed mode).
-    private sealed class PredicatePolicy(Func<int, bool> predicate) : IWarmPolicy<int, string>
-    {
-        public bool ShouldWarm(int key)
-        {
-            return predicate(key);
-        }
-
-        public void OnWarmed(int key, string warm)
-        {
-        }
-    }
-
-    private sealed class SyncJob : IAsyncJob<int, string>
-    {
-        private KeyValuePair<int, string>[] _results = [];
-
-        public Task ExecuteAsync(int[] keys, CancellationToken cancellationToken)
-        {
-            _results = keys.Select(k => new KeyValuePair<int, string>(k, "W" + k)).ToArray();
-            return Task.CompletedTask;
-        }
-
-        public ReadOnlySpan<KeyValuePair<int, string>> GetResult()
-        {
-            return _results.AsSpan();
-        }
-
-        public void Dispose()
-        {
-        }
-    }
-
-    private sealed class SyncJobFactory : IJobFactory<int, string>
-    {
-        public IAsyncJob<int, string> CreateAsyncJob()
-        {
-            return new SyncJob();
-        }
-    }
-
-    // Delayed job: emulates a "real" warm task that takes some time to complete.
-    private sealed class DelayedJob(int delayMs) : IAsyncJob<int, string>
-    {
-        private KeyValuePair<int, string>[] _results = Array.Empty<KeyValuePair<int, string>>();
-
-        public async Task ExecuteAsync(int[] keys, CancellationToken cancellationToken)
-        {
-            await Task.Delay(delayMs, cancellationToken);
-            _results = keys.Select(k => new KeyValuePair<int, string>(k, "W" + k)).ToArray();
-        }
-
-        public ReadOnlySpan<KeyValuePair<int, string>> GetResult()
-        {
-            return _results.AsSpan();
-        }
-
-        public void Dispose()
-        {
-        }
-    }
-
-    private sealed class DelayedJobFactory(int delayMs) : IJobFactory<int, string>
-    {
-        public IAsyncJob<int, string> CreateAsyncJob()
-        {
-            return new DelayedJob(delayMs);
-        }
-    }
-
-    // Job with controlled completion (determinism for the cancellation test).
-    private sealed class TcsJob : IAsyncJob<int, string>
-    {
-        public TaskCompletionSource Tcs { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
-
-        public int[]? Keys { get; private set; }
-
-        public CancellationToken CancellationToken { get; private set; }
-
-        public bool Started { get; private set; }
-
-        public Task ExecuteAsync(int[] keys, CancellationToken cancellationToken)
-        {
-            Keys = keys;
-            CancellationToken = cancellationToken;
-            Started = true;
-            return Tcs.Task;
-        }
-
-        public ReadOnlySpan<KeyValuePair<int, string>> GetResult()
-        {
-            return Keys!.Select(k => new KeyValuePair<int, string>(k, "W" + k)).ToArray().AsSpan();
-        }
-
-        public void Dispose()
-        {
-        }
-    }
-
-    private sealed class TcsJobFactory(TcsJob job) : IJobFactory<int, string>
-    {
-        public IAsyncJob<int, string> CreateAsyncJob()
-        {
-            return job;
-        }
-    }
     
     private static int ValueToKey(scoped in int value) => value;
+    
+    private static Func<int, bool> WarmEvenOnly => key => key % 2 == 0;
 }

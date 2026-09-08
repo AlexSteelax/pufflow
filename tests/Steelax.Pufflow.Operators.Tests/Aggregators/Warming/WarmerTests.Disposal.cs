@@ -4,31 +4,29 @@ public static partial class WarmerTests
 {
     public sealed class Disposal
     {
-        [Fact]
-        public void Dispose_CancelsAndDisposesRunningJobs()
+        [Fact(Timeout = 1_000)]
+        public async Task DisposeAsync_CancelsRunningJob_AndCompletes()
         {
-            var factory = new TcsJobFactory();
+            var factory = new WarmingHelper.TcsJobFactory();
             var warmer = Create(factory, maxConcurrency: 1, maxQueued: 2, segmentCapacity: 1);
 
-            AddKeys(warmer, (1, 10));
-            var job = factory.Created[0];
-            Assert.False(job.CancellationToken.IsCancellationRequested);
+            AddKeys(warmer, [1]);
 
-            warmer.Dispose();
+            // The job is suspended on an unresolved TCS; DisposeAsync must cancel it and not hang.
+            Assert.False(factory.Source[0].Task.IsCompleted);
 
-            Assert.True(job.CancellationToken.IsCancellationRequested);
-            Assert.True(job.Disposed);
+            await warmer.DisposeAsync().AsTask().WaitAsync(TestContext.Current.CancellationToken);
         }
 
-        [Fact]
+        [Fact(Timeout = 1_000)]
         public async Task DisposeAsync_DoesNotThrow()
         {
-            var factory = new TcsJobFactory();
+            var factory = new WarmingHelper.TcsJobFactory();
             var warmer = Create(factory, maxConcurrency: 1, maxQueued: 2, segmentCapacity: 1);
 
-            AddKeys(warmer, (1, 10));
+            AddKeys(warmer, [1]);
 
-            await warmer.DisposeAsync();
+            await warmer.DisposeAsync().AsTask().WaitAsync(TestContext.Current.CancellationToken);
         }
     }
 }

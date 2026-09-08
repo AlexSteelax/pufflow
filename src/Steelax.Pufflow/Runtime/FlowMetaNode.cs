@@ -1,7 +1,7 @@
 using System.Reflection;
 using Steelax.Pufflow.Abstractions;
 
-namespace Steelax.Pufflow;
+namespace Steelax.Pufflow.Runtime;
 
 /// <summary>
 ///     Describes a single pipeline node: the handler method found on the node's type, the types it consumes
@@ -339,10 +339,10 @@ internal sealed class FlowMetaNode : FlowMeta
 
         return (left.Kind, right?.Kind) switch
         {
-            (NodeKind.Source, NodeKind.Pipe) => MergeSourcePipe(left, right!, context),
-            (NodeKind.Pipe, NodeKind.Pipe) => MergePipePipe(left, right!, context),
-            (NodeKind.Pipe, NodeKind.Sink) => MergePipeSink(left, right!, context),
-            (NodeKind.Source, NodeKind.Sink) => MergeSourceSink(left, right!, context),
+            (NodeKind.Source, NodeKind.Pipe) => MergeSourcePipe(left, right, context),
+            (NodeKind.Pipe, NodeKind.Pipe) => MergePipePipe(left, right, context),
+            (NodeKind.Pipe, NodeKind.Sink) => MergePipeSink(left, right, context),
+            (NodeKind.Source, NodeKind.Sink) => MergeSourceSink(left, right, context),
             (NodeKind.Source, null) => MergeSourceSink(left, null, context),
             _ => throw new FlowMetaException(
                 $"Unsupported flow merge: left='{left.Kind}', right='{right?.Kind.ToString() ?? "null"}'.")
@@ -430,19 +430,19 @@ internal sealed class FlowMetaNode : FlowMeta
             // Source: a push source pushes into a plain target (Fuse(IProducator, ctx)); a pull source
             // emits a read stream (Fuse(out IF, ctx)).
             NodeKind.Source when outFlow is not null && IsPush(outKind) =>
-                FindFuse(type, new[] { false }, new[] { outFlow }),
+                FindFuse(type, [false], [outFlow]),
 
             NodeKind.Source when outFlow is not null =>
-                FindFuse(type, new[] { true }, new[] { outFlow }),
+                FindFuse(type, [true], [outFlow]),
 
             // Sink: a write sink hands out an out target to be written into (Fuse(out IProducator, ctx));
             // a read sink consumes an in source (Fuse(in IF, ctx)). For a push-family sink the target
             // is handed out as an out parameter, so it is emitted.
             NodeKind.Sink when inFlow is not null && IsPush(inKind) =>
-                FindFuse(type, new[] { true }, new[] { inFlow }),
+                FindFuse(type, [true], [inFlow]),
 
             NodeKind.Sink when inFlow is not null =>
-                FindFuse(type, new[] { false }, new[] { inFlow }),
+                FindFuse(type, [false], [inFlow]),
 
             // Pipe consumes an input and produces an output. The output parameter direction follows the
             // interface families: a pull output (consumator/enumerator) is emitted as an out parameter
@@ -456,16 +456,16 @@ internal sealed class FlowMetaNode : FlowMeta
             // the plain second parameter is the downstream target. The emitted flags are therefore
             // [true, false] (source emitted via out, target consumed as a plain parameter).
             NodeKind.Pipe when inFlow is not null && outFlow is not null && IsPush(inKind) && IsPush(outKind) =>
-                FindFuse(type, new[] { true, false }, new[] { inFlow, outFlow }),
+                FindFuse(type, [true, false], [inFlow, outFlow]),
 
             // Composite push→pull (a passive buffer bridge): Fuse(out IProducator<T1> source, out IConsumator<T2> target, ctx)
             // exposes both flow interfaces as out parameters — the push input producer (written by the upstream push
             // source) and the pull output stream (read by the downstream consumator). Both interfaces are emitted.
             NodeKind.Pipe when inFlow is not null && outFlow is not null && IsPush(inKind) && !IsPush(outKind) =>
-                FindFuse(type, new[] { true, true }, new[] { inFlow, outFlow }),
+                FindFuse(type, [true, true], [inFlow, outFlow]),
 
             NodeKind.Pipe when inFlow is not null && outFlow is not null =>
-                FindFuse(type, new[] { false, !(IsPush(outKind) && !IsPush(inKind)) }, new[] { inFlow, outFlow }),
+                FindFuse(type, [false, !(IsPush(outKind) && !IsPush(inKind))], [inFlow, outFlow]),
 
             _ => null,
         };
@@ -490,13 +490,13 @@ internal sealed class FlowMetaNode : FlowMeta
         {
             // Push family: the node is a Source when it accepts a plain write target and pushes into it,
             // a Sink when it hands out an out target to be written into (a passive consumer).
-            var plainFuse = FindFuse(type, new[] { false }, new[] { flow });
+            var plainFuse = FindFuse(type, [false], [flow]);
             return plainFuse is null ? NodeKind.Sink : NodeKind.Source;
         }
 
         // Pull family: the node is a Source when it emits a read stream (out), a Sink when it consumes
         // a supplied read stream (in/plain).
-        var emittedFuse = FindFuse(type, new[] { true }, new[] { flow });
+        var emittedFuse = FindFuse(type, [true], [flow]);
         return emittedFuse is null ? NodeKind.Sink : NodeKind.Source;
     }
 

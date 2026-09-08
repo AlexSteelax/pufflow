@@ -1,84 +1,89 @@
-﻿using Steelax.Pufflow.Operators.Common;
-
-namespace Steelax.Pufflow.Operators.Aggregators.Warming;
+﻿namespace Steelax.Pufflow.Operators.Aggregators.Warming;
 
 internal sealed partial class WarmProcessor<TKey, TValue, TGroup, TWarm>
 {
-    private async Task InternalExecuteAsync(IAsyncConsumator<Carrier<TValue>> reader, IAsyncProducator<Carrier<Unio<TValue, TGroup>>> writer, FlowContext context)
+    private async Task InternalExecuteAsync(CancellationToken cancellationToken)
     {
         // FanInSlim does not accept a CancellationToken: on cancellation we signal a dedicated slot to
         // wake the loop sleeping on _fanIn.WaitAsync(). The loop observes the token and exits.
-        await using var cancellation = context.Token.Register(() => _fanIn.Signal(CancellationSlot));
+        await using var cancellation = cancellationToken.Register(() => _fanIn.Signal(CancellationSlot));
 
-        // The periodic watchdog wakes the sleeping loop so it re-checks the state — a safety net against
-        // a missed readiness signal. It lives for the duration of the loop (disposed in the finally block).
-        await using var watchdog = CreateWatchdog();
+        // Start the periodic watchdog so it periodically wakes the sleeping loop to re-check the state — a safety
+        // net against a missed readiness signal. Inert (no-op) when the period is disabled.
+        _watchdog.Start();
 
-        var sourceCompleted = false;
+        var lastRead = ReadSourceResult.None;
+        var lastDrain = DrainReadyResult.None;
+        var ttlSet = false;
 
         try
         {
-            while (!context.Token.IsCancellationRequested)
+            while (!cancellationToken.IsCancellationRequested)
             {
-                Trace.WriteLine($"[WarmProcessor] Loop iteration: pendingInput={_pendingInput.Occupied}, sourceCompleted={sourceCompleted}, delayed={_delayedQueue.Count}");
+                // Pick up the signals accumulated since the last sleep.
+                var fanSet = _fanIn.Take();
 
-                // 1. Drain warmed segments (frees output capacity, delayed weight and pumps the warmer).
-                var drain = DrainWarm(writer);
-
-                // 2. Handle the current source value, unless the source has already completed.
-                var result = FlowResult.Idle;
+                Trace.WriteLine($"[WarmProcessor] iteration: sourceFull={_writer.IsFull}, pending={_pending.Keys.Count}, " +
+                                $"delayed={_delayedQueue.Count}, warmerEmpty={_warmer.IsEmpty}");
                 
-                if (!sourceCompleted)
+                // 1. Drain ready data — a phase loop: keep emitting until nothing is ready (or the output
+                //    blocks or the pipeline completes). Running first gives the delayed buffers priority.
+                while ((lastDrain = DrainReadyOnce(lastDrain)) == DrainReadyResult.Emitted)
                 {
-                    if (TryPeekSource(reader, out var item))
-                    {
-                        result = TryHandleValue(in item, writer);
-
-                        if (result == FlowResult.Success)
-                            AdvanceSource(reader); // the value was fully handled — move to the next
-                    }
-                    else if (IsCompletedSource)
-                    {
-                        // End of source: seal the tail segment and start pending jobs. From now on the loop
-                        // only drains until the delayed queue and the progress watermark are fully emitted.
-                        sourceCompleted = true;
-                    }
-                    // Nothing — the source is not ready yet; fall through to Idle.
+                    if (cancellationToken.IsCancellationRequested)
+                        return;
+                }
+                
+                // The one-shot linger expired: seal the partial tail so it can be handed to a job.
+                if (fanSet.IsSet(LingerSlot))
+                {
+                    Trace.WriteLine($"[WarmProcessor] linger fired — sealing the tail.");
+                    
+                    if (_warmer.IsSinglePartial)
+                        _warmer.Progress(WarmMode.SealTail);
+                    
+                    ttlSet = false;
                 }
 
-                // Once the source has completed, seal the tail segment and assign jobs on every iteration:
-                // if all warmer slots were busy at the first Flush, the partial tail stays unassigned, and
-                // AssignNextJob(forceSeal:false) from WarmNext will not seal it — otherwise the last segment
-                // would never start and the loop would hang.
-                if (sourceCompleted)
-                    _warmer.Flush();
+                // 2. Read the source — a phase loop over values, but only once no partially drained segment
+                //    is held (so a fresh passthrough cannot steal the output and stall the buffers).
+                if (_pending.IsNothing)
+                    while ((lastRead = ReadSourceOnce(lastRead)) is var state && IsSuccessfulSource(state))
+                    {
+                        if (cancellationToken.IsCancellationRequested)
+                            return;
+                    }
 
-                // 3. Emit the held progress watermark once all delayed data has been drained.
-                if (sourceCompleted && !TryFlushWatermark(writer))
-                    drain = FlowResult.OutputBlocked;
+                if (_warmer.IsSinglePartial && !ttlSet)
+                {
+                    _ttl.Start(_segmentTtl);
+                    ttlSet = true;
+                }
 
-                // 4. Completion: everything has been drained and emitted.
-                if (sourceCompleted && _warmer.IsEmpty && _delayedQueue.Count == 0) break;
+                if (lastRead == ReadSourceResult.Completed && lastDrain == DrainReadyResult.None && _warmer.IsEmpty)
+                {
+                    Trace.WriteLine("[WarmProcessor] source completed and everything drained — finishing.");
+                    return;
+                }
 
-                // 5. Combine and decide: retry immediately or plan waits and sleep on the fan-in.
-                var combined = result;
-                if (drain == FlowResult.OutputBlocked)
-                    combined = FlowResult.OutputBlocked;
-                else if (drain == FlowResult.Success)
-                    combined = FlowResult.Success;
+                Trace.WriteLine($"[WarmProcessor] sleeping: lastRead={lastRead}, lastDrain={lastDrain}.");
 
-                if (PrepareWait(combined, writer))
-                    continue;
-                
+                // 3. Stand by until a relevant signal wakes the loop (input/warm/output/watchdog/linger).
+                //    The phase loops above already drained/read as much as possible, so sleeping is correct
+                //    even after successful passes — a fresh signal triggers the next work burst.
                 await _fanIn.WaitAsync();
-                _fanIn.Take();
             }
         }
         finally
         {
+            // Stop the watchdog so it stops waking the loop once it has exited.
+            _watchdog.Stop();
+
+            Trace.WriteLine($"[WarmProcessor] loop exiting — completing the output producer. Cancellation requested is {cancellationToken.IsCancellationRequested}.");
+
             // Always complete the output producer — on normal completion, cancellation and exceptions alike.
             // Otherwise the external reader would hang, never receiving the end-of-stream signal.
-            CompleteOutput(writer);
+            _writer.TryComplete();
         }
     }
 }

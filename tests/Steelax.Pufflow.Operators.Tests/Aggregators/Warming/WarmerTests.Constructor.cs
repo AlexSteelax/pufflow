@@ -9,8 +9,7 @@ public static partial class WarmerTests
         [Fact]
         public void NullJobFactory_ThrowsArgumentNullException()
         {
-            Assert.Throws<ArgumentNullException>(() =>
-                new Warmer<int, string>(1, 1, 1, TimeSpan.FromSeconds(1), null!, new ManualTimeProvider()));
+            Assert.Throws<ArgumentNullException>(() => new Warmer<int, string>(1, 1, 1, null!));
         }
 
         [Theory]
@@ -20,8 +19,7 @@ public static partial class WarmerTests
         public void InvalidMaxConcurrency_ThrowsArgumentOutOfRangeException(int maxConcurrency)
         {
             Assert.Throws<ArgumentOutOfRangeException>(() =>
-                new Warmer<int, string>(maxConcurrency, 1, 1, TimeSpan.FromSeconds(1), new SyncJobFactory(),
-                    new ManualTimeProvider()));
+                new Warmer<int, string>(maxConcurrency, 1, 1, new WarmingHelper.SyncJobFactory()));
         }
 
         [Theory]
@@ -30,8 +28,7 @@ public static partial class WarmerTests
         public void InvalidMaxQueued_ThrowsArgumentOutOfRangeException(int maxQueued)
         {
             Assert.Throws<ArgumentOutOfRangeException>(() =>
-                new Warmer<int, string>(1, maxQueued, 1, TimeSpan.FromSeconds(1), new SyncJobFactory(),
-                    new ManualTimeProvider()));
+                new Warmer<int, string>(1, maxQueued, 1, new WarmingHelper.SyncJobFactory()));
         }
 
         [Theory]
@@ -40,18 +37,14 @@ public static partial class WarmerTests
         public void InvalidSegmentCapacity_ThrowsArgumentOutOfRangeException(int segmentCapacity)
         {
             Assert.Throws<ArgumentOutOfRangeException>(() =>
-                new Warmer<int, string>(1, 1, segmentCapacity, TimeSpan.FromSeconds(1), new SyncJobFactory(),
-                    new ManualTimeProvider()));
+                new Warmer<int, string>(1, 1, segmentCapacity, new WarmingHelper.SyncJobFactory()));
         }
 
-        [Theory]
-        [InlineData(0)]
-        [InlineData(-100)]
-        public void InvalidLinger_ThrowsArgumentOutOfRangeException(int lingerMs)
+        [Fact]
+        public async Task ValidArguments_DoesNotThrow()
         {
-            Assert.Throws<ArgumentOutOfRangeException>(() =>
-                new Warmer<int, string>(1, 1, 1, TimeSpan.FromMilliseconds(lingerMs), new SyncJobFactory(),
-                    new ManualTimeProvider()));
+            await using var warmer = new Warmer<int, string>(2, 4, 2, new WarmingHelper.SyncJobFactory());
+            Assert.NotNull(warmer);
         }
     }
 }

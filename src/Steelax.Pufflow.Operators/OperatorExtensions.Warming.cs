@@ -32,20 +32,12 @@ public static partial class OperatorExtensions
             IWarmAccumulatorFactory<TKey, TValue, TGroup> accumulatorFactory)
             where TKey : notnull
         {
-            var warmer = new Warmer<TKey, TWarm>(
-                options.MaxConcurrency,
-                options.MaxQueued,
-                options.SegmentCapacity,
-                options.SegmentLinger,
-                jobFactory);
-
             var processor = new WarmProcessor<TKey, TValue, TGroup, TWarm>(
-                warmer,
                 keySelector,
+                options,
                 policy,
-                accumulatorFactory,
-                options.QueueWeightLimit,
-                options.WatchdogPeriod);
+                jobFactory,
+                accumulatorFactory);
 
             return left.Next(processor.FlowAConsToAProd);
         }

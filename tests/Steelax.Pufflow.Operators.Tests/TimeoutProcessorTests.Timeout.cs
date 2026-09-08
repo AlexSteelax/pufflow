@@ -8,7 +8,7 @@ public static partial class TimeoutProcessorTests
         public async Task IdleSource_EmitsAwaitTimeoutMarkers_ThenResumes()
         {
             var processor = new TimeoutProcessor<int>(TimeSpan.FromMilliseconds(30));
-            var result = await CollectAsync(processor, SegmentedSourceAsync((new[] { 1 }, 120), (new[] { 2 }, 0)));
+            var result = await CollectAsync(processor, SegmentedSourceAsync(([1], 120), ([2], 0)));
 
             // The first element arrives in time; the 120ms idle gap (> 30ms timeout) produces at
             // least one marker; the per-wait window then re-arms and the source resumes.
@@ -31,7 +31,7 @@ public static partial class TimeoutProcessorTests
             var result = await CollectAsync(processor, SyncBurstThenAsyncSourceAsync());
 
             Assert.All(result, value => Assert.True(value.IsT0));
-            Assert.Equal(new[] { 1, 2, 3 }, result.Select(value => value.AsT0));
+            Assert.Equal([1, 2, 3], result.Select(value => value.AsT0));
         }
 
         [Fact]

@@ -1,4 +1,4 @@
-using Steelax.Pufflow.Operators.Aggregators.Warming;
+﻿using Steelax.Pufflow.Operators.Aggregators.Warming;
 using Steelax.Pufflow.Operators.Common;
 using Steelax.Pufflow.Sdk.Test;
 
@@ -20,14 +20,14 @@ public static partial class WarmProcessorTests
             };
 
             await using var flow = new FlowSource();
-            var policy = new TestPolicy();
+            var policy = new WarmingHelper.PredicatePolicy(WarmEvenOnly);
 
             var options = new WarmOptions
             {
                 MaxConcurrency = 1,
                 MaxQueued = 8,
-                SegmentCapacity = 4,
-                SegmentLinger = TimeSpan.FromMilliseconds(NoLingerMs),
+                SegmentCapacity = 2,
+                SegmentTtl = TimeSpan.FromMilliseconds(NoLingerMs),
                 QueueWeightLimit = 1000,
                 WatchdogPeriod = Timeout.InfiniteTimeSpan
             };
@@ -39,7 +39,7 @@ public static partial class WarmProcessorTests
                 .OnAsyncConsumatorSource(carriers)
                 .Warming(
                     options,
-                    new SyncJobFactory(),
+                    new WarmingHelper.SyncJobFactory(),
                     ValueToKey,
                     policy,
                     new QueueAccumulatorFactory())
@@ -50,19 +50,30 @@ public static partial class WarmProcessorTests
             var results = await reader.ReadAllAsync(TestContext.Current.CancellationToken)
                 .ToListAsync(TestContext.Current.CancellationToken);
 
+            // SegmentCapacity = 2 so the two warm keys (2, 4) fill the segment by size — no linger needed.
             // The short overload collapses both passthrough values and warmed results into the single value slot;
             // every input appears exactly once. Emission order: passthrough values are written immediately when
             // handled (1, 3), while the warmed values (2, 4) are held in the delayed queue and drained when the
-            // segment is sealed at end-of-stream (no linger, segment not full). The closing watermark is an
-            // empty (bare-progress) carrier, so only data carriers contain the emitted values.
+            // segment completes. The segment's covering watermark (40) is emitted last as an empty (bare-progress)
+            // carrier, so only data carriers contain the emitted values.
             var values = results.Where(static r => r.HasValue).Select(static r => r.Value).ToArray();
             Assert.Equal(new[] { 1, 3, 2, 4 }, values);
+
+            Assert.Equal(4, results.Count(static r => r.HasValue));
+            Assert.Single(results, static r => !r.HasValue); // exactly one bare-progress item
+
+            // All progress watermarks are non-decreasing and the maximum closes the stream.
+            var progress = results.Where(static r => r.HasWatermark).Select(static r => r.Watermark).ToArray();
+            Assert.NotEmpty(progress);
+            Assert.OrderIncreasing(progress, false);
+            Assert.Equal(Watermark.From(40), progress.Max());
 
             // The progress watermark closes the stream as the final empty (bare-progress) carrier item.
             Assert.True(!results[^1].HasValue, "watermark should be the last item");
             Assert.Equal(Watermark.From(40), results[^1].Watermark);
 
-            Assert.Equal(2, policy.Warmed.Count);
+            Assert.Equal(2, policy.PlainItems.Count);
         }
     }
 }
+

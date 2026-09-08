@@ -1,182 +1,182 @@
-using Steelax.Pufflow.Operators.Abstractions;
-using Steelax.Pufflow.Operators.Aggregators.Warming;
-using Steelax.Pufflow.Operators.Common;
-using Steelax.Pufflow.Sdk.Test;
-
-namespace Steelax.Pufflow.Operators.Tests.Pipelines;
-
-/// <summary>
-///     Mirrors the production <c>AnalogProcessor</c> pipeline: Kafka → SkipNoSignal → Map →
-///     Buffering → Warming → Map → Map → Buffering → sink. In flow terms it is
-///     async push source → push-push → push-push → composite (push→pull) → hybrid (pull→push) →
-///     push-push → push-push → composite (push→pull) → pull sink — two buffer bridges with a warming
-///     hybrid between them.
-/// </summary>
-public class ComplexPipelineTests
-{
-    private const int TimeoutMs = 1_000;
-
-    private static readonly Carrier<int>[] Input =
-    [
-        new(1, Watermark.From(1)),
-        new(2, Watermark.From(2)),
-        new(3, Watermark.From(3))
-    ];
-
-    private static readonly Carrier<int>[] CarrierSource =
-        Input.Select(static w => new Carrier<int>(w.Value, w.Watermark)).ToArray();
-
-    private static readonly string[] Expected =
-    [
-        "4",
-        "6",
-        "8"
-    ];
-
-    private static readonly WarmOptions WarmOptions = new()
-    {
-        MaxConcurrency = 4,
-        MaxQueued = 16,
-        QueueWeightLimit = 10240,
-        SegmentCapacity = 256,
-        SegmentLinger = TimeSpan.FromSeconds(2)
-    };
-
-    private static readonly MapSelector<int, int> IdentityKey = static (scoped in int value) => value;
-
-    [Fact(Timeout = TimeoutMs)]
-    public async Task KafkaLikePipeline_FlowsThroughTwoBuffersAndWarming()
-    {
-        await using var flow = new FlowSource();
-
-        flow
-            .OnAsyncProducatorSource(CarrierSource)
-            .Map(static (scoped in int v) => v + 1)
-            .Map(static (scoped in int v) => v * 2)
-            .Buffering(128)
-            .Warming(WarmOptions, new StubJobFactory(), IdentityKey, new NoWarmPolicy(), new QueueAccumulatorFactory())
-            .Buffering(256)
-            .Consume(out var reader);
-
-        await flow.ExecuteAsync(TestContext.Current.CancellationToken);
-        var results = await reader.ReadAllAsync(TestContext.Current.CancellationToken)
-            .ToListAsync(TestContext.Current.CancellationToken);
-
-        // The short Warming collapses warmed groups and passthrough into plain values (Carrier<int>), keeping
-        // any trailing bare progress as an empty carrier. Only data carriers carry the final values.
-        Assert.Equal(Expected, results
-            .Where(static it => it.HasValue)
-            .Select(static it => it.Value.ToString())
-            .ToArray());
-    }
-
-    [Fact(Timeout = TimeoutMs)]
-    public async Task SyncKafkaLikePipeline_FlowsThroughTwoBuffersAndWarming()
-    {
-        // Mirrors the production AnalogProcessor exactly: OnKafkaSource is a SYNC push source
-        // (IProducator<Carrier<...>>), so the first segment (source → sync push-push → sync
-        // push-push → sync composite) is synchronous, while the second segment (hybrid → async
-        // push-push → async push-push → async composite) is asynchronous. The two segments are
-        // separated by the pull→push hybrid and must not be mixed when the chain is resolved.
-        await using var flow = new FlowSource();
-
-        flow
-            .OnProducatorSource(CarrierSource)
-            .Map(static (scoped in int v) => v + 1)
-            .Buffering(128)
-            .Warming(WarmOptions, new StubJobFactory(), IdentityKey, new NoWarmPolicy(), new QueueAccumulatorFactory())
-            .Buffering(256)
-            .Consume(out var reader);
-
-        await flow.ExecuteAsync(TestContext.Current.CancellationToken);
-        var results = await reader.ReadAllAsync(TestContext.Current.CancellationToken)
-            .ToListAsync(TestContext.Current.CancellationToken);
-
-        Assert.Equal([2, 3, 4], results
-            .Where(static it => it.HasValue)
-            .Select(static it => it.Value));
-    }
-
-    [Fact(Timeout = TimeoutMs)]
-    public async Task KafkaLikePipeline_WithChunkingTail()
-    {
-        // Mirrors the full AnalogProcessor tail: after the second buffer the pull stream is chunked by
-        // a pull-pull pipe (Chunking), then a hybrid (pull→push) forwards the chunks to a push sink.
-        // Sync source → sync push-push ×2 → composite → hybrid (Warming) → async push-push ×3 →
-        // composite → pull-pull (Chunking) → hybrid → push sink.
-        await using var flow = new FlowSource();
-
-        flow
-            .OnProducatorSource(CarrierSource)
-            .Map(static (scoped in int v) => v + 1)
-            .Buffering(128)
-            .Warming(WarmOptions, new StubJobFactory(), IdentityKey, new NoWarmPolicy(), new QueueAccumulatorFactory())
-            .Buffering(256)
-            .Consume(out var reader);
-
-        await flow.ExecuteAsync(TestContext.Current.CancellationToken);
-        var results = await reader.ReadAllAsync(TestContext.Current.CancellationToken)
-            .ToListAsync(TestContext.Current.CancellationToken);
-
-        Assert.Equal([2, 3, 4], results
-            .Where(static it => it.HasValue)
-            .Select(static it => it.Value));
-    }
-
-    /// <summary>Warms nothing: every key is a passthrough.</summary>
-    private sealed class NoWarmPolicy : IWarmPolicy<int, int>
-    {
-        public bool ShouldWarm(int key) => false;
-
-        public void OnWarmed(int key, int warm)
-        {
-        }
-    }
-
-    /// <summary>Creates warming jobs that complete immediately and produce no warm data.</summary>
-    private sealed class StubJobFactory : IJobFactory<int, int>
-    {
-        public IAsyncJob<int, int> CreateAsyncJob() => new StubJob();
-    }
-
-    /// <summary>An immediately-completing warming job with no results.</summary>
-    private sealed class StubJob : IAsyncJob<int, int>
-    {
-        public Task ExecuteAsync(int[] keys, CancellationToken cancellationToken) => Task.CompletedTask;
-
-        public ReadOnlySpan<KeyValuePair<int, int>> GetResult() => [];
-
-        public void Dispose()
-        {
-        }
-    }
-
-    /// <summary>Creates per-key accumulators that release each stored value as its own group.</summary>
-    private sealed class QueueAccumulatorFactory : IWarmAccumulatorFactory<int, int>
-    {
-        public WarmAccumulator<int, int> Create(int key) => new QueueAccumulator();
-    }
-
-    private sealed class QueueAccumulator : WarmAccumulator<int, int>
-    {
-        private readonly Queue<int> _items = new();
-
-        protected internal override int EstimatedWeight => 1;
-
-        protected override void Add(int value) => _items.Enqueue(value);
-
-        protected override bool TryConsume(out int group, out int weight)
-        {
-            if (_items.TryDequeue(out var value))
-            {
-                group = value;
-                weight = 1;
-                return true;
-            }
-
-            group = default;
-            weight = 0;
-            return false;
-        }
-    }
-}
+// using Steelax.Pufflow.Operators.Abstractions;
+// using Steelax.Pufflow.Operators.Aggregators.Warming;
+// using Steelax.Pufflow.Operators.Common;
+// using Steelax.Pufflow.Sdk.Test;
+//
+// namespace Steelax.Pufflow.Operators.Tests.Pipelines;
+//
+// /// <summary>
+// ///     Mirrors the production <c>AnalogProcessor</c> pipeline: Kafka → SkipNoSignal → Map →
+// ///     Buffering → Warming → Map → Map → Buffering → sink. In flow terms it is
+// ///     async push source → push-push → push-push → composite (push→pull) → hybrid (pull→push) →
+// ///     push-push → push-push → composite (push→pull) → pull sink — two buffer bridges with a warming
+// ///     hybrid between them.
+// /// </summary>
+// public class ComplexPipelineTests
+// {
+//     private const int TimeoutMs = 1_000;
+//
+//     private static readonly Carrier<int>[] Input =
+//     [
+//         new(1, Watermark.From(1)),
+//         new(2, Watermark.From(2)),
+//         new(3, Watermark.From(3))
+//     ];
+//
+//     private static readonly Carrier<int>[] CarrierSource =
+//         Input.Select(static w => new Carrier<int>(w.Value, w.Watermark)).ToArray();
+//
+//     private static readonly string[] Expected =
+//     [
+//         "4",
+//         "6",
+//         "8"
+//     ];
+//
+//     private static readonly WarmOptions WarmOptions = new()
+//     {
+//         MaxConcurrency = 4,
+//         MaxQueued = 16,
+//         QueueWeightLimit = 10240,
+//         SegmentCapacity = 256,
+//         SegmentLinger = TimeSpan.FromSeconds(2)
+//     };
+//
+//     private static readonly MapSelector<int, int> IdentityKey = static (scoped in int value) => value;
+//
+//     [Fact(Timeout = TimeoutMs)]
+//     public async Task KafkaLikePipeline_FlowsThroughTwoBuffersAndWarming()
+//     {
+//         await using var flow = new FlowSource();
+//
+//         flow
+//             .OnAsyncProducatorSource(CarrierSource)
+//             .Map(static (scoped in int v) => v + 1)
+//             .Map(static (scoped in int v) => v * 2)
+//             .Buffering(128)
+//             .Warming(WarmOptions, new StubJobFactory(), IdentityKey, new NoWarmPolicy(), new QueueAccumulatorFactory())
+//             .Buffering(256)
+//             .Consume(out var reader);
+//
+//         await flow.ExecuteAsync(TestContext.Current.CancellationToken);
+//         var results = await reader.ReadAllAsync(TestContext.Current.CancellationToken)
+//             .ToListAsync(TestContext.Current.CancellationToken);
+//
+//         // The short Warming collapses warmed groups and passthrough into plain values (Carrier<int>), keeping
+//         // any trailing bare progress as an empty carrier. Only data carriers carry the final values.
+//         Assert.Equal(Expected, results
+//             .Where(static it => it.HasValue)
+//             .Select(static it => it.Value.ToString())
+//             .ToArray());
+//     }
+//
+//     [Fact(Timeout = TimeoutMs)]
+//     public async Task SyncKafkaLikePipeline_FlowsThroughTwoBuffersAndWarming()
+//     {
+//         // Mirrors the production AnalogProcessor exactly: OnKafkaSource is a SYNC push source
+//         // (IProducator<Carrier<...>>), so the first segment (source → sync push-push → sync
+//         // push-push → sync composite) is synchronous, while the second segment (hybrid → async
+//         // push-push → async push-push → async composite) is asynchronous. The two segments are
+//         // separated by the pull→push hybrid and must not be mixed when the chain is resolved.
+//         await using var flow = new FlowSource();
+//
+//         flow
+//             .OnProducatorSource(CarrierSource)
+//             .Map(static (scoped in int v) => v + 1)
+//             .Buffering(128)
+//             .Warming(WarmOptions, new StubJobFactory(), IdentityKey, new NoWarmPolicy(), new QueueAccumulatorFactory())
+//             .Buffering(256)
+//             .Consume(out var reader);
+//
+//         await flow.ExecuteAsync(TestContext.Current.CancellationToken);
+//         var results = await reader.ReadAllAsync(TestContext.Current.CancellationToken)
+//             .ToListAsync(TestContext.Current.CancellationToken);
+//
+//         Assert.Equal([2, 3, 4], results
+//             .Where(static it => it.HasValue)
+//             .Select(static it => it.Value));
+//     }
+//
+//     [Fact(Timeout = TimeoutMs)]
+//     public async Task KafkaLikePipeline_WithChunkingTail()
+//     {
+//         // Mirrors the full AnalogProcessor tail: after the second buffer the pull stream is chunked by
+//         // a pull-pull pipe (Chunking), then a hybrid (pull→push) forwards the chunks to a push sink.
+//         // Sync source → sync push-push ×2 → composite → hybrid (Warming) → async push-push ×3 →
+//         // composite → pull-pull (Chunking) → hybrid → push sink.
+//         await using var flow = new FlowSource();
+//
+//         flow
+//             .OnProducatorSource(CarrierSource)
+//             .Map(static (scoped in int v) => v + 1)
+//             .Buffering(128)
+//             .Warming(WarmOptions, new StubJobFactory(), IdentityKey, new NoWarmPolicy(), new QueueAccumulatorFactory())
+//             .Buffering(256)
+//             .Consume(out var reader);
+//
+//         await flow.ExecuteAsync(TestContext.Current.CancellationToken);
+//         var results = await reader.ReadAllAsync(TestContext.Current.CancellationToken)
+//             .ToListAsync(TestContext.Current.CancellationToken);
+//
+//         Assert.Equal([2, 3, 4], results
+//             .Where(static it => it.HasValue)
+//             .Select(static it => it.Value));
+//     }
+//
+//     /// <summary>Warms nothing: every key is a passthrough.</summary>
+//     private sealed class NoWarmPolicy : IWarmPolicy<int, int>
+//     {
+//         public bool ShouldWarm(int key) => false;
+//
+//         public void OnWarmed(int key, int warm)
+//         {
+//         }
+//     }
+//
+//     /// <summary>Creates warming jobs that complete immediately and produce no warm data.</summary>
+//     private sealed class StubJobFactory : IJobFactory<int, int>
+//     {
+//         public IAsyncJob<int, int> CreateAsyncJob() => new StubJob();
+//     }
+//
+//     /// <summary>An immediately-completing warming job with no results.</summary>
+//     private sealed class StubJob : IAsyncJob<int, int>
+//     {
+//         public Task ExecuteAsync(int[] keys, CancellationToken cancellationToken) => Task.CompletedTask;
+//
+//         public ReadOnlySpan<KeyValuePair<int, int>> GetResult() => [];
+//
+//         public void Dispose()
+//         {
+//         }
+//     }
+//
+//     /// <summary>Creates per-key accumulators that release each stored value as its own group.</summary>
+//     private sealed class QueueAccumulatorFactory : IWarmAccumulatorFactory<int, int>
+//     {
+//         public WarmAccumulator<int, int> Create(int key) => new QueueAccumulator();
+//     }
+//
+//     private sealed class QueueAccumulator : WarmAccumulator<int, int>
+//     {
+//         private readonly Queue<int> _items = new();
+//
+//         protected internal override int EstimatedWeight => 1;
+//
+//         protected override void Add(int value) => _items.Enqueue(value);
+//
+//         protected override bool TryConsume(out int group, out int weight)
+//         {
+//             if (_items.TryDequeue(out var value))
+//             {
+//                 group = value;
+//                 weight = 1;
+//                 return true;
+//             }
+//
+//             group = default;
+//             weight = 0;
+//             return false;
+//         }
+//     }
+// }

@@ -48,6 +48,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Steelax.Pufflow.Test.Sdk.Ka
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Steelax.Pufflow.Benchmarks", "benchmarks\Steelax.Pufflow.Benchmarks\Steelax.Pufflow.Benchmarks.csproj", "{1B350F74-3A93-48D0-86BB-5346A9404DD0}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Steelax.Pufflow.Xunit.Assert", "tests\Steelax.Pufflow.Xunit.Assert\Steelax.Pufflow.Xunit.Assert.csproj", "{E94E2734-0C70-4D6C-8A22-3B010B0CC3C1}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -202,6 +204,18 @@ Global
 		{1B350F74-3A93-48D0-86BB-5346A9404DD0}.Release|x64.Build.0 = Release|Any CPU
 		{1B350F74-3A93-48D0-86BB-5346A9404DD0}.Release|x86.ActiveCfg = Release|Any CPU
 		{1B350F74-3A93-48D0-86BB-5346A9404DD0}.Release|x86.Build.0 = Release|Any CPU
+		{E94E2734-0C70-4D6C-8A22-3B010B0CC3C1}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{E94E2734-0C70-4D6C-8A22-3B010B0CC3C1}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{E94E2734-0C70-4D6C-8A22-3B010B0CC3C1}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{E94E2734-0C70-4D6C-8A22-3B010B0CC3C1}.Debug|x64.Build.0 = Debug|Any CPU
+		{E94E2734-0C70-4D6C-8A22-3B010B0CC3C1}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{E94E2734-0C70-4D6C-8A22-3B010B0CC3C1}.Debug|x86.Build.0 = Debug|Any CPU
+		{E94E2734-0C70-4D6C-8A22-3B010B0CC3C1}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{E94E2734-0C70-4D6C-8A22-3B010B0CC3C1}.Release|Any CPU.Build.0 = Release|Any CPU
+		{E94E2734-0C70-4D6C-8A22-3B010B0CC3C1}.Release|x64.ActiveCfg = Release|Any CPU
+		{E94E2734-0C70-4D6C-8A22-3B010B0CC3C1}.Release|x64.Build.0 = Release|Any CPU
+		{E94E2734-0C70-4D6C-8A22-3B010B0CC3C1}.Release|x86.ActiveCfg = Release|Any CPU
+		{E94E2734-0C70-4D6C-8A22-3B010B0CC3C1}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -219,6 +233,7 @@ Global
 		{E4D5197B-9745-4D2C-BD83-A07F345FB2D3} = {8DE90B3E-24A0-443D-95C2-EEA1EFB87C3F}
 		{2490BC4E-8B5E-4C53-A95B-11430105CB3A} = {19C26739-0DB6-4EFA-A104-71ED74B83473}
 		{1B350F74-3A93-48D0-86BB-5346A9404DD0} = {0B078B25-8D2C-4B75-A3B0-EA8411C1A04A}
+		{E94E2734-0C70-4D6C-8A22-3B010B0CC3C1} = {8DE90B3E-24A0-443D-95C2-EEA1EFB87C3F}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {49383F29-3C46-4B19-9899-42E27D25DE4C}

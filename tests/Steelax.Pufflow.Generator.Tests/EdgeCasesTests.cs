@@ -1,4 +1,3 @@
-using Steelax.Pufflow.Abstractions;
 using static Steelax.Pufflow.Generator.Tests.TestMarshal;
 
 namespace Steelax.Pufflow.Generator.Tests;

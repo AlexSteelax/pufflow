@@ -1,4 +1,6 @@
-﻿namespace Steelax.Pufflow;
+﻿using Steelax.Pufflow.Runtime;
+
+namespace Steelax.Pufflow;
 
 /// <summary>
 ///     Manages the lifecycle and cancellation of a dataflow pipeline.

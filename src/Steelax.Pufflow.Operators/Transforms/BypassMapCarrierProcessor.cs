@@ -1,4 +1,3 @@
-using System.Diagnostics.CodeAnalysis;
 using Steelax.Pufflow.Operators.Abstractions;
 using Steelax.Pufflow.Operators.Common;
 

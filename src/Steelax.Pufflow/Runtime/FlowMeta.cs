@@ -1,4 +1,4 @@
-namespace Steelax.Pufflow;
+namespace Steelax.Pufflow.Runtime;
 
 /// <summary>
 ///     Marker base for flow metadata. A concrete <see cref="FlowMetaNode" /> describes a single pipeline

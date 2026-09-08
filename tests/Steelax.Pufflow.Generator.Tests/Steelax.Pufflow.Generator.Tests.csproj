@@ -8,6 +8,7 @@
     <ItemGroup>
         <ProjectReference Include="..\..\src\Steelax.Pufflow.Generator\Steelax.Pufflow.Generator.csproj"/>
         <ProjectReference Include="..\..\src\Steelax.Pufflow\Steelax.Pufflow.csproj"/>
+        <ProjectReference Include="..\Steelax.Pufflow.Xunit.Assert\Steelax.Pufflow.Xunit.Assert.csproj" />
     </ItemGroup>
 
     <ItemGroup>
@@ -22,11 +23,14 @@
         </PackageReference>
         <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces"/>
         <PackageReference Include="Microsoft.NET.Test.Sdk"/>
-        <PackageReference Include="xunit.runner.visualstudio">
-            <PrivateAssets>all</PrivateAssets>
-            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+        <PackageReference Include="xunit.analyzers">
+          <PrivateAssets>all</PrivateAssets>
+          <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
         </PackageReference>
-        <PackageReference Include="xunit.v3"/>
+        <PackageReference Include="xunit.runner.visualstudio">
+          <PrivateAssets>all</PrivateAssets>
+          <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+        </PackageReference>
     </ItemGroup>
 
 </Project>

@@ -1,4 +1,4 @@
-using Steelax.Pufflow.Operators.Common;
+﻿using Steelax.Pufflow.Operators.Common;
 
 namespace Steelax.Pufflow.Operators.Tests.Aggregators.Warming;
 
@@ -17,15 +17,15 @@ public static partial class WarmProcessorTests
                 .ToArray();
 
             await using var flow = new FlowSource();
-            var policy = new TestPolicy(); // warm even keys
+            var policy = new WarmingHelper.PredicatePolicy(WarmEvenOnly); // warm even keys
 
             var results = await RunAsync(
-                new DelayedJobFactory(15),
+                new WarmingHelper.DelayedJobFactory(15),
                 policy,
                 new ListAccumulatorFactory(),
                 input,
                 flow,
-                null,
+                DefaultOptions(),
                 TestContext.Current.CancellationToken);
 
             var values = Values(results);
@@ -40,29 +40,29 @@ public static partial class WarmProcessorTests
                 groups);
 
             Assert.Contains(results, static r => !r.HasValue);
-            Assert.Equal(n / 2, policy.Warmed.Count);
+            Assert.Equal(n / 2, policy.PlainItems.Count);
         }
 
         [Fact(Timeout = 1_000)]
         public async Task LargeInput_SyncJobs_SameCountOnOutput()
         {
             // Long distance: the output has exactly as many useful records (T0 passthrough +
-            // T1 groups) as were fed in — nothing is lost or duplicated.
+            // T1 groups) as were fed in вЂ” nothing is lost or duplicated.
             const int n = 1_000;
             var input = Enumerable.Range(0, n)
                 .Select(i => new Carrier<int>(i, Watermark.From(i)))
                 .ToArray();
 
             await using var flow = new FlowSource();
-            var policy = new TestPolicy(); // warm even keys, odd ones pass through
+            var policy = new WarmingHelper.PredicatePolicy(WarmEvenOnly); // warm even keys, odd ones pass through
 
             var results = await RunAsync(
-                new SyncJobFactory(),
+                new WarmingHelper.SyncJobFactory(),
                 policy,
                 new ListAccumulatorFactory(),
                 input,
                 flow,
-                null,
+                DefaultOptions(),
                 TestContext.Current.CancellationToken);
 
             var values = Values(results);
@@ -82,7 +82,8 @@ public static partial class WarmProcessorTests
                 groups);
 
             Assert.Contains(results, static r => !r.HasValue);
-            Assert.Equal(n / 2, policy.Warmed.Count);
+            Assert.Equal(n / 2, policy.PlainItems.Count);
         }
     }
 }
+

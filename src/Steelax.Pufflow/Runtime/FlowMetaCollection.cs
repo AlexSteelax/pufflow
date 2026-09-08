@@ -1,4 +1,4 @@
-﻿namespace Steelax.Pufflow;
+﻿namespace Steelax.Pufflow.Runtime;
 
 /// <summary>
 ///     A <see cref="FlowMeta" /> that groups nodes for a reverse-order (push) chain, e.g. a producator

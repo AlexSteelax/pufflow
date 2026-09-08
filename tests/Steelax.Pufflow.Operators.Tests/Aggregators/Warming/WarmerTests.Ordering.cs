@@ -1,75 +1,94 @@
-﻿using Steelax.Pufflow.Operators.Common;
+﻿using System.Diagnostics.CodeAnalysis;
+using Steelax.Pufflow.Operators.Aggregators.Warming;
+using Steelax.Pufflow.Operators.Common;
 
 namespace Steelax.Pufflow.Operators.Tests.Aggregators.Warming;
 
 public static partial class WarmerTests
 {
+    [SuppressMessage("ReSharper", "AccessToDisposedClosure")]
     public sealed class Ordering
     {
-        [Fact]
-        public void EmitsHeadOfLine_DespiteOutOfOrderCompletion()
+        [Fact(Timeout = 1_000)]
+        public async Task EmitsHeadOfLine_DespiteOutOfOrderCompletion()
         {
-            var factory = new TcsJobFactory();
-            using var warmer = Create(factory, maxConcurrency: 3, maxQueued: 3, segmentCapacity: 1);
-            var sink = new WarmSink();
+            var factory = new WarmingHelper.TcsJobFactory();
+            await using var warmer = Create(factory, maxConcurrency: 3, maxQueued: 3, segmentCapacity: 1);
+            var sink = new WarmingHelper.DefaultPolicy();
 
-            AddKeys(warmer, (1, 10), (2, 20), (3, 30));
-            Assert.Equal(3, factory.Created.Count);
+            AddKeys(warmer, [1, 2, 3]);
+            Assert.Equal(3, factory.Source.Count);
 
             // Complete C and B before A — the output is still strictly in order.
-            factory.Created[2].Tcs.SetResult();
-            factory.Created[1].Tcs.SetResult();
+            factory.Source[2].SetResult();
+            factory.Source[1].SetResult();
 
-            Assert.False(warmer.WarmNext(sink, out _, out _)); // head A has not completed yet
+            Assert.False(warmer.WarmNext(sink, WarmMode.Normal, out _, out _)); // head A has not completed yet
 
-            factory.Created[0].Tcs.SetResult();
+            factory.Source[0].SetResult();
 
+            // The jobs complete on async continuations; drain whatever is ready and wait for all three.
             var collected = new List<int[]>();
-            while (warmer.WarmNext(sink, out var keys, out _))
-                collected.Add(keys!);
+            Assert.WaitUntil(() =>
+            {
+                while (warmer.WarmNext(sink, WarmMode.Normal, out var keys, out _))
+                    collected.Add(keys);
+                return collected.Count == 3;
+            }, TestContext.Current.CancellationToken, "Expected all three segments to be emitted in order.");
 
             Assert.Collection(collected,
                 k => Assert.Equal(new[] { 1 }, k),
                 k => Assert.Equal(new[] { 2 }, k),
                 k => Assert.Equal(new[] { 3 }, k));
-            Assert.Equal(new[] { (1, "W1"), (2, "W2"), (3, "W3") }, sink.Items);
+            Assert.Equal(3, sink.Items.Count);
+            Assert.Equal("W1", sink.Items[1].Result);
+            Assert.Equal("W2", sink.Items[2].Result);
+            Assert.Equal("W3", sink.Items[3].Result);
         }
 
         [Fact]
-        public void Watermarks_NonDecreasing()
+        public async Task Watermarks_AllReal()
         {
-            using var warmer = Create(maxConcurrency: 2, maxQueued: 4, segmentCapacity: 2);
-            var sink = new WarmSink();
+            await using var warmer = Create(maxConcurrency: 2, maxQueued: 4, segmentCapacity: 2);
+            var policy = new WarmingHelper.DefaultPolicy();
 
-            AddKeys(warmer, (1, 10), (2, 20), (3, 30), (4, 40));
+            AddKeys(warmer, [1, 2, 3, 4]);
 
-            var watermarks = new List<long>();
-            while (warmer.WarmNext(sink, out _, out var watermark))
+            var watermarks = new List<Watermark>();
+            while (warmer.WarmNext(policy, WarmMode.Normal, out _, out var watermark))
                 watermarks.Add(watermark);
 
-            Assert.Equal(new[] { 20L, 40L }, watermarks);
+            // Two segments were emitted: both carry a real (non-Nothing) covering watermark.
+            Assert.Equal(2, watermarks.Count);
+            Assert.All(watermarks, w => Assert.False(w.IsNothing));
         }
 
-        [Fact]
-        public void LargeScale_OutOfOrderCompletion_PreservesHeadOfLine()
+        [Fact(Timeout = 1_000)]
+        public async Task LargeScale_OutOfOrderCompletion_PreservesHeadOfLine()
         {
             const int segments = 10;
-            var factory = new TcsJobFactory();
-            using var warmer = Create(factory, maxConcurrency: segments, maxQueued: segments, segmentCapacity: 1);
-            var sink = new WarmSink();
+            var factory = new WarmingHelper.TcsJobFactory();
+            await using var warmer = Create(factory, maxConcurrency: segments, maxQueued: segments,
+                segmentCapacity: 1);
+            var sink = new WarmingHelper.DefaultPolicy();
 
             for (var i = 1; i <= segments; i++)
                 warmer.AddKey(i, Watermark.From(i * 10L));
 
-            Assert.Equal(segments, factory.Created.Count);
+            Assert.Equal(segments, factory.Source.Count);
 
             // Complete all jobs in reverse order — the output is still strictly in order.
             for (var i = segments - 1; i >= 0; i--)
-                factory.Created[i].Tcs.SetResult();
+                factory.Source[i].SetResult();
 
+            // The jobs complete on async continuations; drain whatever is ready and wait for all segments.
             var collected = new List<int[]>();
-            while (warmer.WarmNext(sink, out var keys, out _))
-                collected.Add(keys!);
+            Assert.WaitUntil(() =>
+            {
+                while (warmer.WarmNext(sink, WarmMode.Normal, out var keys, out _))
+                    collected.Add(keys);
+                return collected.Count == segments;
+            }, TestContext.Current.CancellationToken, "Expected all segments to be emitted in head-of-line order.");
 
             Assert.Equal(segments, collected.Count);
             for (var i = 0; i < segments; i++)

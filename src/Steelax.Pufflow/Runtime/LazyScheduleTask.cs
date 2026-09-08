@@ -1,4 +1,4 @@
-﻿namespace Steelax.Pufflow;
+﻿namespace Steelax.Pufflow.Runtime;
 
 internal sealed class LazyScheduleTask
 {

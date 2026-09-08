@@ -26,7 +26,7 @@ public sealed record WarmOptions
 
     /// <summary>The idle interval after which a partial warming segment is sealed.</summary>
     [PublicAPI]
-    public TimeSpan SegmentLinger { get; init; } = TimeSpan.FromSeconds(1);
+    public TimeSpan SegmentTtl { get; init; } = TimeSpan.FromSeconds(1);
 
     /// <summary>The maximum total weight the per-key delayed buffers may hold.</summary>
     [PublicAPI]

@@ -1,6 +1,7 @@
-﻿ ﻿using Steelax.Pufflow.Abstractions;
+﻿ using Steelax.Pufflow.Abstractions;
+ using Steelax.Pufflow.Runtime;
 
-namespace Steelax.Pufflow;
+ namespace Steelax.Pufflow;
 
 /// <summary>
 ///     A marker struct that represents a data source emitting values of type <typeparamref name="T" /> via a poll

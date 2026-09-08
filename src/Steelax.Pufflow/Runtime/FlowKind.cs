@@ -1,6 +1,6 @@
 using Steelax.Pufflow.Abstractions;
 
-namespace Steelax.Pufflow;
+namespace Steelax.Pufflow.Runtime;
 
 /// <summary>
 ///     Describes the flow interface shape of a pipeline node: whether it is async, whether the node

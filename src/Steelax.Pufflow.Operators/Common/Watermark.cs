@@ -76,6 +76,9 @@ public readonly struct Watermark : IEquatable<Watermark>, IComparable<Watermark>
     /// </summary>
     [PublicAPI]
     public bool IsNothing => _value == NothingValue;
+    
+    /// <inheritdoc/>
+    public override string ToString() => _value.ToString();
 
     // -- Comparison operators ------------------------------------------------
 

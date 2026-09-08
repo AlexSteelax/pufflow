@@ -10,19 +10,19 @@ public static partial class WarmerTests
     public sealed class Scale
     {
         [Fact]
-        public void ManySegments_AllEmittedInOrder()
+        public async Task ManySegments_AllEmittedInOrder()
         {
-            using var warmer = Create(maxConcurrency: 2, maxQueued: 10, segmentCapacity: 3);
-            var sink = new WarmSink();
+            await using var warmer = Create(maxConcurrency: 2, maxQueued: 10, segmentCapacity: 3);
+            var sink = new WarmingHelper.DefaultPolicy();
 
             for (var i = 1; i <= 30; i++)
                 warmer.AddKey(i, Watermark.From(i * 10L));
 
             var collected = new List<int[]>();
             var watermarks = new List<long>();
-            while (warmer.WarmNext(sink, out var keys, out var watermark))
+            while (warmer.WarmNext(sink, WarmMode.Normal, out var keys, out var watermark))
             {
-                collected.Add(keys!);
+                collected.Add(keys);
                 watermarks.Add(watermark);
             }
 
@@ -36,7 +36,8 @@ public static partial class WarmerTests
             }
 
             // Head-of-line: keys in strict arrival order.
-            Assert.Equal(Enumerable.Range(1, 30).Select(i => (i, "W" + i)), sink.Items);
+            for (var k = 1; k <= 30; k++)
+                Assert.Equal($"W{k}", sink.Items[k].Result);
         }
     }
 
@@ -59,7 +60,7 @@ public static partial class WarmerTests
             var watch = Stopwatch.StartNew();
             await using var warmer = Create(maxConcurrency: maxConcurrency, maxQueued: maxQueued,
                 segmentCapacity: segmentCapacity);
-            var sink = new WarmSink();
+            var sink = new WarmingHelper.DefaultPolicy();
             using var ready = new ManualResetEventSlim();
 
             warmer.OnReady += ready.Set;
@@ -71,7 +72,7 @@ public static partial class WarmerTests
                 while (i < count)
                 {
                     // Drain ready segments (free the ring for backpressure).
-                    while (warmer.WarmNext(sink, out _, out _))
+                    while (warmer.WarmNext(sink, WarmMode.Normal, out _, out _))
                     {
                     }
 
@@ -84,23 +85,21 @@ public static partial class WarmerTests
 
                     // No room — wait for the in-flight job of the head-of-line to complete.
                     ready.Reset();
-                    if (!warmer.WarmNext(sink, out _, out _) && !warmer.CanAdd)
+                    if (!warmer.WarmNext(sink, WarmMode.Normal, out _, out _) && !warmer.CanAdd)
                         ready.Wait();
                 }
 
                 // The source is exhausted — seal the tail segment and drain everything.
-                warmer.Flush();
-
                 while (!warmer.IsEmpty)
                 {
-                    while (warmer.WarmNext(sink, out _, out _))
+                    while (warmer.WarmNext(sink, WarmMode.SealTail, out _, out _))
                     {
                     }
 
                     if (!warmer.IsEmpty)
                     {
                         ready.Reset();
-                        if (!warmer.WarmNext(sink, out _, out _) && !warmer.IsEmpty)
+                        if (!warmer.WarmNext(sink, WarmMode.SealTail, out _, out _) && !warmer.IsEmpty)
                             ready.Wait();
                     }
                 }
@@ -111,7 +110,8 @@ public static partial class WarmerTests
             watch.Stop();
 
             Assert.Equal(count, sink.Items.Count);
-            Assert.Equal(Enumerable.Range(0, count).Select(i => (i, "W" + i)), sink.Items);
+            for (var i = 0; i < count; i++)
+                Assert.Equal($"W{i}", sink.Items[i].Result);
 
             output.WriteLine(watch.ElapsedMilliseconds is var elapsed && elapsed != 0
                 ? $"Time elapsed: {1m * count / elapsed:F3} item/ms"
@@ -126,9 +126,9 @@ public static partial class WarmerTests
             const int delayMs = 2;
 
             var watch = Stopwatch.StartNew();
-            await using var warmer = Create(new DelayedJobFactory(delayMs), maxConcurrency: 8, maxQueued: 32,
-                segmentCapacity: 32);
-            var sink = new WarmSink();
+            await using var warmer = Create(new WarmingHelper.DelayedJobFactory(delayMs), maxConcurrency: 8,
+                maxQueued: 32, segmentCapacity: 32);
+            var sink = new WarmingHelper.DefaultPolicy();
 
             var worker = Task.Factory.StartNew(() =>
             {
@@ -140,7 +140,7 @@ public static partial class WarmerTests
                 {
                     // Always drain the head: ready segments behind it may not signal
                     // (edge-triggered OnReady) when the queue is full of ready jobs.
-                    while (warmer.WarmNext(sink, out _, out _))
+                    while (warmer.WarmNext(sink, WarmMode.Normal, out _, out _))
                     {
                     }
 
@@ -162,11 +162,9 @@ public static partial class WarmerTests
                 }
 
                 // The source is exhausted — seal the tail segment and drain everything.
-                warmer.Flush();
-
                 while (!warmer.IsEmpty)
                 {
-                    while (warmer.WarmNext(sink, out _, out _))
+                    while (warmer.WarmNext(sink, WarmMode.SealTail, out _, out _))
                     {
                     }
 
@@ -180,7 +178,8 @@ public static partial class WarmerTests
             watch.Stop();
 
             Assert.Equal(count, sink.Items.Count);
-            Assert.Equal(Enumerable.Range(0, count).Select(i => (i, "W" + i)), sink.Items);
+            for (var i = 0; i < count; i++)
+                Assert.Equal($"W{i}", sink.Items[i].Result);
 
             output.WriteLine(watch.ElapsedMilliseconds is var elapsed && elapsed != 0
                 ? $"Time elapsed: {1m * count / elapsed:F3} item/ms"
