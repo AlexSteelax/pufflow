@@ -6,7 +6,7 @@ public static partial class WarmProcessorTests
 {
     public sealed class Warming
     {
-        [Fact(Timeout = 1_000, Skip = "Needs to rework")]
+        [Fact(Timeout = 1_000)]
         public async Task WarmableValues_ProduceGroups_AndWatermark()
         {
             var input = new List<Carrier<int>>
@@ -24,7 +24,7 @@ public static partial class WarmProcessorTests
                 new ListAccumulatorFactory(),
                 input,
                 flow,
-                DefaultOptions(),
+                DefaultOptions() with { SegmentCapacity = 2 },
                 TestContext.Current.CancellationToken);
 
             var groups = Groups(results);
@@ -34,7 +34,7 @@ public static partial class WarmProcessorTests
             Assert.Equal(2, policy.PlainItems.Count);
         }
 
-        [Fact(Timeout = 1_000, Skip = "Needs to rework")]
+        [Fact(Timeout = 1_000)]
         public async Task Mixed_PassthroughAndWarmable_AllEmitted()
         {
             var input = new List<Carrier<int>>
@@ -54,7 +54,7 @@ public static partial class WarmProcessorTests
                 new ListAccumulatorFactory(),
                 input,
                 flow,
-                DefaultOptions(),
+                DefaultOptions() with { SegmentCapacity = 2 },
                 TestContext.Current.CancellationToken);
 
             var values = Values(results);

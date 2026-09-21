@@ -58,7 +58,7 @@ public static partial class WarmProcessorTests
             Assert.Equal(maxInput, real.Max());
         }
 
-        [Fact(Timeout = 1_000, Skip = "Needs to rework")]
+        [Fact(Timeout = 1_000)]
         public async Task MonotonicWatermarks_OneKey_LargeInput_LastWatermarkEmitted()
         {
             // The same warmable key on 500 positions, the watermark grows with each message but repeats
@@ -78,7 +78,7 @@ public static partial class WarmProcessorTests
                 new ListAccumulatorFactory(),
                 input,
                 flow,
-                DefaultOptions(),
+                DefaultOptions() with { SegmentTtl = TimeSpan.FromMilliseconds(50) },
                 TestContext.Current.CancellationToken);
 
             // The key is warmable вЂ” there must be no passthrough.

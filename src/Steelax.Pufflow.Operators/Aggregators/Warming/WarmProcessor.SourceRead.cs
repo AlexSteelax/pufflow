@@ -102,6 +102,7 @@ internal sealed partial class WarmProcessor<TKey, TValue, TGroup, TWarm>
             return ReadSourceResult.Quota;
 
         _totalWeight += accumulator.InternalAdd(value);
+        FoldWatermark(watermark);
         _warmer.AdvanceOpenWatermark(watermark);
 
         return ReadSourceResult.Warming;
