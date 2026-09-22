@@ -14,7 +14,6 @@ internal abstract class ManualConsumator<T>
     public abstract bool TryGet([MaybeNullWhen(false)] out T item);
     public abstract void Ack();
     public abstract bool IsCompleted { get; }
-    public abstract bool IsOccupied { get; }
 
     public static ManualConsumator<T> Create(IAsyncConsumator<T> consumator)
     {
@@ -69,13 +68,7 @@ file sealed class ConduitManualConsumator<T>(Conduit<T> conduit) : ManualConsuma
     public override bool IsCompleted
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        get => conduit.IsCompleted;
-    }
-    
-    public override bool IsOccupied
-    {
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        get => _occupied.Occupied;
+        get => conduit.IsCompleted && !_occupied.Occupied;
     }
 }
 
@@ -110,7 +103,15 @@ file sealed class SharedManualConsumator<T, TConsumator>(TConsumator consumator)
             }
 
             if (consumator.IsCompleted)
+            {
+                // The source ended: observe its terminal wait so a completion fault surfaces here
+                // (the exception would otherwise be silently lost, reporting a clean end of stream).
+                if (!_input.GetState().IsPending)
+                    _ = _input.Observe(consumator.WaitToReadAsync(), OnCompletedBehavior.SkipCallbackIfCompleted);
+
+                _ = _input.GetResult();
                 break;
+            }
 
             if (_input.GetState().IsPending)
                 break;
@@ -137,13 +138,7 @@ file sealed class SharedManualConsumator<T, TConsumator>(TConsumator consumator)
     public override bool IsCompleted
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        get => consumator.IsCompleted;
-    }
-    
-    public override bool IsOccupied
-    {
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        get => _occupied.Occupied;
+        get => consumator.IsCompleted && !_occupied.Occupied;
     }
 }
 

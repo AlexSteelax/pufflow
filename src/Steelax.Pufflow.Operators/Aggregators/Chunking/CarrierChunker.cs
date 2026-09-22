@@ -1,5 +1,6 @@
 ﻿using System.Buffers;
 using System.Runtime.CompilerServices;
+using Steelax.Pufflow.Operators.Common;
 
 namespace Steelax.Pufflow.Operators.Aggregators.Chunking;
 
@@ -12,13 +13,16 @@ namespace Steelax.Pufflow.Operators.Aggregators.Chunking;
 ///     or the builder is disposed. This type is not thread-safe.
 /// </remarks>
 [PublicAPI]
-public sealed class Chunker<T> : IChunkBuilder<T, Chunk<T>>
+public sealed class CarrierChunker<T> : IChunkBuilder<Carrier<T>, Carrier<Chunk<T>>>
 {
     private static readonly ArrayPool<T> Pool = ArrayPool<T>.Shared;
 
     private readonly int _minimumSize;
     private readonly ChunkCapacityStrategy _strategy;
     private T[]? _buffer;
+
+    private Watermark _watermark = Watermark.Nothing();
+    
     private int _capacity;
     private int _count;
 
@@ -29,7 +33,7 @@ public sealed class Chunker<T> : IChunkBuilder<T, Chunk<T>>
     /// <param name="strategy">
     ///     The strategy that determines how the rented buffer sizes a chunk.
     /// </param>
-    public Chunker(int minimumSize, ChunkCapacityStrategy strategy = ChunkCapacityStrategy.Exact)
+    public CarrierChunker(int minimumSize, ChunkCapacityStrategy strategy = ChunkCapacityStrategy.Exact)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(minimumSize);
         
@@ -49,39 +53,49 @@ public sealed class Chunker<T> : IChunkBuilder<T, Chunk<T>>
     }
 
     /// <inheritdoc />
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public void Add(T item)
+    public void Add(Carrier<T> item)
     {
         Rent();
         
-        _buffer![_count++] = item;
+        if (item.HasValue)
+            _buffer![_count++] = item.Value;
+        
+        if (item.HasWatermark && item.Watermark > _watermark)
+            _watermark = item.Watermark;
     }
 
     /// <inheritdoc />
-    public bool IsEmpty => _count == 0;
-
-    /// <inheritdoc />
-    public bool IsFull => _count == _capacity && _capacity != 0;
-
-    /// <inheritdoc />
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public bool TryGet(out Chunk<T> chunk)
+    public bool TryGet(out Carrier<Chunk<T>> chunk)
     {
         var buffer = _buffer;
 
-        if (buffer is null || _count == 0)
+        if (buffer is null || _count == 0 && _watermark.IsNothing)
         {
             chunk = default;
             return false;
         }
 
-        chunk = new Chunk<T>(buffer, _count);
+        if (_count == 0)
+        {
+            chunk = new Carrier<Chunk<T>>(_watermark);
+            _watermark = Watermark.Nothing();
+            return true;
+        }
+
+        chunk = new Carrier<Chunk<T>>(new Chunk<T>(buffer, _count), _watermark);
         
+        _watermark = Watermark.Nothing();
         _buffer = null;
         _count = 0;
 
         return true;
     }
+
+    /// <inheritdoc />
+    public bool IsEmpty => _count == 0 && _watermark.IsNothing;
+
+    /// <inheritdoc />
+    public bool IsFull => _count == _capacity && _capacity != 0;
 
     /// <summary>
     ///     Returns the current buffer to the pool, if it has not been completed.
@@ -93,6 +107,7 @@ public sealed class Chunker<T> : IChunkBuilder<T, Chunk<T>>
         
         Pool.Return(_buffer, true);
         _buffer = null;
+        _watermark = Watermark.Nothing();
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]

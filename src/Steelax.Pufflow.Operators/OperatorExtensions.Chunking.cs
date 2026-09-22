@@ -23,8 +23,8 @@ public static partial class OperatorExtensions
             TimeSpan linger,
             ChunkCapacityStrategy strategy = ChunkCapacityStrategy.Exact)
         {
-            var chunker = new Chunker<T>(strategy);
-            var processor = new CarrierChunkProcessor<T>(chunker, minimumSize, linger);
+            var chunker = new CarrierChunker<T>(minimumSize, strategy);
+            var processor = new ChunkProcessor<Carrier<T>, Carrier<Chunk<T>>>(chunker, linger);
             return left.Next(processor);
         }
     }
@@ -42,8 +42,8 @@ public static partial class OperatorExtensions
         [PublicAPI]
         public Source<IAsyncConsumator<Chunk<T>>> Chunking(int minimumSize, TimeSpan linger, ChunkCapacityStrategy strategy = ChunkCapacityStrategy.Exact)
         {
-            var chunker = new Chunker<T>(strategy);
-            var processor = new ChunkProcessor<T, Chunk<T>>(chunker, minimumSize, linger);
+            var chunker = new Chunker<T>(minimumSize, strategy);
+            var processor = new ChunkProcessor<T, Chunk<T>>(chunker, linger);
             return left.Next(processor);
         }
     }

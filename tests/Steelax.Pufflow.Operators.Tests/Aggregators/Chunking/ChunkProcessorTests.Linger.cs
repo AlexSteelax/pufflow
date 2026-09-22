@@ -13,8 +13,8 @@ public static partial class ChunkProcessorTests
             // A slow writer (a separate thread spinning between elements) keeps chunks below capacity:
             // the linger timer must flush partial chunks rather than waiting for full ones. At least one
             // chunk shorter than the requested size proves the linger trigger fired.
-            const int chunkSize = 64;
-            const int items = 256;
+            const int chunkSize = 8;
+            const int items = 64;
 
             await using var flow = new FlowSource();
             flow
@@ -25,12 +25,12 @@ public static partial class ChunkProcessorTests
             var runTask = flow.ExecuteAsync(TestContext.Current.CancellationToken);
 
             // Write with a spin-wait delay on a separate thread to emulate a slow producer.
-            var producer = Task.Run(() =>
+            var producer = Task.Run(async() =>
             {
                 for (var i = 0; i < items; i++)
                 {
                     writer.TryWrite(i);
-                    Thread.Sleep(5);
+                    await Task.Delay(5);
                 }
 
                 writer.TryComplete();

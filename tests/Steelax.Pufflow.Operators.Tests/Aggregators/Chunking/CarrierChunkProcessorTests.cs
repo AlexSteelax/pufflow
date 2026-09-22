@@ -38,8 +38,9 @@ public class CarrierChunkProcessorTests
                 continue;
             }
 
-            using (var chunk = item.Value)
-                result.Add(new Window(chunk.Span.ToArray(), item.Watermark, HasData: true));
+            using var chunk = item.Value;
+            
+            result.Add(new Window(chunk.Span.ToArray(), item.Watermark, HasData: true));
         }
 
         return result;
