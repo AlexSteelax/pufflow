@@ -17,6 +17,7 @@ internal sealed partial class ChunkProcessor<T, TChunk> : IAsyncConsumator<TChun
     private ManualConsumator<T> _source = null!;
     private CancellationToken _cancellationToken;
     private bool _ready;
+    private bool _completed;
 
     public ChunkProcessor(IChunkBuilder<T, TChunk> chunker, TimeSpan linger, TimeProvider? timeProvider = null)
     {
@@ -58,9 +59,16 @@ internal sealed partial class ChunkProcessor<T, TChunk> : IAsyncConsumator<TChun
     {
         if (IsCompleted)
         {
-            _signal.Complete();
             chunk = default;
             // exception fallback if exists
+            return _source.TryGet(out _);
+        }
+
+        if (_source.IsCompleted && _chunker.IsEmpty)
+        {
+            _signal.Complete();
+            Volatile.Write(ref _completed, true);
+            chunk = default;
             return _source.TryGet(out _);
         }
         
@@ -95,7 +103,7 @@ internal sealed partial class ChunkProcessor<T, TChunk> : IAsyncConsumator<TChun
         return false;
     }
 
-    public bool IsCompleted => _source.IsCompleted && _chunker.IsEmpty;
+    public bool IsCompleted => Volatile.Read(ref _completed);
 
     public ValueTask<bool> WaitToReadAsync()
     {
