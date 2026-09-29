@@ -38,7 +38,7 @@ public readonly struct Chunk<T> : IDisposable, IEnumerable<T>
             ArgumentOutOfRangeException.ThrowIfNegativeOrZero(MaxConcurrency);
             field = value;
         }
-    }
+    } = 32;
 
     private readonly T[]? _buffer;
     private readonly int _count;
