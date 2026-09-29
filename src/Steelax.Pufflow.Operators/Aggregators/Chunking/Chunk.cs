@@ -23,8 +23,23 @@ namespace Steelax.Pufflow.Operators.Aggregators.Chunking;
 public readonly struct Chunk<T> : IDisposable, IEnumerable<T>
 {
     [ThreadStatic]
-    private static ChunkEnumerator? _enumerator;
-    
+    private static Stack<ChunkEnumerator>? _pool;
+
+    // ReSharper disable once StaticMemberInGenericType
+    /// <summary>
+    /// 
+    /// </summary>
+    /// <exception cref="ArgumentOutOfRangeException"></exception>
+    public static int MaxConcurrency
+    {
+        get;
+        set
+        {
+            ArgumentOutOfRangeException.ThrowIfNegativeOrZero(MaxConcurrency);
+            field = value;
+        }
+    }
+
     private readonly T[]? _buffer;
     private readonly int _count;
 
@@ -45,8 +60,6 @@ public readonly struct Chunk<T> : IDisposable, IEnumerable<T>
     {
         if (_buffer is not null)
             Chunker<T>.Return(_buffer);
-        
-        _enumerator?.Dispose();
     }
 
     /// <summary>
@@ -57,9 +70,9 @@ public readonly struct Chunk<T> : IDisposable, IEnumerable<T>
     /// <returns>An enumerator over the accumulated elements.</returns>
     public ChunkEnumerator GetEnumerator()
     {
-        _enumerator ??= new ChunkEnumerator();
-        _enumerator.Init(_buffer ?? [], _count);
-        return _enumerator;
+        var instance = GetInstance();
+        instance.Init(_buffer ?? [], _count);
+        return instance;
     }
 
     IEnumerator<T> IEnumerable<T>.GetEnumerator() => GetEnumerator();
@@ -128,6 +141,24 @@ public readonly struct Chunk<T> : IDisposable, IEnumerable<T>
             _count = -1;
             _cursor = -1;
             _current = default!;
+
+            ReturnInstance(this);
         }
+    }
+
+    private static ChunkEnumerator GetInstance()
+    {
+        if (_pool is not null && _pool.TryPop(out var enumerator))
+            return enumerator;
+        
+        return new ChunkEnumerator();
+    }
+
+    private static void ReturnInstance(ChunkEnumerator instance)
+    {
+        _pool ??= [];
+        
+        if (_pool.Count < MaxConcurrency)
+            _pool.Push(instance);
     }
 }
