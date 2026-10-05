@@ -17,6 +17,7 @@
     <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.9.0" />
     <PackageVersion Include="Microsoft.SourceLink.GitHub" Version="10.0.400" />
     <PackageVersion Include="Steelax.Toolkit.HighPerformance" Version="0.2.0-preview.12" />
+    <PackageVersion Include="Steelax.XUnit.v3.Flaky" Version="0.1.1" />
     <PackageVersion Include="Testcontainers.Kafka" Version="4.14.0" />
     <PackageVersion Include="Unio" Version="1.0.4" />
     <PackageVersion Include="xunit.analyzers" Version="2.1.0" />
