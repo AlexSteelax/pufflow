@@ -9,7 +9,7 @@ namespace Steelax.Pufflow.Operators.Tests.Aggregators.Buffering;
 ///     <c>Fuse(out IAsyncProducator, out IAsyncConsumator, ctx)</c> bridges the push side (writer) to the
 ///     pull side (reader) over a single bounded SPSC channel.
 /// </summary>
-public static class BypassBufferProcessorTests
+public static partial class BypassBufferProcessorTests
 {
     private const int TimeoutMs = 1_000;
 

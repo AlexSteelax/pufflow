@@ -23,7 +23,8 @@ public static partial class OperatorExtensions
     {
         /// <summary>
         ///     Keeps only the carriers whose value satisfies <paramref name="predicate" />; bare-progress elements are
-        ///     structural and are always forwarded.
+        ///     structural and are always forwarded. A rejected carrier that carries a real watermark is re-emitted as
+        ///     a bare progress carrier so the downstream watermark keeps advancing.
         /// </summary>
         /// <param name="predicate">Determines whether a carried value is kept.</param>
         /// <returns>A source carrying only the events that pass the predicate.</returns>

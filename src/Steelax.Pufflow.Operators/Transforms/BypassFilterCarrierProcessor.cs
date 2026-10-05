@@ -6,14 +6,21 @@ namespace Steelax.Pufflow.Operators.Transforms;
 /// <summary>
 ///     A stateless filter that inspects <see cref="Carrier{T}" /> envelopes and forwards or drops them as decided by
 ///     a <see cref="CarrierFilter{TSource,TScope,TArgs}" />. Because the decision runs over the envelope — not merely
-///     over  the data inside it — progress-only elements can be forwarded (or suppressed) by the filter's own policy.
+///     over the data inside it — progress-only elements can be forwarded (or suppressed) by the filter's own policy.
 /// </summary>
 /// <typeparam name="TSource">The carried value element type flowing through the pipe.</typeparam>
 /// <typeparam name="TScope">The operator-held scope state handed to the predicate.</typeparam>
 /// <typeparam name="TArgs">The fixed per-pipe predicate arguments.</typeparam>
 /// <remarks>
-///     Stateless: an accepted carrier is forwarded once, a rejected one (or bare progress the caller decides to
-///     suppress) is dropped; backpressure and completion are proxied to the neighbouring endpoint unchanged.
+///     <para>
+///         Stateless: an accepted carrier is forwarded once; backpressure and completion are proxied to the
+///         neighbouring endpoint unchanged.
+///     </para>
+///     <para>
+///         A rejected data carrier is not silently dropped: should it carry a real watermark, that progress point is
+///         re-emitted as a bare (progress-only) carrier so the downstream watermark never stalls or goes backwards
+///         when filtering removes data. Only a rejected carrier without a watermark is dropped entirely.
+///     </para>
 /// </remarks>
 [Flow]
 internal sealed partial class BypassFilterCarrierProcessor<TSource, TScope, TArgs>(CarrierFilter<TSource, TScope, TArgs> predicate, TScope scope, TArgs args)
@@ -60,8 +67,12 @@ internal sealed partial class BypassFilterCarrierProcessor<TSource, TScope, TArg
         {
             if (writer.IsFull)
                 return false;
-            
-            return !predicate.Invoke(value, scope, args) || writer.TryWrite(value);
+
+            if (predicate.Invoke(value, scope, args))
+                return writer.TryWrite(value);
+
+            // A rejected value still advances progress: forward its watermark as a bare carrier.
+            return !value.HasWatermark || writer.TryWrite(new Carrier<TSource>(value.Watermark));
         }
 
         public bool TryComplete(Exception? ex = null) => writer.TryComplete(ex);
@@ -78,7 +89,11 @@ internal sealed partial class BypassFilterCarrierProcessor<TSource, TScope, TArg
             if (writer.IsFull)
                 return false;
 
-            return !predicate.Invoke(value, scope, args) || writer.TryWrite(value);
+            if (predicate.Invoke(value, scope, args))
+                return writer.TryWrite(value);
+
+            // A rejected value still advances progress: forward its watermark as a bare carrier.
+            return !value.HasWatermark || writer.TryWrite(new Carrier<TSource>(value.Watermark));
         }
 
         public bool TryComplete(Exception? ex = null) => writer.TryComplete(ex);
@@ -94,6 +109,13 @@ internal sealed partial class BypassFilterCarrierProcessor<TSource, TScope, TArg
             {
                 if (predicate.Invoke(value, scope, args))
                     return true;
+
+                // A rejected value still advances progress: re-emit its watermark as a bare carrier.
+                if (value.HasWatermark)
+                {
+                    value = new Carrier<TSource>(value.Watermark);
+                    return true;
+                }
             }
 
             value = default;
@@ -113,6 +135,13 @@ internal sealed partial class BypassFilterCarrierProcessor<TSource, TScope, TArg
             {
                 if (predicate.Invoke(value, scope, args))
                     return true;
+
+                // A rejected value still advances progress: re-emit its watermark as a bare carrier.
+                if (value.HasWatermark)
+                {
+                    value = new Carrier<TSource>(value.Watermark);
+                    return true;
+                }
             }
 
             value = default;

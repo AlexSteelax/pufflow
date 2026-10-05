@@ -65,7 +65,7 @@ public sealed partial class TimeoutProcessor<T>
     private static void StopTimeout(ITimer timer, FanInSlim fanIn)
     {
         timer.Change(Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
-        fanIn.TryReset(TimerSlot);
+        fanIn.TryTake(TimerSlot);
     }
 
     /// <summary>
@@ -139,7 +139,7 @@ public sealed partial class TimeoutProcessor<T>
                         // The synchronous MoveNext already signaled SourceSlot; consume that
                         // signal so the loop does not re-enter this block while the next
                         // (async, in-flight) iteration is still pending.
-                        fanIn.TryReset(SourceSlot);
+                        fanIn.TryTake(SourceSlot);
                         goto TryFastWay;
                     }
 
