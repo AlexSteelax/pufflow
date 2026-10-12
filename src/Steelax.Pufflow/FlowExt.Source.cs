@@ -16,8 +16,7 @@ public static partial class FlowExt
     [PublicAPI]
     public static Source<T> On<T>(this FlowSource source, IFlowable<Source<T>> flow)
     {
-        var context = source.Context;
         var meta = FlowMetaNode.Create(flow, FlowKind.None, typeof(T).Classify());
-        return new Source<T>(meta, context);
+        return new Source<T>(meta, source);
     }
 }

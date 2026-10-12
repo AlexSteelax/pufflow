@@ -14,7 +14,7 @@ public static partial class FlowExt
     {
         var collection = GetOrCreateCollection(left.Meta);
         collection.Push(FlowMetaNode.Create(right, FlowKind.OutProducator, FlowKind.Producator));
-        return new Source<IProducator<T2>>(collection, left.Context);
+        return new Source<IProducator<T2>>(collection, left.FlowSource);
     }
 
     /// <summary>
@@ -26,7 +26,7 @@ public static partial class FlowExt
     {
         var collection = GetOrCreateCollection(left.Meta);
         collection.Push(FlowMetaNode.Create(right, FlowKind.OutProducator, FlowKind.AsyncProducator));
-        return new Source<IAsyncProducator<T2>>(collection, left.Context);
+        return new Source<IAsyncProducator<T2>>(collection, left.FlowSource);
     }
 
     /// <summary>
@@ -38,7 +38,7 @@ public static partial class FlowExt
     {
         var collection = GetOrCreateCollection(left.Meta);
         collection.Push(FlowMetaNode.Create(right, FlowKind.OutAsyncProducator, FlowKind.Producator));
-        return new Source<IProducator<T2>>(collection, left.Context);
+        return new Source<IProducator<T2>>(collection, left.FlowSource);
     }
 
     /// <summary>
@@ -51,7 +51,7 @@ public static partial class FlowExt
     {
         var collection = GetOrCreateCollection(left.Meta);
         collection.Push(FlowMetaNode.Create(right, FlowKind.OutProducator, FlowKind.OutConsumator));
-        return new Source<IConsumator<T2>>(collection, left.Context);
+        return new Source<IConsumator<T2>>(collection, left.FlowSource);
     }
 
     /// <summary>
@@ -64,7 +64,7 @@ public static partial class FlowExt
     {
         var collection = GetOrCreateCollection(left.Meta);
         collection.Push(FlowMetaNode.Create(right, FlowKind.OutAsyncProducator, FlowKind.OutConsumator));
-        return new Source<IConsumator<T2>>(collection, left.Context);
+        return new Source<IConsumator<T2>>(collection, left.FlowSource);
     }
 
     /// <summary>
@@ -75,7 +75,7 @@ public static partial class FlowExt
     {
         var collection = (FlowMetaCollection)left.Meta;
         collection.Push(FlowMetaNode.Create(right, FlowKind.OutProducator, FlowKind.Producator));
-        return new Source<IProducator<T2>>(collection, left.Context);
+        return new Source<IProducator<T2>>(collection, left.FlowSource);
     }
 
     /// <summary>
@@ -89,7 +89,7 @@ public static partial class FlowExt
     {
         var collection = GetOrCreateCollection(left.Meta);
         collection.Push(FlowMetaNode.Create(right, FlowKind.OutAsyncProducator, FlowKind.AsyncProducator));
-        return new Source<IAsyncProducator<T2>>(collection, left.Context);
+        return new Source<IAsyncProducator<T2>>(collection, left.FlowSource);
     }
 
     /// <summary>
@@ -100,7 +100,7 @@ public static partial class FlowExt
     {
         var collection = (FlowMetaCollection)left.Meta;
         collection.Push(FlowMetaNode.Create(right, FlowKind.OutAsyncProducator, FlowKind.AsyncProducator));
-        return new Source<IAsyncProducator<T2>>(collection, left.Context);
+        return new Source<IAsyncProducator<T2>>(collection, left.FlowSource);
     }
 
     /// <summary>
@@ -111,8 +111,9 @@ public static partial class FlowExt
     {
         var collection = GetOrCreateCollection(left.Meta);
         collection.Push(FlowMetaNode.Create(right, FlowKind.AsyncProducator, FlowKind.None));
-        collection.Build(left.Context);
-        return new Sink<IAsyncProducator<T>>(collection, left.Context);
+        var context = left.FlowSource.Context;
+        collection.Build(context);
+        return new Sink<IAsyncProducator<T>>(collection, left.FlowSource);
     }
     
     /// <summary>
@@ -123,8 +124,9 @@ public static partial class FlowExt
     {
         var collection = GetOrCreateCollection(left.Meta);
         collection.Push(FlowMetaNode.Create(right, FlowKind.Producator, FlowKind.None));
-        collection.Build(left.Context);
-        return new Sink<IProducator<T>>(collection, left.Context);
+        var context = left.FlowSource.Context;
+        collection.Build(context);
+        return new Sink<IProducator<T>>(collection, left.FlowSource);
     }
 
     /// <summary>
@@ -135,8 +137,9 @@ public static partial class FlowExt
     {
         var collection = (FlowMetaCollection)left.Meta;
         collection.Push(FlowMetaNode.Create(right, FlowKind.AsyncProducator, FlowKind.None));
-        collection.Build(left.Context);
-        return new Sink<IAsyncProducator<T>>(collection, left.Context);
+        var context = left.FlowSource.Context;
+        collection.Build(context);
+        return new Sink<IAsyncProducator<T>>(collection, left.FlowSource);
     }
 
     /// <summary>Returns the existing collection, or creates one seeded with the source node.</summary>

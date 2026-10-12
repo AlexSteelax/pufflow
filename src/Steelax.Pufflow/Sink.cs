@@ -10,7 +10,7 @@
 /// <typeparam name="T">The push input interface type (e.g., <see cref="IProducator{T}" />).</typeparam>
 /// <remarks>
 ///     A Sink component has no poll output — it only exposes a push (write) side and terminates the pipeline.
-///     Carries the component <see cref="Meta" /> and <see cref="Context" /> for the runtime pipeline builder.
+///     Carries the component <see cref="Meta" /> and <see cref="FlowSource" /> for the runtime pipeline builder.
 /// </remarks>
 [PublicAPI]
 public readonly struct Sink<T>
@@ -21,14 +21,14 @@ public readonly struct Sink<T>
     internal readonly FlowMeta Meta;
 
     /// <summary>
-    ///     The flow context providing cancellation support for the pipeline.
+    ///     The flow source owning cancellation and background tasks for the pipeline.
     /// </summary>
-    internal readonly FlowContext Context;
+    internal readonly FlowSource FlowSource;
 
-    /// <summary>Initializes a sink marker with its node metadata and flow context.</summary>
-    internal Sink(FlowMeta meta, FlowContext context)
+    /// <summary>Initializes a sink marker with its node metadata and flow source.</summary>
+    internal Sink(FlowMeta meta, FlowSource flowSource)
     {
         Meta = meta;
-        Context = context;
+        FlowSource = flowSource;
     }
 }

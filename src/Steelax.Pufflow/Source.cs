@@ -10,7 +10,7 @@
 /// <typeparam name="T">The poll output interface type (e.g., <see cref="IConsumator{T}" /> or <c>IEnumerator{T}</c>).</typeparam>
 /// <remarks>
 ///     A Source component has no push input — it only exposes a poll (read) side.
-///     Carries the component <see cref="Meta" /> and <see cref="Context" /> for the runtime pipeline builder.
+///     Carries the component <see cref="Meta" /> and <see cref="FlowSource" /> for the runtime pipeline builder.
 /// </remarks>
 [PublicAPI]
 public readonly struct Source<T>
@@ -21,14 +21,14 @@ public readonly struct Source<T>
     internal readonly FlowMeta Meta;
 
     /// <summary>
-    ///     The flow context providing cancellation support for the pipeline.
+    ///     The flow source owning cancellation and background tasks for the pipeline.
     /// </summary>
-    internal readonly FlowContext Context;
+    internal readonly FlowSource FlowSource;
 
-    /// <summary>Initializes a source marker with its node metadata and flow context.</summary>
-    internal Source(FlowMeta meta, FlowContext context)
+    /// <summary>Initializes a source marker with its node metadata and flow source.</summary>
+    internal Source(FlowMeta meta, FlowSource flowSource)
     {
         Meta = meta;
-        Context = context;
+        FlowSource = flowSource;
     }
 }

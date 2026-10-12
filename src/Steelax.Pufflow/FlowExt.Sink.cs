@@ -16,9 +16,10 @@ public static partial class FlowExt
     public static Sink<IAsyncEnumerator<T>> End<T>(this Source<IAsyncEnumerator<T>> left,
         IFlowable<Sink<IAsyncEnumerator<T>>> right)
     {
+        var context = left.FlowSource.Context;
         var rightMeta = FlowMetaNode.Create(right, FlowKind.AsyncEnumerator, FlowKind.None);
-        var merged = FlowMetaNode.Merge(left.Meta, rightMeta, left.Context);
-        return new Sink<IAsyncEnumerator<T>>(merged, left.Context);
+        var merged = FlowMetaNode.Merge(left.Meta, rightMeta, context);
+        return new Sink<IAsyncEnumerator<T>>(merged, left.FlowSource);
     }
 
     /// <summary>
@@ -31,9 +32,10 @@ public static partial class FlowExt
     [PublicAPI]
     public static Sink<IAsyncEnumerator<T>> End<T>(this Pipe<IAsyncEnumerator<T>, IAsyncEnumerator<T>> left, IFlowable<Sink<IAsyncEnumerator<T>>> right)
     {
+        var context = left.FlowSource.Context;
         var rightMeta = FlowMetaNode.Create(right, FlowKind.AsyncEnumerator, FlowKind.None);
-        var merged = FlowMetaNode.Merge(left.Meta, rightMeta, left.Context);
-        return new Sink<IAsyncEnumerator<T>>(merged, left.Context);
+        var merged = FlowMetaNode.Merge(left.Meta, rightMeta, context);
+        return new Sink<IAsyncEnumerator<T>>(merged, left.FlowSource);
     }
 
     /// <summary>
@@ -46,16 +48,17 @@ public static partial class FlowExt
     [PublicAPI]
     public static Sink<IAsyncConsumator<T>> End<T>(this Source<IAsyncConsumator<T>> left, IFlowable<Sink<IAsyncConsumator<T>>> right)
     {
+        var context = left.FlowSource.Context;
         var rightMeta = FlowMetaNode.Create(right, FlowKind.AsyncConsumator, FlowKind.None);
 
         // A collection groups a push source and a composite push→pull pipe (e.g. a passive buffer bridge)
         // for reverse-order resolution: the composite creates both the push input and the pull output, the
         // push source writes into the input, the sink consumes the output. Build resolves the chain.
-        var merged = FlowMetaNode.Merge(left.Meta, rightMeta, left.Context);
+        var merged = FlowMetaNode.Merge(left.Meta, rightMeta, context);
         if (merged is FlowMetaCollection collection)
-            collection.Build(left.Context);
+            collection.Build(context);
 
-        return new Sink<IAsyncConsumator<T>>(merged, left.Context);
+        return new Sink<IAsyncConsumator<T>>(merged, left.FlowSource);
     }
 
     /// <summary>
@@ -69,13 +72,14 @@ public static partial class FlowExt
     [PublicAPI]
     public static Sink<IConsumator<T>> End<T>(this Source<IConsumator<T>> left, IFlowable<Sink<IConsumator<T>>> right)
     {
+        var context = left.FlowSource.Context;
         var rightMeta = FlowMetaNode.Create(right, FlowKind.Consumator, FlowKind.None);
 
-        var merged = FlowMetaNode.Merge(left.Meta, rightMeta, left.Context);
+        var merged = FlowMetaNode.Merge(left.Meta, rightMeta, context);
         if (merged is FlowMetaCollection collection)
-            collection.Build(left.Context);
+            collection.Build(context);
 
-        return new Sink<IConsumator<T>>(merged, left.Context);
+        return new Sink<IConsumator<T>>(merged, left.FlowSource);
     }
 
     /// <summary>
@@ -88,8 +92,9 @@ public static partial class FlowExt
     [PublicAPI]
     public static Sink<IAsyncConsumator<T>> End<T>(this Pipe<IAsyncConsumator<T>, IAsyncConsumator<T>> left, IFlowable<Sink<IAsyncConsumator<T>>> right)
     {
+        var context = left.FlowSource.Context;
         var rightMeta = FlowMetaNode.Create(right, FlowKind.AsyncConsumator, FlowKind.None);
-        var merged = FlowMetaNode.Merge(left.Meta, rightMeta, left.Context);
-        return new Sink<IAsyncConsumator<T>>(merged, left.Context);
+        var merged = FlowMetaNode.Merge(left.Meta, rightMeta, context);
+        return new Sink<IAsyncConsumator<T>>(merged, left.FlowSource);
     }
 }

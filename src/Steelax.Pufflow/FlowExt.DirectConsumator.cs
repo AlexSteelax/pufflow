@@ -11,9 +11,10 @@ public static partial class FlowExt
     [PublicAPI]
     public static Source<IConsumator<T2>> Next<T1, T2>(this Source<IConsumator<T1>> left, IFlowable<Pipe<IConsumator<T1>, IConsumator<T2>>> rightFlow)
     {
+        var context = left.FlowSource.Context;
         var rightMeta = FlowMetaNode.Create(rightFlow, FlowKind.Consumator, FlowKind.Consumator);
-        var merged = FlowMetaNode.Merge(left.Meta, rightMeta, left.Context);
-        return new Source<IConsumator<T2>>(merged, left.Context);
+        var merged = FlowMetaNode.Merge(left.Meta, rightMeta, context);
+        return new Source<IConsumator<T2>>(merged, left.FlowSource);
     }
 
     /// <summary>
@@ -22,9 +23,10 @@ public static partial class FlowExt
     [PublicAPI]
     public static Source<IAsyncConsumator<T2>> Next<T1, T2>(this Source<IAsyncConsumator<T1>> left, IFlowable<Pipe<IAsyncConsumator<T1>, IAsyncConsumator<T2>>> rightFlow)
     {
+        var context = left.FlowSource.Context;
         var rightMeta = FlowMetaNode.Create(rightFlow, FlowKind.AsyncConsumator, FlowKind.AsyncConsumator);
-        var merged = FlowMetaNode.Merge(left.Meta, rightMeta, left.Context);
-        return new Source<IAsyncConsumator<T2>>(merged, left.Context);
+        var merged = FlowMetaNode.Merge(left.Meta, rightMeta, context);
+        return new Source<IAsyncConsumator<T2>>(merged, left.FlowSource);
     }
 
     /// <summary>
@@ -33,9 +35,10 @@ public static partial class FlowExt
     [PublicAPI]
     public static Source<IAsyncConsumator<T2>> Next<T1, TMid, T2>(this Pipe<IAsyncConsumator<T1>, IAsyncConsumator<TMid>> left, IFlowable<Pipe<IAsyncConsumator<TMid>, IAsyncConsumator<T2>>> rightFlow)
     {
+        var context = left.FlowSource.Context;
         var rightMeta = FlowMetaNode.Create(rightFlow, FlowKind.AsyncConsumator, FlowKind.AsyncConsumator);
-        var merged = FlowMetaNode.Merge(left.Meta, rightMeta, left.Context);
-        return new Source<IAsyncConsumator<T2>>(merged, left.Context);
+        var merged = FlowMetaNode.Merge(left.Meta, rightMeta, context);
+        return new Source<IAsyncConsumator<T2>>(merged, left.FlowSource);
     }
 
     /// <summary>
@@ -44,9 +47,10 @@ public static partial class FlowExt
     [PublicAPI]
     public static Source<IAsyncConsumator<T2>> Next<T1, T2>(this Source<IConsumator<T1>> left, IFlowable<Pipe<IConsumator<T1>, IAsyncConsumator<T2>>> rightFlow)
     {
+        var context = left.FlowSource.Context;
         var rightMeta = FlowMetaNode.Create(rightFlow, FlowKind.Consumator, FlowKind.AsyncConsumator);
-        var merged = FlowMetaNode.Merge(left.Meta, rightMeta, left.Context);
-        return new Source<IAsyncConsumator<T2>>(merged, left.Context);
+        var merged = FlowMetaNode.Merge(left.Meta, rightMeta, context);
+        return new Source<IAsyncConsumator<T2>>(merged, left.FlowSource);
     }
 
     /// <summary>
@@ -55,9 +59,10 @@ public static partial class FlowExt
     [PublicAPI]
     public static Source<IConsumator<T2>> Next<T1, T2>(this Source<IAsyncConsumator<T1>> left, IFlowable<Pipe<IAsyncConsumator<T1>, IConsumator<T2>>> rightFlow)
     {
+        var context = left.FlowSource.Context;
         var rightMeta = FlowMetaNode.Create(rightFlow, FlowKind.AsyncConsumator, FlowKind.Consumator);
-        var merged = FlowMetaNode.Merge(left.Meta, rightMeta, left.Context);
-        return new Source<IConsumator<T2>>(merged, left.Context);
+        var merged = FlowMetaNode.Merge(left.Meta, rightMeta, context);
+        return new Source<IConsumator<T2>>(merged, left.FlowSource);
     }
 
     /// <summary>
@@ -84,9 +89,10 @@ public static partial class FlowExt
     [PublicAPI]
     public static Source<IAsyncConsumator<T2>> Next<T1, T2>(this Source<IAsyncEnumerator<T1>> left, IFlowable<Pipe<IAsyncEnumerator<T1>, IAsyncConsumator<T2>>> rightFlow)
     {
+        var context = left.FlowSource.Context;
         var rightMeta = FlowMetaNode.Create(rightFlow, FlowKind.AsyncEnumerator, FlowKind.AsyncConsumator);
-        var merged = FlowMetaNode.Merge(left.Meta, rightMeta, left.Context);
-        return new Source<IAsyncConsumator<T2>>(merged, left.Context);
+        var merged = FlowMetaNode.Merge(left.Meta, rightMeta, context);
+        return new Source<IAsyncConsumator<T2>>(merged, left.FlowSource);
     }
     
     /// <summary>
@@ -100,7 +106,7 @@ public static partial class FlowExt
     {
         var collection = GetOrCreateCollection(left.Meta);
         collection.Push(FlowMetaNode.Create(rightFlow, FlowKind.AsyncConsumator, FlowKind.AsyncProducator));
-        return new Source<IAsyncProducator<T2>>(collection, left.Context);
+        return new Source<IAsyncProducator<T2>>(collection, left.FlowSource);
     }
 
     /// <summary>
@@ -114,7 +120,7 @@ public static partial class FlowExt
     {
         var collection = GetOrCreateCollection(left.Meta);
         collection.Push(FlowMetaNode.Create(rightFlow, FlowKind.Consumator, FlowKind.AsyncProducator));
-        return new Source<IAsyncProducator<T2>>(collection, left.Context);
+        return new Source<IAsyncProducator<T2>>(collection, left.FlowSource);
     }
 
     /// <summary>
@@ -125,7 +131,7 @@ public static partial class FlowExt
     {
         var collection = GetOrCreateCollection(left.Meta);
         collection.Push(FlowMetaNode.Create(rightFlow, FlowKind.AsyncConsumator, FlowKind.Producator));
-        return new Source<IProducator<T2>>(collection, left.Context);
+        return new Source<IProducator<T2>>(collection, left.FlowSource);
     }
 
     /// <summary>
@@ -136,7 +142,7 @@ public static partial class FlowExt
     {
         var collection = GetOrCreateCollection(left.Meta);
         collection.Push(FlowMetaNode.Create(rightFlow, FlowKind.Consumator, FlowKind.Producator));
-        return new Source<IProducator<T2>>(collection, left.Context);
+        return new Source<IProducator<T2>>(collection, left.FlowSource);
     }
     
     /// <summary>
@@ -151,7 +157,7 @@ public static partial class FlowExt
     {
         var collection = GetOrCreateCollection(left.Meta);
         collection.Push(FlowMetaNode.Create(rightFlow, FlowKind.OutAsyncProducator, FlowKind.OutAsyncConsumator));
-        return new Source<IAsyncConsumator<T2>>(collection, left.Context);
+        return new Source<IAsyncConsumator<T2>>(collection, left.FlowSource);
     }
 
     /// <summary>
@@ -166,6 +172,6 @@ public static partial class FlowExt
     {
         var collection = GetOrCreateCollection(left.Meta);
         collection.Push(FlowMetaNode.Create(rightFlow, FlowKind.OutProducator, FlowKind.OutAsyncConsumator));
-        return new Source<IAsyncConsumator<T2>>(collection, left.Context);
+        return new Source<IAsyncConsumator<T2>>(collection, left.FlowSource);
     }
 }

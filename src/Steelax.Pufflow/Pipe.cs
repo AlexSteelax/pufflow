@@ -11,7 +11,7 @@
 /// <typeparam name="TRight">The poll output type (e.g., <see cref="IConsumator{T}" />).</typeparam>
 /// <remarks>
 ///     Encodes a two-interface shape: push input → poll output.
-///     Carries the component <see cref="Meta" /> and <see cref="Context" /> for the runtime pipeline builder.
+///     Carries the component <see cref="Meta" /> and <see cref="FlowSource" /> for the runtime pipeline builder.
 /// </remarks>
 [PublicAPI]
 public readonly struct Pipe<TLeft, TRight>
@@ -22,14 +22,14 @@ public readonly struct Pipe<TLeft, TRight>
     internal readonly FlowMeta Meta;
 
     /// <summary>
-    ///     The flow context providing cancellation support for the pipeline.
+    ///     The flow source owning cancellation and background tasks for the pipeline.
     /// </summary>
-    internal readonly FlowContext Context;
+    internal readonly FlowSource FlowSource;
 
-    /// <summary>Initializes a pipe marker with its node metadata and flow context.</summary>
-    internal Pipe(FlowMeta meta, FlowContext context)
+    /// <summary>Initializes a pipe marker with its node metadata and flow source.</summary>
+    internal Pipe(FlowMeta meta, FlowSource flowSource)
     {
         Meta = meta;
-        Context = context;
+        FlowSource = flowSource;
     }
 }
