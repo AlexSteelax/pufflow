@@ -1,5 +1,6 @@
 ﻿using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
+using Steelax.Pufflow.Operators.Common;
 using Steelax.Toolkit.HighPerformance;
 using Steelax.Toolkit.HighPerformance.Concurrency.Collections;
 using Steelax.Toolkit.HighPerformance.Concurrency.Primitives;
@@ -38,7 +39,7 @@ file sealed class ConduitManualConsumator<T>(Conduit<T> conduit) : ManualConsuma
         remove => conduit.OnReadReady -= value;
     }
     
-    private OccupiedItem<T> _occupied;
+    private PendingValue<T> _occupied;
     
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public override bool TryGet([MaybeNullWhen(false)] out T item)
@@ -51,7 +52,7 @@ file sealed class ConduitManualConsumator<T>(Conduit<T> conduit) : ManualConsuma
         
         if (conduit.TryRead(out item))
         {
-            _occupied = new OccupiedItem<T>(item);
+            _occupied = new PendingValue<T>(item);
             return true;
         }
 
@@ -83,7 +84,7 @@ file sealed class SharedManualConsumator<T, TConsumator>(TConsumator consumator)
         remove => _input.OnReady -= value;
     }
     
-    private OccupiedItem<T> _occupied;
+    private PendingValue<T> _occupied;
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public override bool TryGet([MaybeNullWhen(false)] out T item)
@@ -98,24 +99,21 @@ file sealed class SharedManualConsumator<T, TConsumator>(TConsumator consumator)
         {
             if (consumator.TryRead(out item))
             {
-                _occupied = new OccupiedItem<T>(item);
+                _occupied = new PendingValue<T>(item);
                 return true;
             }
+            
+            var state = _input.GetState();
 
-            if (consumator.IsCompleted)
+            if (state.IsPending)
+                break;
+
+            if (state.IsCompleted)
             {
-                // The source ended: observe its terminal wait so a completion fault surfaces here
-                // (the exception would otherwise be silently lost, reporting a clean end of stream).
-                if (!_input.GetState().IsPending)
-                    _ = _input.Observe(consumator.WaitToReadAsync(), OnCompletedBehavior.SkipCallbackIfCompleted);
-
-                _ = _input.GetResult();
-                break;
+                if (!_input.GetResult())
+                    break;
             }
-
-            if (_input.GetState().IsPending)
-                break;
-
+            
             if (_input.Observe(consumator.WaitToReadAsync(), OnCompletedBehavior.SkipCallbackIfCompleted))
             {
                 if (_input.GetResult())
@@ -139,23 +137,5 @@ file sealed class SharedManualConsumator<T, TConsumator>(TConsumator consumator)
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         get => consumator.IsCompleted && !_occupied.Occupied;
-    }
-}
-
-file readonly record struct OccupiedItem<T>
-{
-    public readonly T Value;
-    public readonly bool Occupied;
-    
-    public OccupiedItem(T value)
-    {
-        Value = value;
-        Occupied = true;
-    }
-
-    public OccupiedItem()
-    {
-        Value = default!;
-        Occupied = false;
     }
 }
