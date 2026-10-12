@@ -1,4 +1,5 @@
 ﻿using System.Runtime.CompilerServices;
+using Steelax.Pufflow.Operators.Common;
 using Steelax.Toolkit.HighPerformance;
 using Steelax.Toolkit.HighPerformance.Concurrency.Collections;
 using Steelax.Toolkit.HighPerformance.Concurrency.Primitives;
@@ -77,9 +78,17 @@ file sealed class SharedManualProducator<T, TProducator>(TProducator producator)
         {
             if (producator.TryWrite(value))
                 return true;
-            
-            if (_input.GetState().IsPending)
-                break;
+
+            var state = _input.GetState();
+
+            if (state.IsPending)
+                return false;
+
+            if (state.IsCompleted)
+            {
+                if (!_input.GetResult())
+                    return false;
+            }
 
             if (_input.Observe(producator.WaitToWriteAsync(), OnCompletedBehavior.SkipCallbackIfCompleted))
             {
@@ -94,10 +103,7 @@ file sealed class SharedManualProducator<T, TProducator>(TProducator producator)
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public override bool TryComplete(Exception? ex = null)
-    {
-        return producator.TryComplete(ex);
-    }
+    public override bool TryComplete(Exception? ex = null) => producator.TryComplete(ex);
 
     public override bool IsFull
     {
