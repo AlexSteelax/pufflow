@@ -165,8 +165,8 @@ public class IntegrationTests(ApplicationFixture application, ITestOutputHelper 
 
         try
         {
-            // Wait several waiting cycles: the idle Kafka source should have emitted bare progress markers,
-            // but never a consumed record on an empty topic.
+            // Wait several waiting cycles: while idle, the source periodically pushes bare progress markers
+            // (a fresh watermark every WatermarkAdvanceInterval), but never a consumed record on an empty topic.
             await Task.Delay(500, cts.Token);
 
             var sawRecord = false;
@@ -180,7 +180,7 @@ public class IntegrationTests(ApplicationFixture application, ITestOutputHelper 
             }
 
             Assert.False(sawRecord, "an empty topic must not emit any consumed records");
-            Assert.True(sawMarker, "idle consumption should emit bare progress markers");
+            Assert.True(sawMarker, "idle consumption should emit bare progress markers periodically");
         }
         finally
         {
@@ -234,8 +234,9 @@ public class IntegrationTests(ApplicationFixture application, ITestOutputHelper 
 
         try
         {
-            // Stay idle well beyond the client's Session.Timeout. While idle the source should emit bare
-            // progress markers (which keeps the pipeline alive) but never consumed records on an empty topic.
+            // Stay idle well beyond the client's Session.Timeout. While idle the source periodically pushes
+            // bare progress markers (keeping the merged watermark alive) but never consumed records on an
+            // empty topic.
             await Task.Delay(TimeSpan.FromSeconds(12), cts.Token);
 
             Assert.False(runTask.IsFaulted, "the idle Kafka source must not fault within the client timeouts");
@@ -250,7 +251,7 @@ public class IntegrationTests(ApplicationFixture application, ITestOutputHelper 
             }
 
             Assert.False(sawRecordOnIdle, "no consumed records should be produced while idle on an empty topic");
-            Assert.True(sawMarkerOnIdle, "idle consumption should emit bare progress markers");
+            Assert.True(sawMarkerOnIdle, "idle consumption should emit bare progress markers periodically");
 
             // The connection is still alive: a message produced now must be delivered.
             await ProduceAsync(bootstrap, topic, 1);

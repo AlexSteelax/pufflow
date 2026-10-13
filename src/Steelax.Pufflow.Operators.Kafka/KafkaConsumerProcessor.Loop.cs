@@ -43,7 +43,7 @@ internal partial class KafkaConsumerProcessor<TKey, TValue>
     ///     reactions (advance/watermark timers), with the <see cref="LoopMode" /> deciding the
     ///     advance-timer pace.
     /// </summary>
-    private async Task InternalExecuteAsync(IProducator<Carrier<ConsumeResult<TKey, TValue>>> buffer, FlowContext context)
+    private async Task InternalExecuteAsync(FlowContext context)
     {
         var abortToken = context.Token;
         _watermarkTimer.Change(_options.WindowLifetime, _options.WindowLifetime);
@@ -66,13 +66,7 @@ internal partial class KafkaConsumerProcessor<TKey, TValue>
                     case LoopMode.Normal:
                     case LoopMode.Emergency or LoopMode.Idle when fanSet.IsSet(AdvanceTimerSignal):
                     {
-                        var advanced = Advance(buffer);
-
-                        // When the wake produced no data and the buffer is not under backpressure, run the
-                        // idle progress-marker state machine: it arms on the first empty wake and emits a
-                        // single bare watermark on the following one (guarded by a newer-watermark check).
-                        if (!advanced && !IsEmergency)
-                            TryEmitIdleWatermark(buffer);
+                        var advanced = Advance();
 
                         // Re-evaluate the actual mode: a write failure is unconditional emergency; no data
                         // falls back to idle unless the buffer is still under backpressure.
@@ -111,6 +105,15 @@ internal partial class KafkaConsumerProcessor<TKey, TValue>
                 if (_loopMode == LoopMode.Normal)
                     continue;
 
+                // Before standing by, push a bare progress marker whenever the fresh provider tick has advanced
+                // beyond the last emitted watermark by at least WatermarkAdvanceInterval. The interval check
+                // (based on the last actually emitted value) throttles the cadence, so the marker is emitted
+                // periodically — not on every idle wake — while keeping the merged stream's watermark alive.
+                // It is emitted here — not in the hot polling path — so idle pushes add no work while
+                // consumption is progressing.
+                if (!IsEmergency)
+                    TryEmitIdleWatermark();
+
                 await _fan.WaitAsync();
             }
         }
@@ -125,7 +128,7 @@ internal partial class KafkaConsumerProcessor<TKey, TValue>
         }
         finally
         {
-            buffer.TryComplete();
+            _buffer.TryComplete();
             TryCloseConsumer();
         }
     }

@@ -26,6 +26,7 @@ public sealed record KafkaConsumerOptions
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(lifeCycleInterval.TotalMilliseconds);
         LifeCycleInterval = lifeCycleInterval;
+        WatermarkAdvanceInterval = lifeCycleInterval;
     }
 
     /// <summary>Gets the lifecycle interval.</summary>
@@ -89,6 +90,29 @@ public sealed record KafkaConsumerOptions
     {
         get;
         private init;
+    }
+
+    /// <summary>
+    ///     The period between the last emitted watermark and the current fresh one that must elapse before a bare
+    ///     progress marker is pushed into the stream while the source is idle. Defaults to
+    ///     <see cref="LifeCycleInterval" />.
+    /// </summary>
+    /// <remarks>
+    ///     Periodic idle markers keep the stream's watermark alive when the source has no data — this matters when
+    ///     several sources are merged into one stream: the merged watermark is the minimum of the sources, so a
+    ///     single one-shot marker from a quiet source would freeze the merged watermark and block the other
+    ///     sources' commits. Pushing a fresh watermark every <see cref="WatermarkAdvanceInterval" /> lets the
+    ///     minimum keep advancing at the pace of the slowest source.
+    /// </remarks>
+    [PublicAPI]
+    public TimeSpan WatermarkAdvanceInterval
+    {
+        get;
+        init
+        {
+            ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(value, TimeSpan.Zero, nameof(WatermarkAdvanceInterval));
+            field = value;
+        }
     }
 
     /// <summary>
