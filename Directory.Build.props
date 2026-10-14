@@ -15,6 +15,7 @@
         <PackageProjectUrl>https://github.com/Steelax/pufflow</PackageProjectUrl>
         <RepositoryUrl>https://github.com/Steelax/pufflow.git</RepositoryUrl>
         <RepositoryType>git</RepositoryType>
+        <PackageIcon>icon.png</PackageIcon>
         <PackageReadmeFile>README.md</PackageReadmeFile>
     </PropertyGroup>
 
@@ -30,9 +31,10 @@
         <PackageReference Include="Microsoft.SourceLink.GitHub" PrivateAssets="all"/>
     </ItemGroup>
 
-    <!-- Include the repository README and LICENSE in the package -->
+    <!-- Include the repository README, icon and LICENSE in the package -->
     <ItemGroup Condition="'$(IsPackable)' == 'true'">
         <None Include="$(MSBuildThisFileDirectory)README.md" Pack="true" PackagePath="\"/>
+        <None Include="$(MSBuildThisFileDirectory)icon.png" Pack="true" PackagePath="\"/>
         <None Include="$(MSBuildThisFileDirectory)LICENSE" Pack="true" PackagePath="\"/>
     </ItemGroup>
 
