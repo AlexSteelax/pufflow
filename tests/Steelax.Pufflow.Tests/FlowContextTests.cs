@@ -15,7 +15,7 @@ public static class FlowContextTests
         [Fact]
         public void Done_ShouldNotThrow()
         {
-            _context.Cancel();
+            Assert.False(_context.TryCancel(new OperationCanceledException()));
         }
 
         [Fact]
@@ -43,7 +43,7 @@ public static class FlowContextTests
             using var source = new FlowSource();
             var ctx = source.Context;
 
-            ctx.Cancel();
+            Assert.True(ctx.TryCancel(new OperationCanceledException()));
 
             Assert.True(ctx.Token.IsCancellationRequested);
         }
@@ -54,9 +54,9 @@ public static class FlowContextTests
             using var source = new FlowSource();
             var ctx = source.Context;
 
-            ctx.Cancel();
-            ctx.Cancel();
-            ctx.Cancel();
+            Assert.True(ctx.TryCancel(new OperationCanceledException()));
+            Assert.False(ctx.TryCancel(new OperationCanceledException()));
+            Assert.False(ctx.TryCancel(new OperationCanceledException()));
 
             Assert.True(ctx.Token.IsCancellationRequested);
         }
@@ -70,7 +70,7 @@ public static class FlowContextTests
             CancellationToken token = ctx;
             Assert.False(token.IsCancellationRequested);
 
-            ctx.Cancel();
+            ctx.TryCancel(new OperationCanceledException());
             Assert.True(token.IsCancellationRequested);
         }
     }
@@ -94,7 +94,7 @@ public static class FlowContextTests
             var ctx = source.Context;
             source.Dispose();
 
-            ctx.Cancel();
+            Assert.False(ctx.TryCancel(new OperationCanceledException()));
         }
 
         [Fact]
@@ -119,7 +119,7 @@ public static class FlowContextTests
             var ctx = source.Context;
 
             // A background task that waits for the context token, so ExecuteAsync does not complete on its own.
-            _ = source.RegisterBackground(async () => await Task.Delay(Timeout.InfiniteTimeSpan, ctx.Token));
+            _ = source.RegisterBackgroundProcess(() => Task.Delay(Timeout.InfiniteTimeSpan, ctx.Token));
 
             var runTask = source.ExecuteAsync(cts.Token);
 
@@ -138,18 +138,17 @@ public static class FlowContextTests
             await using var source = new FlowSource();
             var ctx = source.Context;
 
-            _ = source.RegisterBackground(async () => await Task.Delay(Timeout.InfiniteTimeSpan, ctx.Token));
+            _ = source.RegisterBackgroundProcess(() => Task.Delay(Timeout.InfiniteTimeSpan, ctx.Token));
 
             var runTask = source.ExecuteAsync(TestContext.Current.CancellationToken);
 
             Assert.False(runTask.IsCompleted);
 
-            ctx.Cancel();
+            Assert.True(ctx.TryCancel(new OperationCanceledException()));
 
-            // Cancelling the context is a normal pipeline stop (like DisposeAsync): the background task
-            // is canceled and ExecuteAsync completes successfully — internal cancellation is not surfaced
-            // as an exception.
-            await runTask;
+            // Cancelling the context carries the root cause: the pipeline stops and the fault is surfaced
+            // so the owner can tell an emergency stop from a normal (external-token) stop.
+            await Assert.ThrowsAsync<AggregateException>(() => runTask);
 
             Assert.True(ctx.Token.IsCancellationRequested);
         }
@@ -178,7 +177,7 @@ public static class FlowContextTests
             await source.DisposeAsync();
             // Source disposed, ctx should still be safe
 
-            ctx.Cancel();
+            Assert.False(ctx.TryCancel(new OperationCanceledException()));
         }
     }
 
@@ -192,7 +191,7 @@ public static class FlowContextTests
 
             var actions = Enumerable
                 .Range(0, 10)
-                .Select(_ => (Action)ctx.Cancel)
+                .Select(_ => (Action)(() => ctx.TryCancel(new OperationCanceledException())))
                 .ToArray();
 
             Assert.Multiple(actions);

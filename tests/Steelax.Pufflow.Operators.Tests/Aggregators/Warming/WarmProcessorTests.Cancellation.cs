@@ -44,11 +44,12 @@ public static partial class WarmProcessorTests
             // Wait for the warm job to start вЂ” by then the loop is asleep waiting.
             Assert.WaitUntil(() => job.Started, TestContext.Current.CancellationToken);
 
-            // Stop the pipeline in the correct order: cancel the flow token first, let the background
-            // tasks unwind on the (still valid) token, wait for ExecuteAsync to finish, and only then
-            // dispose the source. Disposing first would tear down the CTS while tasks still observe it.
-            flow.Context.Cancel();
-            await execution;
+            // Stop the pipeline in the correct order: cancel the flow token first (with the root cause),
+            // let the background tasks unwind on the (still valid) token, wait for ExecuteAsync to finish,
+            // and only then dispose the source. Disposing first would tear down the CTS while tasks still
+            // observe it. The cancellation cause is surfaced by ExecuteAsync.
+            flow.Context.TryCancel(new OperationCanceledException());
+            await Assert.ThrowsAsync<AggregateException>(() => execution);
             await flow.DisposeAsync();
 
             // The buffer must be completed (in finally) вЂ” the wait finishes and TryRead reports Completed.

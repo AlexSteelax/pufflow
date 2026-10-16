@@ -12,7 +12,7 @@ internal sealed partial class FlowPipeConsumator<TSource, TTarget>(Func<TSource,
     {
         private readonly Channel<TSource> _channel = Channel.CreateBounded<TSource>(2);
         
-        public async Task ExecuteAsync()
+        public async Task ExecuteAsync(FlowContext _)
         {
             var asyncSource = source as IAsyncConsumator<TSource>;
             
@@ -74,7 +74,7 @@ internal sealed partial class FlowPipeConsumator<TSource, TTarget>(Func<TSource,
         where TInput : IConsumator<TSource>
         where TOutput : IProducator<TTarget>
     {
-        public async Task ExecuteAsync()
+        public async Task ExecuteAsync(FlowContext _)
         {
             try
             {

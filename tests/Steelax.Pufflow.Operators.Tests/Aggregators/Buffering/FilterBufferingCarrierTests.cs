@@ -61,7 +61,7 @@ internal sealed partial class CarrierSequenceSource<T>(int count, float nothingR
     
     public void Fuse(IAsyncProducator<Carrier<T>> source, FlowContext context)
     {
-        context.RegisterBackground(() => MainLoopAsync(source, context));
+        context.RegisterBackgroundProcess(_ => MainLoopAsync(source, context));
     }
 
     private async Task MainLoopAsync(IAsyncProducator<Carrier<T>> source, CancellationToken cancellationToken)

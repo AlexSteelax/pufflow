@@ -8,20 +8,20 @@ namespace Steelax.Pufflow.Operators;
 [PublicAPI]
 public static partial class OperatorExtensions
 {
-    extension<T>(Source<IAsyncEnumerator<T>> left)
-    {
-        /// <summary>
-        ///     Races each upstream wait against a timeout, emitting either the element or an
-        ///     <see cref="AwaitTimeout" /> marker when the source is idle too long.
-        /// </summary>
-        /// <param name="timeout">The maximum time to wait for an element before emitting a timeout marker.</param>
-        /// <returns>A source emitting <see cref="Unio{T, AwaitTimeout}" /> items.</returns>
-        [PublicAPI]
-        public Source<IAsyncEnumerator<Unio<T, AwaitTimeout>>> Timeout(TimeSpan timeout)
-        {
-            return left.Next(new TimeoutProcessor<T>(timeout));
-        }
-    }
+    // extension<T>(Source<IAsyncEnumerator<T>> left)
+    // {
+    //     /// <summary>
+    //     ///     Races each upstream wait against a timeout, emitting either the element or an
+    //     ///     <see cref="AwaitTimeout" /> marker when the source is idle too long.
+    //     /// </summary>
+    //     /// <param name="timeout">The maximum time to wait for an element before emitting a timeout marker.</param>
+    //     /// <returns>A source emitting <see cref="Unio{T, AwaitTimeout}" /> items.</returns>
+    //     [PublicAPI]
+    //     public Source<IAsyncEnumerator<Unio<T, AwaitTimeout>>> Timeout(TimeSpan timeout)
+    //     {
+    //         return left.Next(new TimeoutProcessor<T>(timeout));
+    //     }
+    // }
 
     /// <summary>
     ///     Decouples a push producer from a pull consumer over a bounded passive buffer.

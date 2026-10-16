@@ -38,9 +38,8 @@ public static partial class FlowExt
     public static Source<IAsyncEnumerator<T2>> Next<T1, T2>(this Source<IAsyncEnumerator<T1>> left,
         IFlowable<Pipe<IAsyncEnumerator<T1>, IAsyncEnumerator<T2>>> right)
     {
-        var context = left.FlowSource.Context;
         var rightMeta = FlowMetaNode.Create(right, FlowKind.AsyncEnumerator, FlowKind.AsyncEnumerator);
-        var merged = FlowMetaNode.Merge(left.Meta, rightMeta, context);
+        var merged = FlowMetaNode.Merge(left.Meta, rightMeta, left.FlowSource);
         return new Source<IAsyncEnumerator<T2>>(merged, left.FlowSource);
     }
 
@@ -57,9 +56,8 @@ public static partial class FlowExt
     public static Source<IAsyncEnumerator<T2>> Next<T1, TMid, T2>(this Pipe<IAsyncEnumerator<T1>, IAsyncEnumerator<TMid>> left,
         IFlowable<Pipe<IAsyncEnumerator<TMid>, IAsyncEnumerator<T2>>> right)
     {
-        var context = left.FlowSource.Context;
         var rightMeta = FlowMetaNode.Create(right, FlowKind.AsyncEnumerator, FlowKind.AsyncEnumerator);
-        var merged = FlowMetaNode.Merge(left.Meta, rightMeta, context);
+        var merged = FlowMetaNode.Merge(left.Meta, rightMeta, left.FlowSource);
         return new Source<IAsyncEnumerator<T2>>(merged, left.FlowSource);
     }
 

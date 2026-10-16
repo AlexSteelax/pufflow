@@ -22,13 +22,13 @@ internal partial class FlowSourceProducator<T>
     public void Fuse(IAsyncProducator<T> target, FlowContext context)
     {
         Trace.WriteLine($"[FlowSourceProducator] Fuse: target={target.GetHashCode()} type={target.GetType().Name}");
-        context.RegisterBackground(() => ProduceLoopAsync(_channel, target, context));
+        context.RegisterBackgroundProcess(_ => ProduceLoopAsync(_channel, target, context));
     }
 
     [PublicAPI]
     public void Fuse(IProducator<T> target, FlowContext context)
     {
-        context.RegisterBackground(() => ProduceLoopAsync(_channel, target, context));
+        context.RegisterBackgroundProcess(_ => ProduceLoopAsync(_channel, target, context));
     }
     
     private static async Task ProduceLoopAsync(ChannelReader<T> reader, IProducator<T> output, CancellationToken cancellationToken)

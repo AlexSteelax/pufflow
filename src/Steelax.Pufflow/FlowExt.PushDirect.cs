@@ -111,8 +111,7 @@ public static partial class FlowExt
     {
         var collection = GetOrCreateCollection(left.Meta);
         collection.Push(FlowMetaNode.Create(right, FlowKind.AsyncProducator, FlowKind.None));
-        var context = left.FlowSource.Context;
-        collection.Build(context);
+        collection.Build(left.FlowSource);
         return new Sink<IAsyncProducator<T>>(collection, left.FlowSource);
     }
     
@@ -124,8 +123,7 @@ public static partial class FlowExt
     {
         var collection = GetOrCreateCollection(left.Meta);
         collection.Push(FlowMetaNode.Create(right, FlowKind.Producator, FlowKind.None));
-        var context = left.FlowSource.Context;
-        collection.Build(context);
+        collection.Build(left.FlowSource);
         return new Sink<IProducator<T>>(collection, left.FlowSource);
     }
 
@@ -137,8 +135,7 @@ public static partial class FlowExt
     {
         var collection = (FlowMetaCollection)left.Meta;
         collection.Push(FlowMetaNode.Create(right, FlowKind.AsyncProducator, FlowKind.None));
-        var context = left.FlowSource.Context;
-        collection.Build(context);
+        collection.Build(left.FlowSource);
         return new Sink<IAsyncProducator<T>>(collection, left.FlowSource);
     }
 

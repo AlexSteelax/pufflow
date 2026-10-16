@@ -122,8 +122,9 @@ internal sealed partial class WarmProcessor<TKey, TValue, TGroup, TWarm> : IAsyn
         _writer.OnReady += _fanIn.GetSignalCallback(OutputSlot).Handler;
 
         // Register this processor for release (watchdog/warmer) when the pipeline completes.
-        context.RegisterDisposable(this);
-        context.RegisterBackground(() => InternalExecuteAsync(context));
+        context.RegisterBackgroundProcess(_ => InternalExecuteAsync(context));
+        
+        context.OnCancelled(_ => _fanIn.Complete());
     }
 
     /// <summary>

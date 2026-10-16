@@ -22,14 +22,14 @@ internal partial class FlowSinkConsumator<T>
     public void Fuse(IConsumator<T> source, FlowContext context)
     {
         Trace.WriteLine($"[FlowSinkConsumator] Fuse: source={source.GetHashCode()} type={source.GetType().Name}");
-        context.RegisterBackground(() => ConsumeLoopAsync(source, _channel, context));
+        context.RegisterBackgroundProcess(_ => ConsumeLoopAsync(source, _channel, context));
     }
     
     [PublicAPI]
     public void Fuse(IAsyncConsumator<T> source, FlowContext context)
     {
         Trace.WriteLine($"[FlowSinkConsumator] Fuse: source={source.GetHashCode()} type={source.GetType().Name}");
-        context.RegisterBackground(() => ConsumeLoopAsync(source, _channel, context));
+        context.RegisterBackgroundProcess(_ => ConsumeLoopAsync(source, _channel, context));
     }
 
     private static async Task ConsumeLoopAsync(IConsumator<T> source, ChannelWriter<T> writer, CancellationToken cancellationToken)

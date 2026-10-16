@@ -9,7 +9,7 @@ internal partial class FlowNullSinkEnumerator<T>
     [PublicAPI]
     public void Fuse(IAsyncEnumerator<T> source, FlowContext context)
     {
-        context.RegisterBackground(() => ConsumeLoopAsync(source));
+        context.RegisterBackgroundProcess(_ => ConsumeLoopAsync(source));
     }
 
     private static async Task ConsumeLoopAsync(IAsyncEnumerator<T> source)

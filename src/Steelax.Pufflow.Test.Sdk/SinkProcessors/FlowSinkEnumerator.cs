@@ -20,7 +20,7 @@ internal partial class FlowSinkEnumerator<T>
     [PublicAPI]
     public void Fuse(IAsyncEnumerator<T> source, FlowContext context)
     {
-        context.RegisterBackground(() => ConsumeLoopAsync(source, _channel, context));
+        context.RegisterBackgroundProcess(_ => ConsumeLoopAsync(source, _channel, context));
     }
 
     private static async Task ConsumeLoopAsync(IAsyncEnumerator<T> source, ChannelWriter<T> writer, CancellationToken cancellationToken)

@@ -30,14 +30,15 @@ internal sealed partial class ChunkProcessor<T, TChunk> : IAsyncConsumator<TChun
         _timer = new WatchTimer<ChunkProcessor<T, TChunk>>(static self => self.FireLingerSignal(), this, timeProvider);
     }
     
+    [PublicAPI]
     public void Fuse(IAsyncConsumator<T> source, out IAsyncConsumator<TChunk> target, FlowContext context)
     {
         _source = ManualConsumator<T>.Create(source);
         _source.OnReady += _signal.Signal;
         _cancellationToken = context.Token;
         target = this;
-        
-        context.RegisterDisposable(this);
+
+        context.OnCancelled(_ => _signal.Complete());
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]

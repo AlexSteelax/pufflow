@@ -29,38 +29,28 @@ namespace Steelax.Pufflow.Operators.Aggregators.Buffering;
 ///     </para>
 /// </remarks>
 [Flow]
-public sealed partial class BypassBufferProcessor<T>(int capacity)
+internal sealed partial class BypassBufferProcessor<T>(int capacity)
 {
     /// <summary>The bounded SPSC channel shared by the producator (write) and consumator (read) sides.</summary>
     private readonly InternalConduit<T> _buffer = new(capacity, ConduitBehavior.AwaitableReader | ConduitBehavior.AwaitableWriter);
-    
-    /// <summary>
-    ///     Hands out the two sides of the buffer: the push input producer (written by the upstream source)
-    ///     and the pull output stream (read by the downstream consumer), both backed by the same channel.
-    /// </summary>
-    /// <param name="source">The push (producator) side of the buffer.</param>
-    /// <param name="target">The pull (consumator) side of the buffer.</param>
-    /// <param name="context">The flow context providing cancellation for the pipeline.</param>
+
     [PublicAPI]
     public void Fuse(out IAsyncProducator<T> source, out IAsyncConsumator<T> target, FlowContext context)
     {
         Trace.WriteLine($"[BypassBufferProcessor] Fuse: buffer={GetHashCode()}");
         source = _buffer;
         target = _buffer;
+        
+        context.OnCancelled(token => _buffer.TryTerminate(new OperationCanceledException(token)));
     }
     
-    /// <summary>
-    ///     Hands out the two sides of the buffer: the push input producer (written by the upstream source)
-    ///     and the pull output stream (read by the downstream consumer), both backed by the same channel.
-    /// </summary>
-    /// <param name="source">The push (producator) side of the buffer.</param>
-    /// <param name="target">The pull (consumator) side of the buffer.</param>
-    /// <param name="context">The flow context providing cancellation for the pipeline.</param>
     [PublicAPI]
     public void Fuse(out IProducator<T> source, out IAsyncConsumator<T> target, FlowContext context)
     {
         Trace.WriteLine($"[BypassBufferProcessor] Fuse: buffer={GetHashCode()}");
         source = _buffer;
         target = _buffer;
+        
+        context.OnCancelled(token => _buffer.TryTerminate(new OperationCanceledException(token)));
     }
 }

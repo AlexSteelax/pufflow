@@ -145,9 +145,9 @@ internal sealed partial class KafkaConsumerProcessor<TKey, TValue> : IAsyncDispo
     {
         _buffer = target;
         
-        _ = context.RegisterBackground(() => InternalExecuteAsync(context));
-
-        context.RegisterDisposable(this);
+        _ = context.RegisterBackgroundProcess(_ => InternalExecuteAsync(context));
+        
+        context.OnCancelled(_ => _fan.Complete());
     }
 
     /// <summary>

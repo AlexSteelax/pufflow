@@ -43,8 +43,8 @@ internal sealed class FlowMetaCollection : FlowMeta
     ///     segment. Push segments are wrapped in reverse order, pull segments are chained forward, then the
     ///     hybrids, the source and the sink are fed with the resolved streams.
     /// </summary>
-    /// <param name="context">The flow context passed to the handlers.</param>
-    public void Build(FlowContext context)
+    /// <param name="flowSource">The flow context passed to the handlers.</param>
+    public void Build(FlowSource flowSource)
     {
         Trace.WriteLine("[FlowMetaCollection] Build: resolving chain");
 
@@ -79,7 +79,7 @@ internal sealed class FlowMetaCollection : FlowMeta
         // 2. Invoke every composite: each hands out its push input (PushInput) and returns its pull output.
         var pullOutput = new object?[nodes.Length];
         foreach (var index in compositeIndexes)
-            pullOutput[index] = nodes[index].Invoke(context);
+            pullOutput[index] = nodes[index].Invoke(flowSource);
 
         // 3. Create the terminal sink value: a push sink creates the terminal producer that ends the final
         //    push segment; a pull sink consumes the end of the final pull segment.
@@ -94,7 +94,7 @@ internal sealed class FlowMetaCollection : FlowMeta
             sinkIndex = i;
             pullSink = IsPullSink(nodes[i]);
             if (!pullSink)
-                terminal = nodes[i].Invoke(context);
+                terminal = nodes[i].Invoke(flowSource);
             break;
         }
 
@@ -106,7 +106,7 @@ internal sealed class FlowMetaCollection : FlowMeta
         if (terminal is not null)
         {
             var lastHybrid = hybridIndexes.Count > 0 ? hybridIndexes[^1] : 0;
-            pushTarget = WrapPushPipes(nodes, lastHybrid, sinkIndex, terminal, context);
+            pushTarget = WrapPushPipes(nodes, lastHybrid, sinkIndex, terminal, flowSource);
         }
 
         var pushInput = new object?[nodes.Length];
@@ -114,7 +114,7 @@ internal sealed class FlowMetaCollection : FlowMeta
         {
             var cIndex = compositeIndexes[k];
             var start = PreviousAnchor(hybridIndexes, cIndex);
-            pushInput[cIndex] = WrapPushPipes(nodes, start, cIndex, nodes[cIndex].PushInput, context);
+            pushInput[cIndex] = WrapPushPipes(nodes, start, cIndex, nodes[cIndex].PushInput, flowSource);
         }
 
         // 5. Produce the source side: a push source is fed with the first push segment's target; a pull
@@ -125,7 +125,7 @@ internal sealed class FlowMetaCollection : FlowMeta
         object? upstream = null;
         if (nodes[0].Kind == NodeKind.Source && nodes[0].IsPushSource)
         {
-            nodes[0].Invoke(context, sourceTarget);
+            nodes[0].Invoke(flowSource, sourceTarget);
         }
         else if (nodes[0].Kind == NodeKind.Pipe && nodes[0].Value is not null)
         {
@@ -135,7 +135,7 @@ internal sealed class FlowMetaCollection : FlowMeta
         }
         else
         {
-            upstream = nodes[0].Invoke(context, null);
+            upstream = nodes[0].Invoke(flowSource, null);
         }
 
         // 6. Resolve each pull segment forward: it starts at the preceding composite's pull output (or
@@ -149,7 +149,7 @@ internal sealed class FlowMetaCollection : FlowMeta
             var stream = prevComposite >= 0 ? pullOutput[prevComposite] : upstream;
             var start = prevComposite >= 0 ? prevComposite : 0;
 
-            hybridInput[hIndex] = ChainPullPipes(nodes, pullPipes, start, hIndex, stream, context);
+            hybridInput[hIndex] = ChainPullPipes(nodes, pullPipes, start, hIndex, stream, flowSource);
         }
 
         // 7. Feed the pull sink with the end of the final pull segment.
@@ -159,8 +159,8 @@ internal sealed class FlowMetaCollection : FlowMeta
             var stream = lastComposite >= 0 ? pullOutput[lastComposite] : upstream;
             var start = lastComposite >= 0 ? lastComposite : 0;
 
-            stream = ChainPullPipes(nodes, pullPipes, start, sinkIndex, stream, context);
-            nodes[sinkIndex].Invoke(context, stream);
+            stream = ChainPullPipes(nodes, pullPipes, start, sinkIndex, stream, flowSource);
+            nodes[sinkIndex].Invoke(flowSource, stream);
         }
 
         // 8. Feed the hybrids: each reads the end of its pull segment and pushes into the next push
@@ -177,7 +177,7 @@ internal sealed class FlowMetaCollection : FlowMeta
             }
 
             var nextTarget = nextComposite >= 0 ? pushInput[nextComposite] : pushTarget;
-            nodes[hIndex].InvokePipe(context, hybridInput[hIndex], nextTarget);
+            nodes[hIndex].InvokePipe(flowSource, hybridInput[hIndex], nextTarget);
         }
 
         Trace.WriteLine("[FlowMetaCollection] Build: chain resolved");
@@ -202,14 +202,14 @@ internal sealed class FlowMetaCollection : FlowMeta
     ///     pipe's output stream (or <paramref name="stream" /> for the first) and returns its own output,
     ///     which becomes the next input.
     /// </summary>
-    private static object? ChainPullPipes(FlowMetaNode[] nodes, HashSet<int> pullPipes, int start, int end, object? stream, FlowContext context)
+    private static object? ChainPullPipes(FlowMetaNode[] nodes, HashSet<int> pullPipes, int start, int end, object? stream, FlowSource flowSource)
     {
         for (var i = start + 1; i < end; i++)
         {
             if (!pullPipes.Contains(i))
                 continue;
 
-            stream = nodes[i].Invoke(context, stream);
+            stream = nodes[i].Invoke(flowSource, stream);
         }
 
         return stream;
@@ -220,14 +220,14 @@ internal sealed class FlowMetaCollection : FlowMeta
     ///     from the innermost pipe (closest to <paramref name="end" />) to the outermost, returning the
     ///     outermost pipe's out source as the new target for the preceding stage.
     /// </summary>
-    private static object? WrapPushPipes(FlowMetaNode[] nodes, int start, int end, object? target, FlowContext context)
+    private static object? WrapPushPipes(FlowMetaNode[] nodes, int start, int end, object? target, FlowSource flowSource)
     {
         for (var i = end - 1; i > start; i--)
         {
             if (nodes[i].Kind != NodeKind.Pipe || nodes[i].InType is null || !IsPushPipe(nodes[i]))
                 continue;
 
-            target = nodes[i].InvokePipe(context, null, target);
+            target = nodes[i].InvokePipe(flowSource, null, target);
         }
 
         return target;

@@ -14,7 +14,7 @@ internal partial class ChunkNullSink<T>
 {
     public void Fuse(IAsyncConsumator<Chunk<T>> source, FlowContext context)
     {
-        context.RegisterBackground(() => ConsumeLoopAsync(source, context));
+        context.RegisterBackgroundProcess(_ => ConsumeLoopAsync(source, context));
     }
 
     private static async Task ConsumeLoopAsync(IAsyncConsumator<Chunk<T>> source, CancellationToken cancellationToken)

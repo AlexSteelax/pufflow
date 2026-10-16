@@ -43,7 +43,7 @@ internal sealed partial class FlowPipeProducator<TSource, TTarget>(Func<TSource,
     {
         private readonly Channel<TSource> _channel = Channel.CreateBounded<TSource>(2);
 
-        public async Task ExecuteAsync()
+        public async Task ExecuteAsync(FlowContext _)
         {
             var asyncTarget = target as IAsyncProducator<TTarget>;
 

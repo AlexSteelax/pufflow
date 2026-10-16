@@ -65,6 +65,16 @@ internal sealed class FlowMetaNode : FlowMeta
         }
     }
 
+    internal object? Invoke(FlowSource flowSource, object? input = null)
+    {
+        var instance = Invoke(flowSource.Context, input);
+        
+        if (instance is not null)
+            flowSource.RegisterDisposable(instance);
+        
+        return instance;
+    }
+
     /// <summary>
     ///     Invokes the node's handler with the given upstream input (or without input for a source). The
     ///     value is fed into the first non-out parameter (the consumed input source).
@@ -72,7 +82,7 @@ internal sealed class FlowMetaNode : FlowMeta
     /// <param name="context">The flow context to pass to the handler.</param>
     /// <param name="input">The upstream value, or <see langword="null" /> for a source.</param>
     /// <returns>The handler result (an async enumerator/consumator for source/pipe, a <see cref="Task" /> for a sink).</returns>
-    internal object? Invoke(FlowContext context, object? input = null)
+    private object? Invoke(FlowContext context, object? input = null)
     {
         Trace.WriteLine($"[FlowMeta] Invoke '{_method.Name}' on '{_instance.GetType().Name}' (in={InType?.Name ?? "-"}, out={OutType?.Name ?? "-"})");
         var parameters = _method.GetParameters();
@@ -144,6 +154,16 @@ internal sealed class FlowMetaNode : FlowMeta
             : _method.Invoke(_instance, [input!, context]);
     }
 
+    internal object? InvokePipe(FlowSource flowSource, object? upstream, object? target)
+    {
+        var instance = InvokePipe(flowSource.Context, upstream, target);
+        
+        if (instance is not null)
+            flowSource.RegisterDisposable(instance);
+        
+        return instance;
+    }
+
     /// <summary>
     ///     Invokes a hybrid pipe (consumator→producator): the upstream consumator is fed into the first
     ///     non-out parameter, the downstream producator target into the last. Used by
@@ -153,7 +173,7 @@ internal sealed class FlowMetaNode : FlowMeta
     /// <param name="context">The flow context to pass to the handler.</param>
     /// <param name="upstream">The upstream consumator/enumerator produced by the source.</param>
     /// <param name="target">The downstream producator target produced by the sink.</param>
-    internal object? InvokePipe(FlowContext context, object? upstream, object? target)
+    private object? InvokePipe(FlowContext context, object? upstream, object? target)
     {
         Trace.WriteLine($"[FlowMeta] InvokePipe '{_method.Name}' on '{_instance.GetType().Name}' (in={InType?.Name ?? "-"}, out={OutType?.Name ?? "-"})");
         var parameters = _method.GetParameters();
@@ -307,12 +327,12 @@ internal sealed class FlowMetaNode : FlowMeta
     /// <param name="right">
     ///     The downstream node, or <see langword="null" /> for a terminal (sink-only) connection.
     /// </param>
-    /// <param name="context">The flow context of the resulting connection.</param>
+    /// <param name="flowSource">The flow context of the resulting connection.</param>
     /// <returns>The connected node ready for further chaining or execution.</returns>
     /// <exception cref="FlowMetaException">
     ///     Thrown when the combination of the two node kinds is not supported or the types do not match.
     /// </exception>
-    internal static FlowMeta Merge(FlowMeta left, FlowMeta? right, FlowContext context)
+    internal static FlowMeta Merge(FlowMeta left, FlowMeta? right, FlowSource flowSource)
     {
         if (left is FlowMetaCollection collection)
         {
@@ -322,11 +342,11 @@ internal sealed class FlowMetaNode : FlowMeta
             return collection.Merge(right);
         }
 
-        return MergeNodes((FlowMetaNode)left, (FlowMetaNode?)right, context);
+        return MergeNodes((FlowMetaNode)left, (FlowMetaNode?)right, flowSource);
     }
 
     /// <summary>Pull-semantics merge of two concrete nodes.</summary>
-    private static FlowMetaNode MergeNodes(FlowMetaNode left, FlowMetaNode? right, FlowContext context)
+    private static FlowMetaNode MergeNodes(FlowMetaNode left, FlowMetaNode? right, FlowSource flowSource)
     {
         Trace.WriteLine($"[FlowMeta] Merge: left='{left.Kind}' out='{left.OutType?.Name ?? "-"}', right='{right?.Kind.ToString() ?? "null"}' in='{right?.InType?.Name ?? "-"}'");
 
@@ -339,22 +359,22 @@ internal sealed class FlowMetaNode : FlowMeta
 
         return (left.Kind, right?.Kind) switch
         {
-            (NodeKind.Source, NodeKind.Pipe) => MergeSourcePipe(left, right, context),
-            (NodeKind.Pipe, NodeKind.Pipe) => MergePipePipe(left, right, context),
-            (NodeKind.Pipe, NodeKind.Sink) => MergePipeSink(left, right, context),
-            (NodeKind.Source, NodeKind.Sink) => MergeSourceSink(left, right, context),
-            (NodeKind.Source, null) => MergeSourceSink(left, null, context),
+            (NodeKind.Source, NodeKind.Pipe) => MergeSourcePipe(left, right, flowSource),
+            (NodeKind.Pipe, NodeKind.Pipe) => MergePipePipe(left, right, flowSource),
+            (NodeKind.Pipe, NodeKind.Sink) => MergePipeSink(left, right, flowSource),
+            (NodeKind.Source, NodeKind.Sink) => MergeSourceSink(left, right, flowSource),
+            (NodeKind.Source, null) => MergeSourceSink(left, null, flowSource),
             _ => throw new FlowMetaException(
                 $"Unsupported flow merge: left='{left.Kind}', right='{right?.Kind.ToString() ?? "null"}'.")
         };
     }
 
     /// <summary>Connects a source to a pipe: produces the source value and feeds it into the pipe.</summary>
-    private static FlowMetaNode MergeSourcePipe(FlowMetaNode left, FlowMetaNode right, FlowContext context)
+    private static FlowMetaNode MergeSourcePipe(FlowMetaNode left, FlowMetaNode right, FlowSource flowSource)
     {
         Trace.WriteLine("[FlowMeta] MergeSourcePipe");
-        var input = left.Invoke(context);
-        var result = right.Invoke(context, input);
+        var input = left.Invoke(flowSource);
+        var result = right.Invoke(flowSource, input);
         return new FlowMetaNode(right._instance, right.Method, NodeKind.Pipe, right.InType, right.OutType)
         {
             Value = result
@@ -362,13 +382,13 @@ internal sealed class FlowMetaNode : FlowMeta
     }
 
     /// <summary>Connects two pipes: feeds the upstream pipe's value into the downstream pipe.</summary>
-    private static FlowMetaNode MergePipePipe(FlowMetaNode left, FlowMetaNode right, FlowContext context)
+    private static FlowMetaNode MergePipePipe(FlowMetaNode left, FlowMetaNode right, FlowSource flowSource)
     {
         Trace.WriteLine("[FlowMeta] MergePipePipe");
         // The left pipe already produced its output during the upstream merge (stored in Value); feed it
         // directly into the right pipe. Re-invoking the left handler would construct a second pipe
         // instance (and register a second background pump), processing the stream twice.
-        var result = right.Invoke(context, left.Value);
+        var result = right.Invoke(flowSource, left.Value);
         return new FlowMetaNode(right._instance, right.Method, NodeKind.Pipe, right.InType, right.OutType)
         {
             Value = result
@@ -376,31 +396,31 @@ internal sealed class FlowMetaNode : FlowMeta
     }
 
     /// <summary>Connects a pipe to a sink: feeds the pipe's value into the sink's Fuse.</summary>
-    private static FlowMetaNode MergePipeSink(FlowMetaNode left, FlowMetaNode right, FlowContext context)
+    private static FlowMetaNode MergePipeSink(FlowMetaNode left, FlowMetaNode right, FlowSource flowSource)
     {
         Trace.WriteLine("[FlowMeta] MergePipeSink");
         // The pipe already produced its output value during the upstream merge (MergeSourcePipe /
         // MergePipePipe stored it in Value). Re-invoking the pipe handler would resolve the upstream
         // source a second time and attempt to cast its output to the pipe's input type, so the sink
         // receives the cached Value directly.
-        right.Invoke(context, left.Value);
+        right.Invoke(flowSource, left.Value);
         return new FlowMetaNode(right._instance, right.Method, NodeKind.Sink, right.InType, right.OutType);
     }
 
     /// <summary>Connects a source to a sink (or to null): feeds the source value into the sink.</summary>
-    private static FlowMetaNode MergeSourceSink(FlowMetaNode left, FlowMetaNode? right, FlowContext context)
+    private static FlowMetaNode MergeSourceSink(FlowMetaNode left, FlowMetaNode? right, FlowSource flowSource)
     {
         Trace.WriteLine($"[FlowMeta] MergeSourceSink: right='{right?.Kind.ToString() ?? "null"}'");
-        var input = left.Invoke(context);
+        var input = left.Invoke(flowSource);
         if (right is null)
         {
             // Terminal source: no downstream consumer — drain the source enumerator.
             var drain = typeof(FlowMetaNode).GetMethod(nameof(DrainAsync), BindingFlags.NonPublic | BindingFlags.Static)!;
-            _ = DrainAsync(context, (IAsyncEnumerator<object>)input!);
+            _ = DrainAsync(flowSource.Context, (IAsyncEnumerator<object>)input!);
             return new FlowMetaNode(left._instance, drain, NodeKind.Sink, left.InType, null);
         }
 
-        right.Invoke(context, input); // Fuse registers its task during the merge.
+        right.Invoke(flowSource, input); // Fuse registers its task during the merge.
         return new FlowMetaNode(right._instance, right.Method, NodeKind.Sink, right.InType, right.OutType);
     }
 

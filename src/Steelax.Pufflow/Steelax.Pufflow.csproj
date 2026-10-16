@@ -17,6 +17,7 @@
 
     <ItemGroup>
         <InternalsVisibleTo Include="Steelax.Pufflow.Tests"/>
+        <InternalsVisibleTo Include="Steelax.Pufflow.Operators.Tests"/>
     </ItemGroup>
 
     <!-- Reference the source generator as a NuGet dependency of this package -->
