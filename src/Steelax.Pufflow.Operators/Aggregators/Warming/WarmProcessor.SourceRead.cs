@@ -12,7 +12,7 @@ namespace Steelax.Pufflow.Operators.Aggregators.Warming;
 internal sealed partial class WarmProcessor<TKey, TValue, TGroup, TWarm>
 {
     /// <summary>The global progress watermark (max seen from the source), held until the delayed queue is empty.</summary>
-    private Watermark _watermark = Watermark.Nothing();
+    private Watermark _watermark = Watermark.Nothing;
     
     /// <summary>
     ///     Advances the source by at most one value and reports the outcome.
@@ -134,7 +134,7 @@ internal sealed partial class WarmProcessor<TKey, TValue, TGroup, TWarm>
         if (fold)
         {
             FoldWatermark(watermark);
-            watermark =  Watermark.Nothing();
+            watermark =  Watermark.Nothing;
         }
         
         var item = PassthroughItem(value, watermark);

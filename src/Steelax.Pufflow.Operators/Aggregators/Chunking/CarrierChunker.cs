@@ -21,7 +21,7 @@ public sealed class CarrierChunker<T> : IChunkBuilder<Carrier<T>, Carrier<Chunk<
     private readonly ChunkCapacityStrategy _strategy;
     private T[]? _buffer;
 
-    private Watermark _watermark = Watermark.Nothing();
+    private Watermark _watermark = Watermark.Nothing;
     
     private int _capacity;
     private int _count;
@@ -78,13 +78,13 @@ public sealed class CarrierChunker<T> : IChunkBuilder<Carrier<T>, Carrier<Chunk<
         if (_count == 0)
         {
             chunk = new Carrier<Chunk<T>>(_watermark);
-            _watermark = Watermark.Nothing();
+            _watermark = Watermark.Nothing;
             return true;
         }
 
         chunk = new Carrier<Chunk<T>>(new Chunk<T>(buffer, _count), _watermark);
         
-        _watermark = Watermark.Nothing();
+        _watermark = Watermark.Nothing;
         _buffer = null;
         _count = 0;
 
@@ -107,7 +107,7 @@ public sealed class CarrierChunker<T> : IChunkBuilder<Carrier<T>, Carrier<Chunk<
         
         Pool.Return(_buffer, true);
         _buffer = null;
-        _watermark = Watermark.Nothing();
+        _watermark = Watermark.Nothing;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]

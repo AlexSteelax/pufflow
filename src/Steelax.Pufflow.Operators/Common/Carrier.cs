@@ -18,7 +18,7 @@ namespace Steelax.Pufflow.Operators.Common;
 ///     <para>
 ///         Here the option is folded into a single struct, so an operator can map <c>Carrier&lt;T&gt;</c> to
 ///         <c>Carrier&lt;U&gt;</c> without touching the watermark shape. A watermark of
-///         <see cref="Watermark.Nothing()" /> means none was attached; the currently attached value is available via
+///         <see cref="Watermark.Nothing" /> means none was attached; the currently attached value is available via
 ///         <see cref="Watermark" />.
 ///     </para>
 /// </remarks>
@@ -34,7 +34,7 @@ public readonly struct Carrier<T>
     /// <summary>Initializes a new data-carrying envelope.</summary>
     /// <param name="value">The underlying value.</param>
     /// <param name="watermark">
-    ///     The attached watermark, or <see cref="Watermark.Nothing()" /> when the value has none.
+    ///     The attached watermark, or <see cref="Watermark.Nothing" /> when the value has none.
     /// </param>
     public Carrier(T value, Watermark watermark)
     {
@@ -45,7 +45,7 @@ public readonly struct Carrier<T>
 
     /// <summary>Initializes a bare progress marker with no data. Only its watermark matters.</summary>
     /// <param name="watermark">
-    ///     The attached watermark; may be <see cref="Watermark.Nothing()" /> for an unattached marker.
+    ///     The attached watermark; may be <see cref="Watermark.Nothing" /> for an unattached marker.
     /// </param>
     public Carrier(Watermark watermark)
     {
@@ -73,7 +73,7 @@ public readonly struct Carrier<T>
         }
     }
 
-    /// <summary>Gets the attached watermark. May be <see cref="Watermark.Nothing()" />.</summary>
+    /// <summary>Gets the attached watermark. May be <see cref="Watermark.Nothing" />.</summary>
     public Watermark Watermark => _watermark;
 
     /// <summary>
@@ -83,21 +83,30 @@ public readonly struct Carrier<T>
     public bool HasValue { get; }
 
     /// <summary>
-    ///     <see langword="true" /> when a real (non-<see cref="Watermark.Nothing()" />) watermark is attached.
+    ///     <see langword="true" /> when a real (non-<see cref="Watermark.Nothing" />) watermark is attached.
     /// </summary>
     public bool HasWatermark => _watermark.IsNothing == false;
 
     /// <summary>Implicitly converts a bare value into a data-carrying envelope without a watermark.</summary>
     /// <param name="value">The value to wrap.</param>
-    public static implicit operator Carrier<T>(T value) => new(value, Watermark.Nothing());
+    public static implicit operator Carrier<T>(T value) => new(value, Watermark.Nothing);
 
     /// <summary>Deconstructs the envelope into its value and watermark parts.</summary>
     /// <param name="value">The underlying value (default when <see cref="HasValue" /> is <see langword="false" />).</param>
-    /// <param name="watermark">The attached watermark; <see cref="Watermark.Nothing()" /> when none.</param>
+    /// <param name="watermark">The attached watermark; <see cref="Watermark.Nothing" /> when none.</param>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void Deconstruct(out T value, out Watermark watermark)
     {
         value = _value;
         watermark = _watermark;
     }
+    
+    /// <summary>
+    /// 
+    /// </summary>
+    /// <param name="watermark"></param>
+    /// <returns></returns>
+    public Carrier<T> WithWatermark(Watermark watermark) => HasValue
+        ? new Carrier<T>(_value, watermark)
+        : new Carrier<T>(watermark);
 }

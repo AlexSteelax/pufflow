@@ -1,4 +1,5 @@
 using BenchmarkDotNet.Attributes;
+using Steelax.Pufflow.Operators.Common;
 using Steelax.Pufflow.Operators.Kafka;
 using Steelax.Pufflow.Sdk.Test;
 using Steelax.Pufflow.Sdk.Test.Kafka;
@@ -50,7 +51,7 @@ public class KafkaConsumerProcessorBenchmark
         
         _flow = new FlowSource();
         _flow
-            .OnKafkaSource(options, items, out _)
+            .OnKafkaSource(options, WatermarkTracker.Create(), items)
             .Consume();
     }
 

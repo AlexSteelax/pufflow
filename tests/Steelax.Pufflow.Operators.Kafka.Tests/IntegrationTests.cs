@@ -1,4 +1,4 @@
-﻿using System.Threading.Channels;
+using System.Threading.Channels;
 using Confluent.Kafka;
 using Confluent.Kafka.Admin;
 using Steelax.Pufflow.Operators.Common;
@@ -114,7 +114,7 @@ public class IntegrationTests(ApplicationFixture application, ITestOutputHelper 
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
         await using var flow = new FlowSource();
         flow
-            .OnKafkaSource(consumer, DefaultOptions, out _, KafkaErrorPolicy.Default)
+            .OnKafkaSource(consumer, DefaultOptions, WatermarkTracker.Create(), KafkaErrorPolicy.Default)
             .Consume(out var reader);
 
         var runTask = flow.ExecuteAsync(cts.Token); // background: the Kafka source has no end-of-stream
@@ -158,7 +158,7 @@ public class IntegrationTests(ApplicationFixture application, ITestOutputHelper 
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
         await using var flow = new FlowSource();
         flow
-            .OnKafkaSource(consumer, DefaultOptions, out _, KafkaErrorPolicy.Default)
+            .OnKafkaSource(consumer, DefaultOptions, WatermarkTracker.Create(), KafkaErrorPolicy.Default)
             .Consume(out var reader);
 
         var runTask = flow.ExecuteAsync(cts.Token); // background: the Kafka source has no end-of-stream
@@ -227,7 +227,7 @@ public class IntegrationTests(ApplicationFixture application, ITestOutputHelper 
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
         await using var flow = new FlowSource();
         flow
-            .OnKafkaSource(consumer, options, out _, KafkaErrorPolicy.Default)
+            .OnKafkaSource(consumer, options, WatermarkTracker.Create(), KafkaErrorPolicy.Default)
             .Consume(out var reader);
 
         var runTask = flow.ExecuteAsync(cts.Token); // background: the Kafka source has no end-of-stream

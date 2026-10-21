@@ -24,8 +24,8 @@ public static class TestSourceExtensions
     {
         public Source<IProducator<Carrier<ConsumeResult<TKey, TValue>>>> OnKafkaSource<TKey, TValue>(
             KafkaConsumerOptions options,
+            WatermarkTracker tracker,
             out ChannelWriter<KeyValuePair<TKey, TValue>> writer,
-            out IWatermarkCommiter commiter,
             IEnumerable<KeyValuePair<TKey, TValue>>? initial = null,
             WatermarkProvider? watermarkProvider = null,
             TimeProvider? timeProvider = null)
@@ -39,7 +39,7 @@ public static class TestSourceExtensions
             return flowSource.OnKafkaSource(
                 consumer,
                 options,
-                out commiter,
+                tracker,
                 new TestKafkaErrorPolicy(),
                 watermarkProvider,
                 timeProvider);
@@ -50,15 +50,15 @@ public static class TestSourceExtensions
     {
         public Source<IProducator<Carrier<ConsumeResult<TKey, TValue>>>> OnKafkaSource<TKey, TValue>(
             KafkaConsumerOptions options,
+            WatermarkTracker tracker,
             IEnumerable<KeyValuePair<TKey, TValue>> items,
-            out IWatermarkCommiter commiter,
             WatermarkProvider? watermarkProvider = null,
             TimeProvider? timeProvider = null)
         {
             ChannelWriter<KeyValuePair<TKey, TValue>>? writer = null;
             try
             {
-                return flowSource.OnKafkaSource(options, out writer, out commiter, items, watermarkProvider, timeProvider);
+                return flowSource.OnKafkaSource(options, tracker, out writer, items, watermarkProvider, timeProvider);
             }
             finally
             {

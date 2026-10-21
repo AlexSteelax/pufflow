@@ -1,4 +1,6 @@
-﻿namespace Steelax.Pufflow.Operators.Aggregators.Warming;
+﻿using static Steelax.Toolkit.HighPerformance.AdvanceBitOperations;
+
+namespace Steelax.Pufflow.Operators.Aggregators.Warming;
 
 internal sealed partial class WarmProcessor<TKey, TValue, TGroup, TWarm>
 {
@@ -35,7 +37,7 @@ internal sealed partial class WarmProcessor<TKey, TValue, TGroup, TWarm>
                 }
                 
                 // The one-shot linger expired: seal the partial tail so it can be handed to a job.
-                if (fanSet.IsSet(LingerSlot))
+                if (IsBitSet(fanSet, LingerSlot))
                 {
                     Trace.WriteLine($"[WarmProcessor] linger fired — sealing the tail.");
                     

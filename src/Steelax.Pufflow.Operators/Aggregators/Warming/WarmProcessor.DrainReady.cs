@@ -11,7 +11,7 @@ namespace Steelax.Pufflow.Operators.Aggregators.Warming;
 internal sealed partial class WarmProcessor<TKey, TValue, TGroup, TWarm>
 {
     /// <summary>The portion of a warmed segment (keys + watermark) that could not be fully drained yet.</summary>
-    private PendingSegment _pending = new(default, Watermark.Nothing());
+    private PendingSegment _pending = new(default, Watermark.Nothing);
     
     /// <summary>
     ///     Drains at most one ready batch: finishes any retained remainder, then extracts the next completed
@@ -85,7 +85,7 @@ internal sealed partial class WarmProcessor<TKey, TValue, TGroup, TWarm>
 
                 ResetGlobalAfterRelease(watermark);
             
-                _pending = new PendingSegment(default, Watermark.Nothing());
+                _pending = new PendingSegment(default, Watermark.Nothing);
             }
         }
 
@@ -100,7 +100,7 @@ internal sealed partial class WarmProcessor<TKey, TValue, TGroup, TWarm>
                 return DrainReadyResult.Backpressure;
             }
             
-            _watermark = Watermark.Nothing();
+            _watermark = Watermark.Nothing;
         }
         
         return DrainReadyResult.Emitted;
@@ -128,7 +128,7 @@ internal sealed partial class WarmProcessor<TKey, TValue, TGroup, TWarm>
     /// <summary>Builds an output carrier carrying an accumulated <typeparamref name="TGroup" /> (no watermark attached).</summary>
     private static Carrier<Unio<TValue, TGroup>> GroupItem(TGroup group)
     {
-        return new Carrier<Unio<TValue, TGroup>>(group, Watermark.Nothing());
+        return new Carrier<Unio<TValue, TGroup>>(group, Watermark.Nothing);
     }
 
     /// <summary>
@@ -159,7 +159,7 @@ internal sealed partial class WarmProcessor<TKey, TValue, TGroup, TWarm>
     /// <param name="emitted">The watermark that has just been fully released (drained) downstream.</param>
     private void ResetGlobalAfterRelease(Watermark emitted)
     {
-        if (emitted != Watermark.Nothing() && _watermark == emitted)
-            _watermark = Watermark.Nothing();
+        if (emitted != Watermark.Nothing && _watermark == emitted)
+            _watermark = Watermark.Nothing;
     }
 }

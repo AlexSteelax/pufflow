@@ -1,8 +1,6 @@
 using System.Threading.Channels;
 using Confluent.Kafka;
-using Steelax.Pufflow.Operators;
 using Steelax.Pufflow.Operators.Common;
-using Steelax.Pufflow.Operators.Kafka;
 using Steelax.Pufflow.Sdk.Test;
 using Steelax.Pufflow.Sdk.Test.Kafka;
 using Xunit;
@@ -31,11 +29,11 @@ public class KafkaConsumerProcessorTests
 
     /// <summary>
     ///     Drives the reader side of the pipeline: every emitted carrier (a record or a bare progress marker)
-    ///     forwards its watermark to the committer, mirroring what the real downstream reader does.
+    ///     forwards its watermark to the shared tracker, mirroring what the real downstream reader does.
     /// </summary>
     private static async Task<Watermark[]> CollectAndCommitAsync(
         ChannelReader<Carrier<ConsumeResult<string, string>>> reader,
-        IWatermarkCommiter commiter,
+        WatermarkTracker tracker,
         CancellationToken cancellationToken)
     {
         var watermarks = new List<Watermark>();
@@ -45,7 +43,7 @@ public class KafkaConsumerProcessorTests
             if (item.Watermark.IsNothing)
                 continue;
             
-            commiter.SetReaderWatermark(item.Watermark);
+            tracker.SetProgress(item.Watermark);
             watermarks.Add(item.Watermark);
         }
         
@@ -68,14 +66,15 @@ public class KafkaConsumerProcessorTests
     public async Task IdleMarker_AdvancesPeriodically_CommitsLastWindow()
     {
         var consumer = new TestConsumer<string, string>(timeProvider: null);
+        var tracker = WatermarkTracker.Create();
 
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
         await using var flow = new FlowSource();
         flow
-            .OnKafkaSource(consumer, IdleAwareOptions(), out var commiter, new TestKafkaErrorPolicy())
+            .OnKafkaSource(consumer, IdleAwareOptions(), tracker, new TestKafkaErrorPolicy())
             .Consume(out var reader);
 
-        var readerTask = CollectAndCommitAsync(reader, commiter, cts.Token);
+        var readerTask = CollectAndCommitAsync(reader, tracker, cts.Token);
         var runTask = flow.ExecuteAsync(cts.Token);
 
         // One record, then an idle stream (bare progress markers) until end-of-stream.

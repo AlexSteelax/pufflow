@@ -80,7 +80,7 @@ internal sealed partial class CarrierSequenceSource<T>(int count, float nothingR
                 var watermark = _watermarkProvider.GetWatermark();
 
                 if (Random.Shared.NextSingle() <= nothingRatio)
-                    watermark = Watermark.Nothing();
+                    watermark = Watermark.Nothing;
 
                 if (!source.TryWrite(new Carrier<T>(value, watermark)))
                     _count--;

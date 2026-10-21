@@ -1,6 +1,4 @@
 using Steelax.Pufflow.Operators.Common;
-using Steelax.Pufflow.Sdk.Test;
-using System.Threading.Channels;
 
 namespace Steelax.Pufflow.Operators.Tests.Aggregators.Chunking;
 
@@ -90,9 +88,9 @@ public static partial class CarrierChunkProcessorTests
             // Data values carry no watermark; the window maximum comes exclusively from bare progress items.
             var input = new Carrier<int>[]
             {
-                new(1, Watermark.Nothing()),
+                new(1, Watermark.Nothing),
                 new Carrier<int>(Watermark.From(7)),
-                new(2, Watermark.Nothing()),
+                new(2, Watermark.Nothing),
             };
 
             var windows = await RunAsync(input, size: 2, linger: TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);

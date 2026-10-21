@@ -118,8 +118,8 @@ public class FilterCarrierProcessorTests
             // Dropping a carrier that carries no watermark must not fabricate an (empty) progress item.
             var input = new[]
             {
-                new Carrier<int>(1, Watermark.Nothing()),
-                new Carrier<int>(2, Watermark.Nothing()),
+                new Carrier<int>(1, Watermark.Nothing),
+                new Carrier<int>(2, Watermark.Nothing),
             };
 
             await using var flow = new FlowSource();
@@ -203,8 +203,8 @@ public class FilterCarrierProcessorTests
         {
             var input = new[]
             {
-                new Carrier<int>(1, Watermark.Nothing()),
-                new Carrier<int>(2, Watermark.Nothing()),
+                new Carrier<int>(1, Watermark.Nothing),
+                new Carrier<int>(2, Watermark.Nothing),
             };
 
             await using var flow = new FlowSource();

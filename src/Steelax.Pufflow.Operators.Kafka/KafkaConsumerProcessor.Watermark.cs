@@ -58,20 +58,20 @@ internal partial class KafkaConsumerProcessor<TKey, TValue>
     ///     <para>
     ///         The window is owned by the consumer loop: it writes offsets as messages are emitted.
     ///         The reader never writes into the window directly — it only publishes its watermark
-    ///         (via <c>SetReaderWatermark</c>), by which the loop decides when the window can be
-    ///         committed (flushed).
+    ///         (via <see cref="WatermarkTracker.SetProgress" />), by which the loop decides when the window
+    ///         can be committed (flushed).
     ///     </para>
     ///     <para>
     ///         Window readiness is determined in the processor: the closed-window counter
     ///         (<c>_closed</c>) and the comparison of the window watermark (<see cref="Watermark" />)
-    ///         with the reader's watermark (published via <c>SetReaderWatermark</c>). The window is
+    ///         with the reader's watermark (published via <see cref="WatermarkTracker" />). The window is
     ///         flushed when the reader's watermark >= the window watermark. The window itself
     ///         knows nothing about its own state.
     ///     </para>
     /// </remarks>
     private struct WatermarkStore()
     {
-        private Watermark _watermark = Watermark.Nothing();
+        private Watermark _watermark = Watermark.Nothing;
         private readonly Dictionary<TopicPartitionEpoch, Offset> _offsetStore = new();
 
         /// <summary>The maximum watermark among the messages added to this window.</summary>
@@ -118,7 +118,7 @@ internal partial class KafkaConsumerProcessor<TKey, TValue>
 
             strategy.Advance(buffer);
 
-            _watermark = Watermark.Nothing();
+            _watermark = Watermark.Nothing;
             _offsetStore.Clear();
         }
     }

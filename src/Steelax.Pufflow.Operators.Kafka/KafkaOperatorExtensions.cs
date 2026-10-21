@@ -20,9 +20,11 @@ public static class KafkaOperatorExtensions
     /// <param name="flowSource">The flow source being extended.</param>
     /// <param name="consumer">The Kafka consumer; after being passed, external access is forbidden.</param>
     /// <param name="options">Consumer processor settings (window pool, intervals, advance strategy, ...).</param>
-    /// <param name="commiter">
-    ///     Receives the source's watermark committer: the reader publishes its progress via
-    ///     <see cref="IWatermarkCommiter.SetReaderWatermark" /> to allow committed offset flushing.
+    /// <param name="tracker">
+    ///     The shared progress tracker: the reader publishes its processing watermark via
+    ///     <see cref="WatermarkTracker.SetProgress" />, and the source reads it back with
+    ///     <see cref="WatermarkTracker.GetProgress" /> to flush confirmed offsets. One tracker can be shared
+    ///     between several sources (e.g. the inputs of a merge).
     /// </param>
     /// <param name="errorPolicy">The error policy; defaults to <see cref="KafkaErrorPolicy.Default" />.</param>
     /// <param name="watermarkProvider">The watermark source; defaults to monotonic time.</param>
@@ -35,13 +37,12 @@ public static class KafkaOperatorExtensions
         this FlowSource flowSource,
         IConsumer<TKey, TValue> consumer,
         KafkaConsumerOptions options,
-        out IWatermarkCommiter commiter,
+        WatermarkTracker tracker,
         KafkaErrorPolicy? errorPolicy = null,
         WatermarkProvider? watermarkProvider = null,
         TimeProvider? timeProvider = null)
     {
-        var processor = new KafkaConsumerProcessor<TKey, TValue>(consumer, options, errorPolicy, watermarkProvider, timeProvider);
-        commiter = processor;
+        var processor = new KafkaConsumerProcessor<TKey, TValue>(consumer, options, tracker, errorPolicy, watermarkProvider, timeProvider);
         return flowSource.On(processor);
     }
 }

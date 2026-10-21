@@ -8,8 +8,9 @@ public static partial class BypassBufferProcessorTests
     /// <summary>
     ///     Carrier-envelope integrity through <c>Buffering(capacity)</c>: the buffer is a passive relay, so a
     ///     <see cref="Carrier{T}" /> must arrive downstream byte-for-byte identical — value, attached watermark,
-    ///     and <c>HasValue</c> flag. In particular the two "empty-adjacent" watermark states must not be confused:
-    ///     <c>Watermark.Nothing()</c> is <c>-1</c> while <c>default(Watermark)</c>/<c>Watermark.From(0)</c> is <c>0</c>.
+    ///     and <c>HasValue</c> flag. In particular the two similar watermark states must not be confused:
+    ///     <c>Watermark.Nothing()</c> (logical <c>-1</c>) and <c>Watermark.From(0)</c> — a real tick that stays
+    ///     distinct from <c>default(Watermark)</c>, which equals the <c>Nothing</c> sentinel.
     /// </summary>
     public sealed class CarrierEnvelope
     {
@@ -63,12 +64,13 @@ public static partial class BypassBufferProcessorTests
         [Fact(Timeout = TimeoutMs)]
         public async Task NothingWatermark_StaysNothing_NotZero()
         {
-            // Watermark.Nothing() is the -1 sentinel. The buffer must relay it as-is; a corrupted read (default
-            // slot, ignored TryRead bool) would surface as watermark 0 instead.
+            // Watermark.Nothing() is the logical -1 sentinel (and default(Watermark) equals it). The buffer must
+            // relay it as-is; a corrupted read (default slot, ignored TryRead bool) would surface as Nothing
+            // instead of a distinct real tick.
             var input = new Carrier<int>[]
             {
-                new Carrier<int>(Watermark.Nothing()),
-                new Carrier<int>(Watermark.Nothing()),
+                new Carrier<int>(Watermark.Nothing),
+                new Carrier<int>(Watermark.Nothing),
             };
 
             await using var flow = new FlowSource();
@@ -84,7 +86,8 @@ public static partial class BypassBufferProcessorTests
         [Fact(Timeout = TimeoutMs)]
         public async Task ZeroInputWatermark_StaysZero_NotTurnedIntoNothing()
         {
-            // Watermark.From(0) is a legitimate value (default(Watermark)) distinct from the -1 Nothing sentinel.
+            // Watermark.From(0) is a legitimate real tick — as a lead-in to the biased representation it stays
+            // distinct from both the -1 Nothing sentinel and default(Watermark).
             var input = new[]
             {
                 new Carrier<int>(5, Watermark.From(0)),
@@ -104,11 +107,11 @@ public static partial class BypassBufferProcessorTests
         {
             // More items than the ring capacity (capacity 1 → 2 slots) force the reader to wrap around its
             // sequence. Every read must return exactly one written item; a failed read must not leak a
-            // default(Carrier) whose watermark would read as 0.
+            // default(Carrier) whose watermark would read as Nothing.
             var input = new Carrier<int>[]
             {
                 new(1, Watermark.From(10)),
-                new Carrier<int>(Watermark.Nothing()),
+                new Carrier<int>(Watermark.Nothing),
                 new(2, Watermark.From(20)),
                 new(3, Watermark.From(30)),
                 new Carrier<int>(Watermark.From(0)),
@@ -131,7 +134,7 @@ public static partial class BypassBufferProcessorTests
             // arrive once, in order, with its watermark untouched.
             var input = Enumerable.Range(0, 100)
                 .Select<int, Carrier<int>>(i => i % 3 == 0
-                    ? new Carrier<int>(i, Watermark.Nothing())
+                    ? new Carrier<int>(i, Watermark.Nothing)
                     : new Carrier<int>(i, Watermark.From(i * 10)))
                 .ToArray();
 

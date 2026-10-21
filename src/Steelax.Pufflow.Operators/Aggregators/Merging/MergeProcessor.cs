@@ -1,162 +1,163 @@
-﻿// using System.Runtime.CompilerServices;
-// using Steelax.Pufflow.Operators.Common;
-// using Steelax.Pufflow.Operators.Internal;
-// using Steelax.Toolkit.HighPerformance.Concurrency.Primitives;
-// using Steelax.Toolkit.HighPerformance.Primitives;
-//
-// namespace Steelax.Pufflow.Operators.Aggregators.Merging;
-//
-// [Flow]
-// internal sealed partial class MergeProcessor<T> : IAsyncConsumator<Carrier<T>>, IAsyncDisposable
-// {
-//     private readonly FanInSlim _fanIn;
-//     private readonly Consumator[] _sources;
-//     private readonly WatermarkState[] _watermarks;
-//
-//     private CancellationTokenRegistration _cancellationTokenRegistration;
-//     private CancellationToken _cancellationToken;
-//     
-//     private int _idx = -1;
-//     private int _watching;
-//     private bool _init;
-//
-//     private SlotSet _slotSet;
-//     
-//     public MergeProcessor(IAsyncConsumator<Carrier<T>>[] sources)
-//     {
-//         // Поддерживаем только до 32 источников для слияния. Этого должно быть более чем достаточно.
-//         ArgumentOutOfRangeException.ThrowIfGreaterThan(sources.Length, 32, nameof(sources));
-//         
-//         _fanIn = new FanInSlim();
-//         _sources = new Consumator[sources.Length];
-//         _watermarks = new WatermarkState[sources.Length];
-//         
-//         // Счетчик наблюдаемых источников
-//         _watching = sources.Length;
-//
-//         for (var i = 0; i < sources.Length; i++)
-//         {
-//             var consumator = ManualConsumator<Carrier<T>>.Create(sources[i]);
-//             
-//             consumator.OnReady += _fanIn.GetSignalCallback(i).Handler;
-//             
-//             _sources[i] = new Consumator(consumator);
-//         }
-//     }
-//     
-//     public void Fuse(out IAsyncConsumator<Carrier<T>> target, FlowContext context)
-//     {
-//         // Регистрируем терминальное завершение при соответствующем сигнале
-//         _cancellationTokenRegistration = context.Token.UnsafeRegister(static state => Unsafe.As<object, FanInSlim>(ref state!).Complete(), _fanIn);
-//         _cancellationToken = context.Token;
-//         target = this;
-//     }
-//
-//     private bool TryGetWaiting(out Carrier<T> value)
-//     {
-//         while (_slotSet.TryPop(out var index, out _slotSet))
-//         {
-//             ref var source = ref _sources[index];
-//             
-//             
-//         }
-//
-//         value = default;
-//         return false;
-//     }
-//
-//     public bool TryRead(out Carrier<T> value)
-//     {
-//         while (!_cancellationToken.IsCancellationRequested)
-//         {
-//             // Сразу вычисляем следующий индексатор (начинаем с -1 по умолчанию значения)
-//             // Также завершение полного цикла устанавливает флаг инициализации (необходимо для запуска цикла опроса)
-//             if (++_idx > _sources.Length)
-//             {
-//                 _idx = 0;
-//                 _init = true;
-//             }
-//             
-//             ref var source = ref _sources[_idx];
-//
-//             var consumator = source.Instance;
-//
-//             // Быстрый пропуск завершенного источника
-//             if (source.Completed)
-//                 continue;
-//             
-//             // Проверяем необходимо ли источник учесть как завершенный
-//             if (consumator.IsCompleted)
-//             {
-//                 if (!source.Completed)
-//                     _watching -= 1;
-//                 
-//                 source.Completed = true;
-//                 continue;
-//             }
-//
-//             if (consumator.TryGet(out var item))
-//             {
-//                 value = item;
-//
-//                 _watermarks[_idx].Watermark = item.Watermark;
-//                 
-//                 consumator.Ack();
-//                 return true;
-//             }
-//         }
-//         
-//         value = default;
-//         return false;
-//     }
-//
-//     public bool IsCompleted => _watching == 0;
-//     
-//     public ValueTask<bool> WaitToReadAsync() => _fanIn.WaitAsync();
-//
-//     public async ValueTask DisposeAsync()
-//     {
-//         await _cancellationTokenRegistration.DisposeAsync();
-//     }
-//
-//     private struct Consumator(ManualConsumator<Carrier<T>> instance)
-//     {
-//         [PublicAPI]
-//         public readonly ManualConsumator<Carrier<T>> Instance = instance;
-//         
-//         [PublicAPI]
-//         public State State;
-//     }
-//
-//     private enum State
-//     {
-//         None,
-//         Waiting,
-//         Completed
-//     }
-//     
-//     private struct WatermarkState()
-//     {
-//         private const long NotInitWatermark = -2;
-//         
-//         private Watermark _watermark = Watermark.From(NotInitWatermark);
-//         
-//         [PublicAPI]
-//         public Watermark Watermark
-//         {
-//             get => _watermark;
-//             set
-//             {
-//                 if (value > _watermark)
-//                     _watermark = value;
-//             }
-//         }
-//
-//         [PublicAPI]
-//         public bool IsSet => _watermark != NotInitWatermark;
-//
-//         [PublicAPI]
-//         public void Reset() => _watermark = Watermark.From(NotInitWatermark);
-//     }
-// }
-//
+﻿using Steelax.Pufflow.Operators.Common;
+using Steelax.Pufflow.Operators.Internal;
+using Steelax.Toolkit.HighPerformance.Concurrency.Primitives;
+using static Steelax.Toolkit.HighPerformance.AdvanceBitOperations;
+
+namespace Steelax.Pufflow.Operators.Aggregators.Merging;
+
+[Flow]
+internal sealed partial class MergeProcessor<T> : IAsyncConsumator<Carrier<T>>
+{
+    private readonly FanInSlim _fanIn;
+    private readonly ManualConsumator<Carrier<T>>[] _sources;
+    
+    private readonly int _count;
+
+    private WatermarkBarrier _barrier;
+    private uint _pending;
+    private uint _ready;
+    
+    private int _globalIdx = -1;
+    
+    public MergeProcessor(IAsyncConsumator<Carrier<T>>[] sources)
+    {
+        // Поддерживаем только до 32 источников для слияния. Этого должно быть более чем достаточно.
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(sources.Length, 32, nameof(sources));
+
+        _fanIn = new FanInSlim();
+        _sources = new ManualConsumator<Carrier<T>>[sources.Length];
+        
+        _count = sources.Length;
+        _barrier = new WatermarkBarrier(sources.Length);
+        
+        _ready = 0;
+        _pending = 0;
+        
+        for (var i = 0; i < sources.Length; i++)
+        {
+            var consumator = _sources[i] = ManualConsumator<Carrier<T>>.Create(sources[i]);
+            consumator.OnReady += _fanIn.GetSignalCallback(i).Handler;
+        }
+    }
+    
+    public void Fuse(out IAsyncConsumator<Carrier<T>> target, FlowContext context)
+    {
+        target = this;
+        context.OnCancelled(_ => _fanIn.Complete());
+    }
+    
+    public bool TryRead(out Carrier<T> value)
+    {
+        if (_fanIn.IsCompleted)
+        {
+            value = default;
+            return false;
+        }
+        
+        if (TryRoundGet(out value) ||
+            TryPendingGet(out value) ||
+            TrySourceGet(out value) ||
+            TryPendingGet(out value) ||
+            TryRoundGet(out value))
+            return true;
+        
+        value = default;
+        return false;
+    }
+    
+    private bool TryRoundGet(out Carrier<T> value)
+    {
+        if (_barrier.NextRound(out var watermark))
+        {
+            if (_barrier.IsCompleted)
+            {
+                _fanIn.Complete();
+            }
+            
+            if (!watermark.IsNothing)
+            {
+                value = new Carrier<T>(watermark);
+                return true;
+            }
+        }
+
+        value = default;
+        return false;
+    }
+    
+    private bool TryPendingGet(out Carrier<T> value)
+    {
+        if (!HasAnyBits(_ready))
+            _ready = _fanIn.Take();
+        
+        while (TryPopBit(ref _ready, out var idx))
+        {
+            ref var source = ref _sources[idx];
+            
+            if (!source.TryGet(out var carrier))
+            {
+                // Устанавливаем либо флаг завершенности, либо ожидания
+                if (source.IsCompleted)
+                    _barrier.Complete(idx);
+                else
+                    SetBit(ref _pending, idx);
+
+                continue;
+            }
+
+            UnsetBit(ref _pending, idx);
+            
+            value = carrier.WithWatermark(Watermark.Nothing);
+            _barrier.Set(idx, carrier.Watermark);
+            source.Ack();
+            
+            return true;
+        }
+        
+        value = default;
+        return false;
+    }
+
+    private bool TrySourceGet(out Carrier<T> value)
+    {
+        if (++_globalIdx >= _count)
+        {
+            _globalIdx = 0;
+        }
+        
+        for (; _globalIdx < _count; _globalIdx++)
+        {
+            // Пропускаем завершенные или поставленные на ожидание (ленивая постановка)
+            if (IsBitSet(_pending, _globalIdx) || _barrier.HasCompleted(_globalIdx))
+                continue;
+            
+            ref var source = ref _sources[_globalIdx];
+
+            if (!source.TryGet(out var carrier))
+            {
+                // Устанавливаем либо флаг завершенности, либо ожидания
+                if (source.IsCompleted)
+                    _barrier.Complete(_globalIdx);
+                else
+                    SetBit(ref _pending, _globalIdx);
+
+                continue;
+            }
+            
+            UnsetBit(ref _pending, _globalIdx);
+            
+            value = carrier.WithWatermark(Watermark.Nothing);
+            _barrier.Set(_globalIdx, carrier.Watermark);
+            source.Ack();
+            
+            return true;
+        }
+        
+        value = default;
+        return false;
+    }
+
+    public bool IsCompleted => _fanIn.IsCompleted;
+    
+    public ValueTask<bool> WaitToReadAsync() => _fanIn.WaitAsync();
+}

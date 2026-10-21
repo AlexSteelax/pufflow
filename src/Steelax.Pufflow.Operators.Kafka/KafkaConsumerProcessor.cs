@@ -22,13 +22,6 @@ namespace Steelax.Pufflow.Operators.Kafka;
 ///         message writes a <see cref="TopicPartitionEpoch" /> → offset entry into its window.
 ///     </para>
 ///     <para>
-///         The reader (pipeline) only reports its own <see cref="Watermark" />: it publishes the newest value
-///         via <see cref="SetReaderWatermark" /> into a single atomic field (<see cref="_publishedWatermark" />).
-///         The consume loop reads that field on every watermark cutoff and derives a delayed commit point
-///         (never flushing against the most recently published mark), then closes the current window and
-///         flushes those closed head windows whose watermark the derived commit point has been reached.
-///     </para>
-///     <para>
 ///         The closed-window counter (<see cref="_closed" />) is bound to the pool: incremented when a
 ///         window is closed and decremented when it is flushed. The head window is considered closed while
 ///         the counter is greater than zero.
@@ -42,8 +35,10 @@ namespace Steelax.Pufflow.Operators.Kafka;
 ///     </para>
 /// </remarks>
 [Flow]
-internal sealed partial class KafkaConsumerProcessor<TKey, TValue> : IAsyncDisposable, IWatermarkCommiter
+internal sealed partial class KafkaConsumerProcessor<TKey, TValue> : IAsyncDisposable
 {
+    private readonly WatermarkTracker _tracker;
+    
     /// <summary>The Kafka consumer.</summary>
     private readonly IConsumer<TKey, TValue> _consumer;
 
@@ -58,14 +53,6 @@ internal sealed partial class KafkaConsumerProcessor<TKey, TValue> : IAsyncDispo
     ///     (<see cref="WatermarkProvider.System" />); overridable for tests.
     /// </summary>
     private readonly WatermarkProvider _watermarkProvider;
-
-    /// <summary>
-    ///     The latest watermark reported by the reader (the pipeline). This is the single cross-thread state
-    ///     updated by <see cref="SetReaderWatermark" />. It always reflects the newest reader progress and is not
-    ///     itself the value windows are flushed against — the work loop derives a delayed "commit point" from it
-    ///     so the newest (possibly still in-flight) progress step is never committed prematurely.
-    /// </summary>
-    private long _publishedWatermark = Watermark.NothingValue;
 
     /// <summary>
     ///     Records that could not be written to the output producer (it was not accepting them). A non-empty
@@ -105,18 +92,21 @@ internal sealed partial class KafkaConsumerProcessor<TKey, TValue> : IAsyncDispo
     /// <summary>Initializes a new instance of the processor.</summary>
     /// <param name="consumer">The Kafka consumer. After being passed to the processor, external access is forbidden.</param>
     /// <param name="options">Processor settings (buffer capacity, window pool size, backpressure threshold, etc.).</param>
+    /// <param name="tracker"></param>
     /// <param name="errorPolicy">The error policy deciding how consume and advance (commit) errors are handled.</param>
     /// <param name="watermarkProvider">The watermark source; defaults to monotonic time.</param>
     /// <param name="timeProvider">The time source for the timers; defaults to the system one.</param>
     public KafkaConsumerProcessor(
         IConsumer<TKey, TValue> consumer,
         KafkaConsumerOptions options,
+        WatermarkTracker tracker,
         KafkaErrorPolicy? errorPolicy,
         WatermarkProvider? watermarkProvider = null,
         TimeProvider? timeProvider = null)
     {
         ArgumentNullException.ThrowIfNull(consumer);
 
+        _tracker = tracker;
         _consumer = consumer;
         _options = options;
         _errorPolicy = errorPolicy ?? KafkaErrorPolicy.Default;
@@ -149,38 +139,6 @@ internal sealed partial class KafkaConsumerProcessor<TKey, TValue> : IAsyncDispo
         
         context.OnCancelled(_ => _fan.Complete());
     }
-
-    /// <summary>
-    ///     Publishes the reader's (pipeline) watermark. Safe to call from any thread.
-    /// </summary>
-    /// <param name="watermark">The mark up to which the reader has processed data.</param>
-    /// <remarks>
-    ///     <para>
-    ///         A <see cref="Watermark.Nothing()" /> value is ignored — it carries no progress.
-    ///     </para>
-    ///     <para>
-    ///         Only one field (<see cref="_publishedWatermark" />) is advanced, as the maximum of the reported
-    ///         watermarks. The work loop turns these values into a delayed commit point (windows are committed
-    ///         against a previous such value, never against the most recently published one), which lets a whole
-    ///         significant step elapse before confirmed offsets are flushed.
-    ///     </para>
-    /// </remarks>
-    [PublicAPI]
-    public void SetReaderWatermark(Watermark watermark)
-    {
-        // Nothing carries no progress — ignore it.
-        if (watermark.IsNothing)
-            return;
-
-        var current = (long)watermark;
-
-        // Publish the newest progress point only; repeated (or lower) values are naturally ignored.
-        InterlockedMath.AdvanceMax(ref _publishedWatermark, current);
-    }
-
-    /// <summary>Returns the latest watermark reported by the reader (for tests/diagnostics).</summary>
-    [PublicAPI]
-    public Watermark GetReaderWatermark() => Watermark.From(Volatile.Read(ref _publishedWatermark));
 
     /// <summary>
     ///     Flushes the closed head windows whose watermark has been reached by the reader's confirmed
@@ -353,8 +311,8 @@ internal sealed partial class KafkaConsumerProcessor<TKey, TValue> : IAsyncDispo
 
     /// <summary>
     ///     Records <paramref name="watermark" /> as the newest emitted progress point. Owned exclusively by the
-    ///     consume loop (single-threaded), so it is a plain field write; <see cref="SetReaderWatermark" /> is the
-    ///     only cross-thread entry point and the only place that needs an atomic advance.
+    ///     consume loop (single-threaded), so it is a plain field write; the reader's report of its own progress
+    ///     goes through <see cref="WatermarkTracker" /> (the only cross-thread entry point).
     /// </summary>
     private void ReconcileEmittedWatermark(Watermark watermark)
     {

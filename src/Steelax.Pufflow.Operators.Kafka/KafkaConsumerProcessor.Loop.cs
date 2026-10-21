@@ -1,6 +1,6 @@
 using Confluent.Kafka;
-using Steelax.Pufflow.Abstractions;
 using Steelax.Pufflow.Operators.Common;
+using static Steelax.Toolkit.HighPerformance.AdvanceBitOperations;
 
 namespace Steelax.Pufflow.Operators.Kafka;
 
@@ -51,8 +51,8 @@ internal partial class KafkaConsumerProcessor<TKey, TValue>
         // Worker-owned delayed progress state (only touched by this loop).
         // pendingWatermark mirrors the newest published value the loop has accepted; commit is the confirmed
         // point windows are flushed against — it always lags the newest reader progress by one significant step.
-        var pendingWatermark = Watermark.Nothing();
-        var commitWatermark = Watermark.Nothing();
+        var pendingWatermark = Watermark.Nothing;
+        var commitWatermark = Watermark.Nothing;
 
         try
         {
@@ -64,7 +64,7 @@ internal partial class KafkaConsumerProcessor<TKey, TValue>
                 switch (_loopMode)
                 {
                     case LoopMode.Normal:
-                    case LoopMode.Emergency or LoopMode.Idle when fanSet.IsSet(AdvanceTimerSignal):
+                    case LoopMode.Emergency or LoopMode.Idle when IsBitSet(fanSet, AdvanceTimerSignal):
                     {
                         var advanced = Advance();
 
@@ -83,7 +83,7 @@ internal partial class KafkaConsumerProcessor<TKey, TValue>
                 }
 
                 // The watermark timer fired a cutoff: fix offsets (close window + flush confirmed).
-                if (fanSet.IsSet(WatermarkTimerSignal))
+                if (IsBitSet(fanSet, WatermarkTimerSignal))
                 {
                     NextWindow();
 
@@ -91,7 +91,7 @@ internal partial class KafkaConsumerProcessor<TKey, TValue>
                     // reports a strictly newer mark does the previously accepted value become confirmed and
                     // flushable; the newest value is merely adopted as the next step. Repeated values never
                     // promote a commit by themselves.
-                    var latest = Watermark.From(Volatile.Read(ref _publishedWatermark));
+                    var latest = _tracker.GetProgress();
                     if (latest > pendingWatermark)
                     {
                         commitWatermark = pendingWatermark;

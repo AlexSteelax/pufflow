@@ -1,5 +1,4 @@
 ﻿using System.Runtime.CompilerServices;
-using Steelax.Pufflow.Operators.Common;
 using Steelax.Toolkit.HighPerformance;
 using Steelax.Toolkit.HighPerformance.Concurrency.Collections;
 using Steelax.Toolkit.HighPerformance.Concurrency.Primitives;

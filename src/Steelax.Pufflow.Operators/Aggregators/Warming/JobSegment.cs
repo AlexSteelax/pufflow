@@ -37,7 +37,7 @@ internal sealed class JobSegment<TKey, TWarm>(int capacity) : IAsyncDisposable
 
     /// <summary>The maximum watermark of the keys added to the segment.</summary>
     [PublicAPI]
-    public Watermark Watermark { get; private set; } = Watermark.Nothing();
+    public Watermark Watermark { get; private set; } = Watermark.Nothing;
 
     /// <summary>Indicates whether the segment can still accept keys (not running and not full).</summary>
     [PublicAPI]
@@ -174,7 +174,7 @@ internal sealed class JobSegment<TKey, TWarm>(int capacity) : IAsyncDisposable
         _job = null;
         _count = 0;
         
-        Watermark = Watermark.Nothing();
+        Watermark = Watermark.Nothing;
         
         job!.Dispose();
     }

@@ -189,7 +189,7 @@ internal sealed class Warmer<TKey, TWarm> : IAsyncDisposable
     /// </param>
     /// <param name="policy">The sink that consumes per-key warming data on the loop thread.</param>
     /// <param name="keys">The keys warmed by the extracted segment, when one was available.</param>
-    /// <param name="watermark">The maximum watermark of the extracted segment (may be <see cref="Watermark.Nothing()" />).</param>
+    /// <param name="watermark">The maximum watermark of the extracted segment (may be <see cref="Watermark.Nothing" />).</param>
     /// <returns>
     ///     <see langword="true" /> if a completed head segment was warmed; otherwise, <see langword="false" />.
     /// </returns>
@@ -220,7 +220,7 @@ internal sealed class Warmer<TKey, TWarm> : IAsyncDisposable
         Truncate();
 
         keys = null;
-        watermark = Watermark.Nothing();
+        watermark = Watermark.Nothing;
         return false;
     }
 

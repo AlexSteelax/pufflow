@@ -88,7 +88,7 @@ public class CarrierChunkerTests
     {
         var chunker = new CarrierChunker<int>(4);
 
-        chunker.Add(new Carrier<int>(1, Watermark.Nothing()));
+        chunker.Add(new Carrier<int>(1, Watermark.Nothing));
 
         Carrier<Chunk<int>> chunk;
         Assert.True(chunker.TryGet(out chunk));
@@ -114,20 +114,18 @@ public class CarrierChunkerTests
     }
 
     [Fact]
-    public void DefaultCarrier_HasWatermarkZero_NotNothing()
+    public void DefaultCarrier_HasNoWatermark_LikeNothing()
     {
-        // Footgun documented by the tests: default(Watermark) is 0 while the "no watermark" sentinel
-        // Watermark.Nothing() is -1. A caller that reads the produced Carrier without checking the
-        // TryGet/TryRead boolean (or a default slot) observes watermark 0 — the exact symptom of
-        // "Chunking makes the watermark always 0" when the real value was never produced.
+        // default(Watermark) is the unbiased 0 sentinel (the true "no watermark" value), so a caller
+        // that reads a default slot observes Watermark.Nothing — no fake 0 tick. A carrier built
+        // through the library API carries the same sentinel.
         Carrier<Chunk<int>> empty = default;
 
         Assert.False(empty.HasValue);
-        Assert.Equal(Watermark.From(0), empty.Watermark);
-        Assert.False(empty.Watermark.IsNothing);
+        Assert.True(empty.Watermark.IsNothing);
+        Assert.Equal(Watermark.Nothing, empty.Watermark);
 
-        // For contrast, a carrier created through the library API carries the true sentinel.
-        var bare = new Carrier<Chunk<int>>(Watermark.Nothing());
+        var bare = new Carrier<Chunk<int>>(Watermark.Nothing);
         Assert.True(bare.Watermark.IsNothing);
         Assert.Equal(-1L, bare.Watermark);
     }
