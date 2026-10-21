@@ -32,6 +32,9 @@ jobs:
     name: Build
     if: github.event_name == 'pull_request' || github.ref_type == 'branch'
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
 
     steps:
       - uses: actions/checkout@v4
@@ -67,6 +70,9 @@ jobs:
     needs: build
     if: github.event_name == 'pull_request' || github.ref_type == 'branch'
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
 
     steps:
       - uses: actions/checkout@v4
