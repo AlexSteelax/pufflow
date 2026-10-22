@@ -79,18 +79,6 @@ public static partial class CarrierChunkProcessorTests
         return result;
     }
 
-    /// <summary>Fills the writer with <paramref name="values" />, delaying <paramref name="gapMs" /> between consecutive items.</summary>
-    private static async Task FillDelayedAsync(ChannelWriter<Carrier<int>> writer, int gapMs, params Carrier<int>[] values)
-    {
-        for (var i = 0; i < values.Length; i++)
-        {
-            writer.TryWrite(values[i]);
-
-            if (i < values.Length - 1)
-                await Task.Delay(gapMs);
-        }
-    }
-
     // --- assertions ---
 
     private static void AssertDataWindow(Window window, int[] items, Watermark watermark)

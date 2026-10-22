@@ -11,13 +11,11 @@ public static partial class WarmProcessorTests
         [Fact(Timeout = 1_000)]
         public async Task CollapsesPassthroughAndGroupsIntoValues_WithFinalProgressWatermark()
         {
-            var input = new List<Carrier<int>>
-            {
-                new(1, Watermark.From(10)), // passthrough (odd)
-                new(2, Watermark.From(20)), // warm
-                new(3, Watermark.From(30)), // passthrough
-                new(4, Watermark.From(40)) // warm
-            };
+            var input = SeqValues(
+                (1, 10), // passthrough (odd)
+                (2, 20), // warm
+                (3, 30), // passthrough
+                (4, 40)); // warm
 
             await using var flow = new FlowSource();
             var policy = new WarmingHelper.PredicatePolicy(WarmEvenOnly);
@@ -67,7 +65,7 @@ public static partial class WarmProcessorTests
             Assert.Equal(Watermark.From(40), progress.Max());
 
             // The progress watermark closes the stream as the final empty (bare-progress) carrier item.
-            Assert.True(!results[^1].HasValue, "watermark should be the last item");
+            Assert.False(results[^1].HasValue, "watermark should be the last item");
             Assert.Equal(Watermark.From(40), results[^1].Watermark);
 
             Assert.Equal(2, policy.PlainItems.Count);

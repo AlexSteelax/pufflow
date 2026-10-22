@@ -9,11 +9,9 @@ public static partial class WarmProcessorTests
         [Fact(Timeout = 1_000)]
         public async Task WarmableValues_ProduceGroups_AndWatermark()
         {
-            var input = new List<Carrier<int>>
-            {
-                new(2, Watermark.From(20)),
-                new(4, Watermark.From(40))
-            };
+            var input = SeqValues(
+                (2, 20),
+                (4, 40));
 
             await using var flow = new FlowSource();
             var policy = new WarmingHelper.PredicatePolicy(WarmEvenOnly); // warm even keys (2, 4)
@@ -37,13 +35,11 @@ public static partial class WarmProcessorTests
         [Fact(Timeout = 1_000)]
         public async Task Mixed_PassthroughAndWarmable_AllEmitted()
         {
-            var input = new List<Carrier<int>>
-            {
-                new(1, Watermark.From(10)), // passthrough
-                new(2, Watermark.From(20)), // warm
-                new(3, Watermark.From(30)), // passthrough
-                new(4, Watermark.From(40)) // warm
-            };
+            var input = SeqValues(
+                (1, 10), // passthrough
+                (2, 20), // warm
+                (3, 30), // passthrough
+                (4, 40)); // warm
 
             await using var flow = new FlowSource();
             var policy = new WarmingHelper.PredicatePolicy(WarmEvenOnly);

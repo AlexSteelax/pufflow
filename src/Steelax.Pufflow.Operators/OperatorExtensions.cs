@@ -1,4 +1,5 @@
 ﻿using Steelax.Pufflow.Operators.Aggregators.Buffering;
+using Steelax.Pufflow.Operators.Aggregators.Merging;
 using Steelax.Pufflow.Operators.Aggregators.Warming;
 using Steelax.Pufflow.Operators.Builders;
 using Steelax.Pufflow.Operators.Common;
@@ -25,6 +26,29 @@ public static partial class OperatorExtensions
         /// </returns>
         [PublicAPI]
         public WarmingBuilder<TValue> Warming(WarmOptions options) => new(left, options);
+    }
+    
+    /// <summary>
+    ///     Merges several pull sources into a single source: the resulting stream emits the carriers of all
+    ///     inputs in an interleaved order, and its watermark advances as the minimum over the sources (using a
+    ///     round-based barrier) so downstream stages never outrun the slowest input.
+    /// </summary>
+    /// <typeparam name="T">The element type carried by the merged sources.</typeparam>
+    /// <param name="flowSource">The flow source hosting the merged stage.</param>
+    /// <param name="sources">The pull inputs to merge (2..32 inputs).</param>
+    /// <returns>A source emitting the merged <see cref="Carrier{T}" /> stream.</returns>
+    /// <remarks>
+    ///     The merged source completes when <b>every</b> input has completed; the final bare-progress carrier
+    ///     carries the maximum watermark seen across the sources. Inputs can be produced by any pull stage,
+    ///     e.g. <see cref="Expose{T}" /> from other pipelines.
+    /// </remarks>
+    [PublicAPI]
+    public static Source<IAsyncConsumator<Carrier<T>>> MergeSources<T>(
+        this FlowSource flowSource,
+        params IAsyncConsumator<Carrier<T>>[] sources)
+    {
+        var processor = new MergeProcessor<T>(sources);
+        return flowSource.On(processor);
     }
     
     // extension<T>(Source<IAsyncEnumerator<T>> left)

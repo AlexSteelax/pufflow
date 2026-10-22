@@ -47,32 +47,6 @@ public static partial class WarmProcessorTests
             .ToListAsync(TestContext.Current.CancellationToken);
     }
 
-    // -- Value/group/progress extraction helpers over the Carrier<Unio<...>> output ------------------
-
-    /// <summary>Pass-through values (carrier payload union T0) present in the output.</summary>
-    private static TValue[] Values<TValue, TGroup>(IReadOnlyList<Carrier<Unio<TValue, TGroup>>> results)
-    {
-        return results.Where(static r => r is { HasValue: true, Value.IsT0: true }).Select(static r => r.Value.AsT0).ToArray();
-    }
-
-    /// <summary>Accumulated group results (carrier payload union T1) present in the output.</summary>
-    private static TGroup[] Groups<TGroup>(IReadOnlyList<Carrier<Unio<int, TGroup>>> results)
-    {
-        return results.Where(static r => r is { HasValue: true, Value.IsT1: true }).Select(static r => r.Value.AsT1).ToArray();
-    }
-
-    /// <summary>The real progress watermarks carried by empty (bare) carriers.</summary>
-    private static Watermark[] Progress<TValue, TGroup>(IReadOnlyList<Carrier<Unio<TValue, TGroup>>> results)
-    {
-        return results.Where(static w => w.HasWatermark).Select(static c => c.Watermark).ToArray();
-    }
-
-    /// <summary>Indicates whether the last output item is an empty (bare-progress) carrier.</summary>
-    private static bool IsLastProgress<TValue, TGroup>(IReadOnlyList<Carrier<Unio<TValue, TGroup>>> results)
-    {
-        return results.Count > 0 && !results[^1].HasValue;
-    }
-
     // Accumulator: collects int values and emits a single string group on consumption.
     private sealed class ListAccumulator : WarmAccumulator<int, string>
     {

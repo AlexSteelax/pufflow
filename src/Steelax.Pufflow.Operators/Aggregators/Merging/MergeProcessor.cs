@@ -1,4 +1,4 @@
-﻿using Steelax.Pufflow.Operators.Common;
+using Steelax.Pufflow.Operators.Common;
 using Steelax.Pufflow.Operators.Internal;
 using Steelax.Toolkit.HighPerformance.Concurrency.Primitives;
 using static Steelax.Toolkit.HighPerformance.AdvanceBitOperations;
@@ -48,44 +48,40 @@ internal sealed partial class MergeProcessor<T> : IAsyncConsumator<Carrier<T>>
     
     public bool TryRead(out Carrier<T> value)
     {
+        value = default;
+        
         if (_fanIn.IsCompleted)
-        {
-            value = default;
             return false;
-        }
         
-        if (TryRoundGet(out value) ||
-            TryPendingGet(out value) ||
-            TrySourceGet(out value) ||
-            TryPendingGet(out value) ||
-            TryRoundGet(out value))
-            return true;
-        
-        value = default;
-        return false;
-    }
-    
-    private bool TryRoundGet(out Carrier<T> value)
-    {
-        if (_barrier.NextRound(out var watermark))
-        {
-            if (_barrier.IsCompleted)
-            {
-                _fanIn.Complete();
-            }
-            
-            if (!watermark.IsNothing)
-            {
-                value = new Carrier<T>(watermark);
-                return true;
-            }
-        }
+        var ret =
+            // Проверка раунда, чтобы своевременно выдать результат, фактически генерируя heartbeat-watermark
+            TryRoundGet(ref value) ||
+            // Довыгружаем готовое перед тем как перейти к активному опросу
+            TryPendingGet(ref value) ||
+            // Если довыгружать нечего, то переходим к round-robin опросу
+            TrySourceGet(ref value) ||
+            // Т.к. источники конкурентные, то прежде чем перейти к завершающему этапу, делаем повторную проверку на готовность источников
+            TryPendingGet(ref value) ||
+            // Повторная проверка раунда в конце: выгрузка данных могла завершить источники и добить раунд,
+            // поэтому финальный маркер (максимум по завершённым) должен быть выдан здесь, до закрытия fan-in
+            TryRoundGet(ref value);
 
-        value = default;
-        return false;
+        if (_barrier.IsCompleted)
+            _fanIn.Complete();
+        
+        return ret;
     }
     
-    private bool TryPendingGet(out Carrier<T> value)
+    private bool TryRoundGet(scoped ref Carrier<T> value)
+    {
+        if (!_barrier.NextRound(out var watermark) || watermark.IsNothing)
+            return false;
+        
+        value = new Carrier<T>(watermark);
+        return true;
+    }
+    
+    private bool TryPendingGet(scoped ref Carrier<T> value)
     {
         if (!HasAnyBits(_ready))
             _ready = _fanIn.Take();
@@ -110,15 +106,14 @@ internal sealed partial class MergeProcessor<T> : IAsyncConsumator<Carrier<T>>
             value = carrier.WithWatermark(Watermark.Nothing);
             _barrier.Set(idx, carrier.Watermark);
             source.Ack();
-            
+
             return true;
         }
         
-        value = default;
         return false;
     }
 
-    private bool TrySourceGet(out Carrier<T> value)
+    private bool TrySourceGet(scoped ref Carrier<T> value)
     {
         if (++_globalIdx >= _count)
         {
@@ -149,15 +144,20 @@ internal sealed partial class MergeProcessor<T> : IAsyncConsumator<Carrier<T>>
             value = carrier.WithWatermark(Watermark.Nothing);
             _barrier.Set(_globalIdx, carrier.Watermark);
             source.Ack();
+
+            // Выставляем обратно сигнал готовности, т.к. текущие данные прочитали, а значит потенциально на следующем витке есть данные
+            SetBit(ref _ready, _globalIdx);
             
             return true;
         }
         
-        value = default;
         return false;
     }
 
     public bool IsCompleted => _fanIn.IsCompleted;
-    
-    public ValueTask<bool> WaitToReadAsync() => _fanIn.WaitAsync();
+
+    public ValueTask<bool> WaitToReadAsync()
+    {
+        return HasAnyBits(_ready) ? ValueTask.FromResult(true) : _fanIn.WaitAsync();
+    }
 }

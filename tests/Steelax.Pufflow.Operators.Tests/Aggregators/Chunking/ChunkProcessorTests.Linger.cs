@@ -1,4 +1,4 @@
-﻿using System.Threading.Channels;
+using System.Threading.Channels;
 using Steelax.Pufflow.Sdk.Test;
 
 namespace Steelax.Pufflow.Operators.Tests.Aggregators.Chunking;
@@ -58,7 +58,7 @@ public static partial class ChunkProcessorTests
         public async Task PartialChunk_FlushedAfterLinger()
         {
             await using var flow = new FlowSource();
-            var chunks = await RunTimedAsync(
+            var chunks = await RunTimedChunkingAsync(
                 flow,
                 size: 100,
                 TimeSpan.FromMilliseconds(30),
@@ -73,7 +73,7 @@ public static partial class ChunkProcessorTests
         public async Task FastSource_FillsByCount_BeforeLinger()
         {
             await using var flow = new FlowSource();
-            var chunks = await RunAsync([1, 2, 3, 4, 5, 6], size: 3, TimeSpan.FromSeconds(5), flow, TestContext.Current.CancellationToken);
+            var chunks = await RunChunkingAsync([1, 2, 3, 4, 5, 6], size: 3, TimeSpan.FromSeconds(5), flow, TestContext.Current.CancellationToken);
 
             AssertChunks(chunks, [1, 2, 3], [4, 5, 6]);
         }
@@ -82,7 +82,7 @@ public static partial class ChunkProcessorTests
         public async Task LingerFlush_ThenCountFlush_ContinuesOnFreshChunk()
         {
             await using var flow = new FlowSource();
-            var chunks = await RunTimedAsync(
+            var chunks = await RunTimedChunkingAsync(
                 flow,
                 size: 2,
                 TimeSpan.FromMilliseconds(30),
@@ -98,7 +98,7 @@ public static partial class ChunkProcessorTests
         public async Task ItemsWithinWindow_AccumulateIntoOneChunk()
         {
             await using var flow = new FlowSource();
-            var chunks = await RunTimedAsync(
+            var chunks = await RunTimedChunkingAsync(
                 flow,
                 size: 10,
                 TimeSpan.FromMilliseconds(30),
@@ -114,7 +114,7 @@ public static partial class ChunkProcessorTests
         public async Task CountAndLinger_AlternateWithinSingleStream()
         {
             await using var flow = new FlowSource();
-            var chunks = await RunTimedAsync(
+            var chunks = await RunTimedChunkingAsync(
                 flow,
                 size: 2,
                 TimeSpan.FromMilliseconds(30),

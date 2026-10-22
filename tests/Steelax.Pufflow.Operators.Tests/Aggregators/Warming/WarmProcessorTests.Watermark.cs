@@ -152,7 +152,7 @@ public static partial class WarmProcessorTests
 
             // The maximum real watermark equals the input maximum and closes the pipeline.
             var maxInput = Watermark.From((n / 3) * 10);
-            Assert.True(!results[^1].HasValue, "watermark should be the last item");
+            Assert.False(results[^1].HasValue, "watermark should be the last item");
             Assert.Equal(maxInput, results[^1].Watermark);
         }
     }

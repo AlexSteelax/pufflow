@@ -29,6 +29,8 @@ internal struct WatermarkBarrier
         _completed = ~OfFirstBits(count);
         
         _count = count;
+        
+        _collection[..].Fill(Watermark.Nothing);
     }
 
     [PublicAPI]

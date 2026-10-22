@@ -1,4 +1,4 @@
-﻿using Steelax.Pufflow.Operators.Aggregators.Chunking;
+using Steelax.Pufflow.Operators.Aggregators.Chunking;
 
 namespace Steelax.Pufflow.Operators.Tests.Aggregators.Chunking;
 

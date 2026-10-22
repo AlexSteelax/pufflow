@@ -12,13 +12,11 @@ public static partial class WarmProcessorTests
             // A full warmed batch (SegmentCapacity = 4 keys): every key is warmable, so no value passes
             // through directly — each is released as its own accumulated group, and the batch's covering
             // watermark (60) is emitted at the end as the progress marker.
-            var input = new List<Carrier<int>>
-            {
-                new(1, Watermark.From(10)),
-                new(3, Watermark.From(30)),
-                new(5, Watermark.From(50)),
-                new(6, Watermark.From(60))
-            };
+            var input = SeqValues(
+                (1, 10),
+                (3, 30),
+                (5, 50),
+                (6, 60));
 
             await using var flow = new FlowSource();
             var policy = new WarmingHelper.PredicatePolicy(static _ => true);
@@ -44,12 +42,10 @@ public static partial class WarmProcessorTests
         [Fact(Timeout = 1_000)]
         public async Task WarmableNever_AllValuesPassThrough_NoGroups()
         {
-            var input = new List<Carrier<int>>
-            {
-                new(1, Watermark.From(10)),
-                new(3, Watermark.From(30)),
-                new(5, Watermark.From(50))
-            };
+            var input = SeqValues(
+                (1, 10),
+                (3, 30),
+                (5, 50));
 
             await using var flow = new FlowSource();
             // Nothing is ever warmable — every value must pass straight through, no groups, no warming.
@@ -74,12 +70,10 @@ public static partial class WarmProcessorTests
         {
             // Only three values (SegmentCapacity = 4): a partial segment that is never filled by size.
             // It must be sealed and released by the segment TTL, not hang until the warm batch completes.
-            var input = new List<Carrier<int>>
-            {
-                new(1, Watermark.From(10)),
-                new(3, Watermark.From(30)),
-                new(5, Watermark.From(50))
-            };
+            var input = SeqValues(
+                (1, 10),
+                (3, 30),
+                (5, 50));
 
             var options = DefaultOptions() with { SegmentTtl = TimeSpan.FromMilliseconds(50) };
 
