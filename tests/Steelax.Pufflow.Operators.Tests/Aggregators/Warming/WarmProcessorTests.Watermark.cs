@@ -128,12 +128,10 @@ public static partial class WarmProcessorTests
 
             flow
                 .OnAsyncConsumatorSource(carriers)
-                .Warming(
-                    options,
-                    new WarmingHelper.SyncJobFactory(),
-                    ValueToKey,
-                    policy,
-                    new QueueAccumulatorFactory())
+                .Warming(options)
+                .PartitionBy(ValueToKey)
+                .Prefetch(new WarmingHelper.SyncJobFactory(), policy)
+                .Accumulate(new QueueAccumulatorFactory())
                 .Consume(out var reader);
 
             await flow.ExecuteAsync(TestContext.Current.CancellationToken);

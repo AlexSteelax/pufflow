@@ -1,4 +1,7 @@
 ﻿using Steelax.Pufflow.Operators.Aggregators.Buffering;
+using Steelax.Pufflow.Operators.Aggregators.Warming;
+using Steelax.Pufflow.Operators.Builders;
+using Steelax.Pufflow.Operators.Common;
 
 namespace Steelax.Pufflow.Operators;
 
@@ -8,6 +11,22 @@ namespace Steelax.Pufflow.Operators;
 [PublicAPI]
 public static partial class OperatorExtensions
 {
+    extension<TValue>(Source<IAsyncConsumator<Carrier<TValue>>> left)
+    {
+        /// <summary>
+        ///     Starts the fluent warming stage builder. The stream is warmed in key segments before values are
+        ///     forwarded downstream, letting per-key background jobs (e.g. caching or enrichment) complete before
+        ///     related values pass through. A carrier is a data element (a value to process) or an empty progress
+        ///     point; the output carries either a passthrough value or an accumulated group as its payload.
+        /// </summary>
+        /// <param name="options">Numeric and timing configuration (concurrency, segments, budget, watchdog).</param>
+        /// <returns>
+        ///     A chain entry point: continue with <c>PartitionBy</c> → <c>Prefetch</c> → <c>Accumulate</c>.
+        /// </returns>
+        [PublicAPI]
+        public WarmingBuilder<TValue> Warming(WarmOptions options) => new(left, options);
+    }
+    
     // extension<T>(Source<IAsyncEnumerator<T>> left)
     // {
     //     /// <summary>

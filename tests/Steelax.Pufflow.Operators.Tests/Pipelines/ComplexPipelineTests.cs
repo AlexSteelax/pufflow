@@ -54,7 +54,10 @@
 //             .Map(static (scoped in int v) => v + 1)
 //             .Map(static (scoped in int v) => v * 2)
 //             .Buffering(128)
-//             .Warming(WarmOptions, new StubJobFactory(), IdentityKey, new NoWarmPolicy(), new QueueAccumulatorFactory())
+//             .Warming(WarmOptions)
+//             .PartitionBy(IdentityKey)
+//             .Prefetch(new StubJobFactory(), new NoWarmPolicy())
+//             .Accumulate(new QueueAccumulatorFactory())
 //             .Buffering(256)
 //             .Consume(out var reader);
 //
@@ -84,7 +87,10 @@
 //             .OnProducatorSource(CarrierSource)
 //             .Map(static (scoped in int v) => v + 1)
 //             .Buffering(128)
-//             .Warming(WarmOptions, new StubJobFactory(), IdentityKey, new NoWarmPolicy(), new QueueAccumulatorFactory())
+//             .Warming(WarmOptions)
+//             .PartitionBy(IdentityKey)
+//             .Prefetch(new StubJobFactory(), new NoWarmPolicy())
+//             .Accumulate(new QueueAccumulatorFactory())
 //             .Buffering(256)
 //             .Consume(out var reader);
 //
@@ -110,7 +116,10 @@
 //             .OnProducatorSource(CarrierSource)
 //             .Map(static (scoped in int v) => v + 1)
 //             .Buffering(128)
-//             .Warming(WarmOptions, new StubJobFactory(), IdentityKey, new NoWarmPolicy(), new QueueAccumulatorFactory())
+//             .Warming(WarmOptions)
+//             .PartitionBy(IdentityKey)
+//             .Prefetch(new StubJobFactory(), new NoWarmPolicy())
+//             .Accumulate(new QueueAccumulatorFactory())
 //             .Buffering(256)
 //             .Consume(out var reader);
 //

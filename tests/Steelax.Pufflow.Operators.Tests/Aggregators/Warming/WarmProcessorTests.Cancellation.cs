@@ -29,12 +29,10 @@ public static partial class WarmProcessorTests
 
             flow
                 .OnAsyncConsumatorSource([new Carrier<int>(2, Watermark.From(20))])
-                .Warming(
-                    options,
-                    new WarmingHelper.ManualJobFactory(() => job),
-                    ValueToKey,
-                    policy,
-                    new ListAccumulatorFactory())
+                .Warming(options)
+                .PartitionBy(ValueToKey)
+                .Prefetch(new WarmingHelper.ManualJobFactory(() => job), policy)
+                .Accumulate(new ListAccumulatorFactory())
                 .Consume(out var reader);
 
             // Start the pipeline: background tasks begin (WarmProcessor via Task.Run and sink via

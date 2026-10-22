@@ -35,12 +35,10 @@ public static partial class WarmProcessorTests
     {
         flow
             .OnAsyncConsumatorSource(input)
-            .Warming(
-                options,
-                jobFactory,
-                ValueToKey,
-                policy,
-                accumulatorFactory)
+            .Warming(options)
+            .PartitionBy(ValueToKey)
+            .Prefetch(jobFactory, policy)
+            .Accumulate(accumulatorFactory)
             .Consume(out var reader);
 
         await flow.ExecuteAsync(cancellationToken);
