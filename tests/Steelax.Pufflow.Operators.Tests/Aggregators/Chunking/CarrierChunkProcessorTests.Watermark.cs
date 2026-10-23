@@ -219,7 +219,7 @@ public static partial class CarrierChunkProcessorTests
             var windows = await RunAsync(input, size: 7, linger: TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
 
             // Every value is emitted exactly once, in order.
-            Assert.Equal(Enumerable.Range(0, n), windows.SelectMany(static w => w.Items));
+            Assert.Equal(Enumerable.Range(0, n), windows.Where(static w => w.HasValue).SelectMany(static w => w.Value.Span.ToArray()));
 
             // Progress never goes backwards.
             var real = windows.Select(static w => w.Watermark).Where(static w => !w.IsNothing).ToArray();

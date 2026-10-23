@@ -16,4 +16,7 @@ public static class FlowSeq
     
     public static List<Carrier<int>> SeqValuesNoWatermark(IEnumerable<int> values) =>
         values.Select(static v => new Carrier<int>(v, Watermark.Nothing)).ToList();
+    
+    public static List<Carrier<int>> SeqWatermarks(IEnumerable<long> values) =>
+        values.Select(static v => new Carrier<int>(Watermark.From(v))).ToList();
 }

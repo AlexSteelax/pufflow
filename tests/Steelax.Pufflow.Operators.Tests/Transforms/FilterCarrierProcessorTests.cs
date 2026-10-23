@@ -77,11 +77,7 @@ public class FilterCarrierProcessorTests
         {
             // Bare progress carriers carry no value to evaluate and are structural: they must pass even when the
             // predicate rejects every data value.
-            var input = new[]
-            {
-                new Carrier<int>(Watermark.From(50)),
-                new Carrier<int>(Watermark.From(60)),
-            };
+            var input = SeqWatermarks([50, 60]);
 
             await using var flow = new FlowSource();
             var actual = await RunPullAsync(input, static (scoped in int v) => false, flow, TestContext.Current.CancellationToken);
