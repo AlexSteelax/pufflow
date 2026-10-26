@@ -36,6 +36,24 @@ public delegate TTarget MapSelector<TSource, out TTarget>(scoped in TSource sour
 public delegate TTarget MapSelector<TSource, TArgs, out TTarget>(scoped in TSource source, scoped in TArgs args);
 
 /// <summary>
+///     A pure function that expands an element of <typeparamref name="TSource" /> into a (possibly empty)
+///     subset of <typeparamref name="TTarget" /> elements, returned as a span. The processor copies the
+///     produced values into its internal result queue immediately, so the span may point to a stack frame
+///     (<c>stackalloc</c>) or a reused buffer that the selector overwrites on its next invocation.
+/// </summary>
+/// <typeparam name="TSource">The input element type.</typeparam>
+/// <typeparam name="TTarget">The produced element type.</typeparam>
+/// <param name="source">The element to expand.</param>
+/// <returns>The produced elements; the processor retains them by copying.</returns>
+/// <remarks>
+///     The delegate is the projection primitive of the <c>Expand()</c> transform (a 1:N element expansion):
+///     each input element expands into zero or more output elements downstream. The returned span is valid only
+///     for the duration of the call — the processor never defers the copy past the invocation.
+/// </remarks>
+[PublicAPI]
+public delegate ReadOnlySpan<TTarget> ExpandSelector<TSource, TTarget>(scoped in TSource source);
+
+/// <summary>
 ///     An internal implementation seam that folds the public selector arities into one delegate driving the
 ///     stateless mapping processor (<c>BypassMapProcessor</c>): <c>scope</c> is the operator-held state (the public
 ///     selector itself for single- and argument-bearing mapping) and <c>args</c> are the fixed per-pipe arguments.
