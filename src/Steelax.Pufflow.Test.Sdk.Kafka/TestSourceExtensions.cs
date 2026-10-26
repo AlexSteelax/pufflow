@@ -35,14 +35,12 @@ public static class TestSourceExtensions
             InitialFill(consumer.Writer, initial);
             
             writer = consumer.Writer;
-            
-            return flowSource.OnKafkaSource(
-                consumer,
-                options,
-                tracker,
-                new TestKafkaErrorPolicy(),
-                watermarkProvider,
-                timeProvider);
+
+            return flowSource
+                .OnKafkaSource(options)
+                .WithErrorPolicy(new TestKafkaErrorPolicy())
+                .WithCustomProviders(watermarkProvider, timeProvider)
+                .Use(consumer, tracker);
         }
     }
     

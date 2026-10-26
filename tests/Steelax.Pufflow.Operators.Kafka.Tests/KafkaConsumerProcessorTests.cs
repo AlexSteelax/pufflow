@@ -71,7 +71,9 @@ public class KafkaConsumerProcessorTests
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
         await using var flow = new FlowSource();
         flow
-            .OnKafkaSource(consumer, IdleAwareOptions(), tracker, new TestKafkaErrorPolicy())
+            .OnKafkaSource(IdleAwareOptions())
+            .WithErrorPolicy(new TestKafkaErrorPolicy())
+            .Use(consumer, tracker)
             .Consume(out var reader);
 
         var readerTask = CollectAndCommitAsync(reader, tracker, cts.Token);

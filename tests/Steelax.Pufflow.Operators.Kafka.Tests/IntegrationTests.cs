@@ -114,7 +114,9 @@ public class IntegrationTests(ApplicationFixture application, ITestOutputHelper 
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
         await using var flow = new FlowSource();
         flow
-            .OnKafkaSource(consumer, DefaultOptions, WatermarkTracker.Create(), KafkaErrorPolicy.Default)
+            .OnKafkaSource(DefaultOptions)
+            .WithErrorPolicy(KafkaErrorPolicy.Default)
+            .Use(consumer, WatermarkTracker.Create())
             .Consume(out var reader);
 
         var runTask = flow.ExecuteAsync(cts.Token); // background: the Kafka source has no end-of-stream
@@ -158,7 +160,9 @@ public class IntegrationTests(ApplicationFixture application, ITestOutputHelper 
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
         await using var flow = new FlowSource();
         flow
-            .OnKafkaSource(consumer, DefaultOptions, WatermarkTracker.Create(), KafkaErrorPolicy.Default)
+            .OnKafkaSource(DefaultOptions)
+            .WithErrorPolicy(KafkaErrorPolicy.Default)
+            .Use(consumer, WatermarkTracker.Create())
             .Consume(out var reader);
 
         var runTask = flow.ExecuteAsync(cts.Token); // background: the Kafka source has no end-of-stream
@@ -227,7 +231,9 @@ public class IntegrationTests(ApplicationFixture application, ITestOutputHelper 
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
         await using var flow = new FlowSource();
         flow
-            .OnKafkaSource(consumer, options, WatermarkTracker.Create(), KafkaErrorPolicy.Default)
+            .OnKafkaSource(options)
+            .WithErrorPolicy(KafkaErrorPolicy.Default)
+            .Use(consumer, WatermarkTracker.Create())
             .Consume(out var reader);
 
         var runTask = flow.ExecuteAsync(cts.Token); // background: the Kafka source has no end-of-stream
