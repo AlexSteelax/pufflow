@@ -8,8 +8,6 @@ namespace Steelax.Pufflow.Operators.Tests.Transforms;
 ///     Black-box tests for the <c>Expand()</c> operator (backed by
 ///     <see cref="BypassExpandCarrierProcessor{T1,T2}" />): each value-bearing carrier expands into zero or more
 ///     carriers downstream (1:N), while bare-progress markers pass through so the stream watermark keeps advancing.
-///     The selectors reuse shared buffers, exercising the processor's requirement to copy the returned span during
-///     the invocation.
 /// </summary>
 public class BypassExpandCarrierProcessorTests
 {
@@ -20,8 +18,8 @@ public class BypassExpandCarrierProcessorTests
     private static Snapshot Of(Carrier<int> item) =>
         item.HasValue ? new Snapshot(item.Value, item.Watermark, HasValue: true) : new Snapshot(null, item.Watermark, HasValue: false);
 
-    /// <summary>Expands nothing — the input value disappears, like a filter.</summary>
-    private static ReadOnlySpan<int> ExpandNothing(scoped in int value) => [];
+    /// <summary>Expands nothing — the input value produces no output elements.</summary>
+    private static void ExpandNothing(scoped in int value, ExpandQueue<int> target) { }
 
     private static async Task<List<Snapshot>> RunPullAsync(
         IEnumerable<Carrier<int>> input,
@@ -148,9 +146,7 @@ public class BypassExpandCarrierProcessorTests
     [Fact(Timeout = TimeoutMs)]
     public async Task SingleValue_ExpandsBeyondSmallScratch()
     {
-        // One input expands into 100 outputs. The selector reuses the same buffer for every invocation, so
-        // the operator must copy each returned span immediately — otherwise later inputs would corrupt the
-        // earlier results.
+        // One input expands into 100 outputs: the operator's internal queue grows as needed and nothing is lost.
         var input = new Carrier<int>[] { new(1, Watermark.From(42)) };
 
         await using var flow = new FlowSource();
@@ -170,26 +166,17 @@ public class BypassExpandCarrierProcessorTests
         Assert.Empty(actual);
     }
 
-    /// <summary>Shared scratch so each selector invocation overwrites the previous result.</summary>
-    private static readonly int[] DoubleBuffer = new int[2];
-    private static readonly int[] HundredBuffer = new int[100];
-
-    /// <summary>Expands a value into two: the value itself and its tenfold, via a reused buffer.</summary>
-    private static ReadOnlySpan<int> Double(scoped in int value)
+    /// <summary>Expands a value into two: the value itself and its tenfold.</summary>
+    private static void Double(scoped in int value, ExpandQueue<int> target)
     {
-        DoubleBuffer[0] = value;
-        DoubleBuffer[1] = value * 10;
-        return DoubleBuffer;
+        target.Write(value);
+        target.Write(value * 10);
     }
 
-    /// <summary>Expands a value into a hundred consecutive values (larger than a small scratch buffer).</summary>
-    private static ReadOnlySpan<int> ExpandHundred(scoped in int value)
+    /// <summary>Expands a value into a hundred consecutive values (larger than the initial queue capacity).</summary>
+    private static void ExpandHundred(scoped in int value, ExpandQueue<int> target)
     {
-        var buffer = HundredBuffer;
-
-        for (var i = 0; i < buffer.Length; i++)
-            buffer[i] = value * 100 + i;
-
-        return buffer;
+        for (var i = 0; i < 100; i++)
+            target.Write(value * 100 + i);
     }
 }

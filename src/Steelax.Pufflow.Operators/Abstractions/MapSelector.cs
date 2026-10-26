@@ -36,22 +36,22 @@ public delegate TTarget MapSelector<TSource, out TTarget>(scoped in TSource sour
 public delegate TTarget MapSelector<TSource, TArgs, out TTarget>(scoped in TSource source, scoped in TArgs args);
 
 /// <summary>
-///     A pure function that expands an element of <typeparamref name="TSource" /> into a (possibly empty)
-///     subset of <typeparamref name="TTarget" /> elements, returned as a span. The processor copies the
-///     produced values into its internal result queue immediately, so the span may point to a stack frame
-///     (<c>stackalloc</c>) or a reused buffer that the selector overwrites on its next invocation.
+///     A pure(ish) function that expands an element of <typeparamref name="TSource" /> into a (possibly empty)
+///     subset of <typeparamref name="TTarget" /> elements, added one by one into the provided
+///     <paramref name="target" /> buffer. The operator owns (and reuses) the buffer, so no results are rewritten
+///     or retained past the invocation.
 /// </summary>
 /// <typeparam name="TSource">The input element type.</typeparam>
 /// <typeparam name="TTarget">The produced element type.</typeparam>
 /// <param name="source">The element to expand.</param>
-/// <returns>The produced elements; the processor retains them by copying.</returns>
+/// <param name="target">The result buffer the produced elements are added into; must not be retained past the call.</param>
 /// <remarks>
 ///     The delegate is the projection primitive of the <c>Expand()</c> transform (a 1:N element expansion):
-///     each input element expands into zero or more output elements downstream. The returned span is valid only
-///     for the duration of the call — the processor never defers the copy past the invocation.
+///     each input element expands into zero or more output elements downstream, produced dynamically with no
+///     upfront size knowledge.
 /// </remarks>
 [PublicAPI]
-public delegate ReadOnlySpan<TTarget> ExpandSelector<TSource, TTarget>(scoped in TSource source);
+public delegate void ExpandSelector<TSource, TTarget>(scoped in TSource source, ExpandQueue<TTarget> target);
 
 /// <summary>
 ///     An internal implementation seam that folds the public selector arities into one delegate driving the
