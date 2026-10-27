@@ -23,6 +23,7 @@
     </ItemGroup>
 
     <ItemGroup>
+        <PackageReference Include="Celerity.Collections" />
         <PackageReference Include="Steelax.Toolkit.HighPerformance"/>
         <PackageReference Include="Unio"/>
     </ItemGroup>

@@ -35,7 +35,7 @@ internal sealed class Warmer<TKey, TWarm> : IAsyncDisposable
     private readonly CancellationTokenSource _cts = new();
     private readonly Stack<JobSegment<TKey, TWarm>> _free = new();
     private readonly IJobFactory<TKey, TWarm> _jobFactory;
-    private readonly Deque<JobSegment<TKey, TWarm>> _queue;
+    private readonly FixedDeque<JobSegment<TKey, TWarm>> _queue;
     private readonly BitTaskAny _taskAny;
 
     /// <summary>The number of segments from the head already handed to <see cref="_taskAny" /> (the run frontier).</summary>
@@ -64,7 +64,7 @@ internal sealed class Warmer<TKey, TWarm> : IAsyncDisposable
         _jobFactory = jobFactory;
         _segmentCapacity = segmentCapacity;
         _taskAny = new BitTaskAny(OnSignal, maxConcurrency);
-        _queue = new Deque<JobSegment<TKey, TWarm>>(maxQueued);
+        _queue = new FixedDeque<JobSegment<TKey, TWarm>>(maxQueued);
     }
 
     /// <summary>

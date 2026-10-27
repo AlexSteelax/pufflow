@@ -59,7 +59,7 @@ internal sealed partial class KafkaConsumerProcessor<TKey, TValue> : IAsyncDispo
     ///     queue means the loop must drain it first (a fresh watermark is obtained at write time) before
     ///     consuming the next records. Watermarks are not stored on failure.
     /// </summary>
-    private readonly Deque<ConsumeResult<TKey, TValue>> _pending;
+    private readonly FixedDeque<ConsumeResult<TKey, TValue>> _pending;
 
     /// <summary>
     ///     The most recent watermark that was actually emitted to the output producer (either as a record
@@ -113,7 +113,7 @@ internal sealed partial class KafkaConsumerProcessor<TKey, TValue> : IAsyncDispo
         _watermarkProvider = watermarkProvider ?? WatermarkProvider.System;
 
         _windows = new RingCursor<WatermarkStore>(options.WindowSize, static () => new WatermarkStore());
-        _pending = new Deque<ConsumeResult<TKey, TValue>>(options.EmergencyCapacity);
+        _pending = new FixedDeque<ConsumeResult<TKey, TValue>>(options.EmergencyCapacity);
         _fan = new FanInSlim();
         _advanceStrategy = KafkaAdvanceStrategy.Create(consumer, options.AdvanceStrategy);
 
@@ -135,7 +135,7 @@ internal sealed partial class KafkaConsumerProcessor<TKey, TValue> : IAsyncDispo
     {
         _buffer = target;
         
-        _ = context.RegisterBackgroundProcess(_ => InternalExecuteAsync(context));
+        _ = context.RegisterBackgroundProcess(static (context, instance) => instance.InternalExecuteAsync(context), this);
         
         context.OnCancelled(_ => _fan.Complete());
     }
