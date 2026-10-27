@@ -19,7 +19,7 @@ public class BypassExpandCarrierProcessorTests
         item.HasValue ? new Snapshot(item.Value, item.Watermark, HasValue: true) : new Snapshot(null, item.Watermark, HasValue: false);
 
     /// <summary>Expands nothing — the input value produces no output elements.</summary>
-    private static void ExpandNothing(scoped in int value, ExpandQueue<int> target) { }
+    private static void ExpandNothing(scoped in int value, QueueSpan<int> target) { }
 
     private static async Task<List<Snapshot>> RunPullAsync(
         IEnumerable<Carrier<int>> input,
@@ -167,14 +167,14 @@ public class BypassExpandCarrierProcessorTests
     }
 
     /// <summary>Expands a value into two: the value itself and its tenfold.</summary>
-    private static void Double(scoped in int value, ExpandQueue<int> target)
+    private static void Double(scoped in int value, QueueSpan<int> target)
     {
         target.Write(value);
         target.Write(value * 10);
     }
 
     /// <summary>Expands a value into a hundred consecutive values (larger than the initial queue capacity).</summary>
-    private static void ExpandHundred(scoped in int value, ExpandQueue<int> target)
+    private static void ExpandHundred(scoped in int value, QueueSpan<int> target)
     {
         for (var i = 0; i < 100; i++)
             target.Write(value * 100 + i);

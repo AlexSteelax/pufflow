@@ -51,7 +51,7 @@ public delegate TTarget MapSelector<TSource, TArgs, out TTarget>(scoped in TSour
 ///     upfront size knowledge.
 /// </remarks>
 [PublicAPI]
-public delegate void ExpandSelector<TSource, TTarget>(scoped in TSource source, ExpandQueue<TTarget> target);
+public delegate void ExpandSelector<TSource, TTarget>(scoped in TSource source, QueueSpan<TTarget> target);
 
 /// <summary>
 ///     An internal implementation seam that folds the public selector arities into one delegate driving the

@@ -1,3 +1,4 @@
+using Celerity.Collections;
 using Steelax.Pufflow.Operators.Abstractions;
 using Steelax.Pufflow.Operators.Common;
 
@@ -14,7 +15,7 @@ namespace Steelax.Pufflow.Operators.Transforms;
 /// <remarks>
 ///     <para>
 ///         Neither endpoint is a pure pass-through, because one input expands to an unknown number of outputs.
-///         The pull sides therefore keep an internal <see cref="ExpandQueue{T}" /> result buffer: a consumed
+///         The pull sides therefore keep an internal <see cref="QueueSpan{T}" /> result buffer: a consumed
 ///         input is expanded once into it, and the produced carriers are handed out one at a time from its head.
 ///     </para>
 ///     <para>
@@ -61,14 +62,20 @@ internal sealed partial class BypassExpandCarrierProcessor<TSource, TTarget>
 
     private class Consumator(IConsumator<Carrier<TSource>> reader, ExpandSelector<TSource, TTarget> selector) : IConsumator<Carrier<TTarget>>
     {
-        protected ExpandQueue<TTarget> Queue = new(16);
+        protected QueueSpan<TTarget> Queue = new(new Deque<TTarget>(16));
+
+        /// <summary>The watermark of the input whose expanded values the queue currently holds.</summary>
+        private Watermark _watermark;
 
         public bool TryRead(out Carrier<TTarget> value)
         {
             DequeueLabel:
 
-            if (Queue.TryDequeue(out value))
+            if (Queue.TryDequeue(out var item))
+            {
+                value = new Carrier<TTarget>(item, _watermark);
                 return true;
+            }
 
             ReadNextLabel:
 
@@ -80,7 +87,7 @@ internal sealed partial class BypassExpandCarrierProcessor<TSource, TTarget>
 
             if (carrier.HasValue)
             {
-                Queue.Begin(carrier.Watermark);
+                _watermark = carrier.Watermark;
                 selector.Invoke(carrier.Value, Queue);
 
                 if (Queue.HasAny())
