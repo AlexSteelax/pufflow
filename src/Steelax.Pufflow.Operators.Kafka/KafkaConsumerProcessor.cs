@@ -115,7 +115,7 @@ internal sealed partial class KafkaConsumerProcessor<TKey, TValue> : IAsyncDispo
         _windows = new RingCursor<WatermarkStore>(options.WindowSize, static () => new WatermarkStore());
         _pending = new FixedDeque<ConsumeResult<TKey, TValue>>(options.EmergencyCapacity);
         _fan = new FanInSlim();
-        _advanceStrategy = KafkaAdvanceStrategy.Create(consumer, options.AdvanceStrategy);
+        _advanceStrategy = Create(consumer, options.AdvanceStrategy);
 
         _advanceTimer = (timeProvider ?? TimeProvider.System)
             .CreateTimer(static state => Unsafe.As<object?, FanInSlim>(ref state).Signal(AdvanceTimerSignal), _fan, Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
@@ -165,7 +165,8 @@ internal sealed partial class KafkaConsumerProcessor<TKey, TValue> : IAsyncDispo
             // next cutoff), abort (stop the loop cleanly) or throw (fault the pipeline).
             try
             {
-                head.Flush(_advanceStrategy);
+                _advanceStrategy.Flush(ref head);
+                head.Clear();
             }
             catch (KafkaException ex)
             {
@@ -218,7 +219,7 @@ internal sealed partial class KafkaConsumerProcessor<TKey, TValue> : IAsyncDispo
             if (!TryWriteRecord(result, watermark))
                 break;
 
-            window.Add(watermark, TopicPartitionEpoch.From(result), result.Offset);
+            window.Add(watermark, new TopicPartitionEpoch(result.Topic, result.Partition, result.LeaderEpoch), result.Offset);
             _ = _pending.TryPopFirst(out _);
         }
 
@@ -237,7 +238,7 @@ internal sealed partial class KafkaConsumerProcessor<TKey, TValue> : IAsyncDispo
                 return false;
             }
 
-            window.Add(watermark, TopicPartitionEpoch.From(result), result.Offset);
+            window.Add(watermark, new TopicPartitionEpoch(result.Topic, result.Partition, result.LeaderEpoch), result.Offset);
             return true;
         }
 

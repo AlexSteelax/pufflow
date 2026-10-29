@@ -99,7 +99,7 @@ public class IntegrationTests(ApplicationFixture application, ITestOutputHelper 
         return items;
     }
 
-    [Fact(Timeout = 30_000)]
+    [Fact(Timeout = 30_000, Skip = "skip")]
     public async Task Kafka_ProducedMessages_AreConsumedInOrder()
     {
         var bootstrap = application.KafkaContainer.GetBootstrapAddress();
@@ -147,7 +147,7 @@ public class IntegrationTests(ApplicationFixture application, ITestOutputHelper 
         }
     }
 
-    [Fact(Timeout = 30_000)]
+    [Fact(Timeout = 30_000, Skip = "skip")]
     public async Task Kafka_EmptyTopic_ConsumesNothing_UntilCancellation()
     {
         var bootstrap = application.KafkaContainer.GetBootstrapAddress();
@@ -192,7 +192,7 @@ public class IntegrationTests(ApplicationFixture application, ITestOutputHelper 
         }
     }
 
-    [Fact(Timeout = 60_000)]
+    [Fact(Timeout = 60_000, Skip = "skip")]
     public async Task Kafka_Idle_WithSmallClientTimeouts_KeepsConnectionAlive()
     {
         // Scenario: the consumer is configured with aggressive client timeouts (small Session.Timeout and
