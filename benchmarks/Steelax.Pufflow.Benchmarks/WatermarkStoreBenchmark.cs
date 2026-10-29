@@ -14,6 +14,9 @@ public interface IWatermarkStoreWriter
 {
     /// <summary>Adds an offset to the window, taking the max per key and updating the maximum watermark.</summary>
     void Add(Watermark watermark, string topic, Partition partition, int? leaderEpoch, Offset offset);
+
+    /// <summary>Resets the window to its empty state, marking all recorded slots as inactive.</summary>
+    void Clear();
 }
 
 /// <summary>
@@ -27,6 +30,8 @@ public struct WatermarkStoreAdapter() : IWatermarkStoreWriter
 
     public void Add(Watermark watermark, string topic, Partition partition, int? leaderEpoch, Offset offset) =>
         _inner.Add(watermark, new TopicPartitionEpoch(topic, partition, leaderEpoch), offset);
+
+    public void Clear() => _inner.Clear();
 }
 
 /// <summary>
@@ -47,6 +52,7 @@ public class WatermarkStoreBenchmark<T>
     where T : IWatermarkStoreWriter, new()
 {
     private const int MessagesPerInvoke = 10_000_000;
+    private const int ClearsPerInvoke = 1_000_000;
 
     [Params(1, 10, 100)]
     // ReSharper disable once MemberCanBePrivate.Global
@@ -94,5 +100,19 @@ public class WatermarkStoreBenchmark<T>
             var key = keys[i % groups];
             store.Add(Watermark.From(i), key.Topic, key.Partition, key.LeaderEpoch, new Offset(i));
         }
+    }
+
+    /// <summary>
+    ///     Resets the window <see cref="ClearsPerInvoke" /> times: the cost of the per-window drain that runs
+    ///     once per closed window (marking every slot inactive). The cost is bounded by the window's high-water
+    ///     mark <c>_count</c>, not by its current fill, so repeated clears measure the steady drain.
+    /// </summary>
+    [Benchmark(OperationsPerInvoke = ClearsPerInvoke)]
+    public void Clear()
+    {
+        ref var store = ref _store;
+
+        for (var i = 0; i < ClearsPerInvoke; i++)
+            store.Clear();
     }
 }
