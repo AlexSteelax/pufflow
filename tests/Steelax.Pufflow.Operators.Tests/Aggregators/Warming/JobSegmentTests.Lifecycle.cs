@@ -11,7 +11,7 @@ public static partial class JobSegmentTests
         [Fact]
         public void RunJob_AfterApply_CanRunAgain()
         {
-            var segment = new JobSegment<int, string>(capacity: 2);
+            var segment = new JobSegment<int, string, DefaultHasher<int>>(capacity: 2);
             var policy = new WarmingHelper.DefaultPolicy();
 
             segment.Advance(1, Watermark.From(10));
@@ -28,7 +28,7 @@ public static partial class JobSegmentTests
         [Fact]
         public async Task RunJob_TwiceWithoutApply_ThrowsInvalidOperation()
         {
-            var segment = new JobSegment<int, string>(capacity: 2);
+            var segment = new JobSegment<int, string, DefaultHasher<int>>(capacity: 2);
 
             segment.Advance(1, Watermark.From(10));
             await segment.RunJob(new WarmingHelper.SyncJobFactory(), CancellationToken.None);

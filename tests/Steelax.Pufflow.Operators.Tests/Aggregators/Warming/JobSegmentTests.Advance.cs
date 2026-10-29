@@ -11,7 +11,7 @@ public static partial class JobSegmentTests
         [Fact]
         public void KeepsMaximumWatermark()
         {
-            var segment = new JobSegment<int, string>(capacity: 4);
+            var segment = new JobSegment<int, string, DefaultHasher<int>>(capacity: 4);
 
             segment.Advance(1, Watermark.From(10));
             segment.Advance(2, Watermark.From(30));
@@ -23,7 +23,7 @@ public static partial class JobSegmentTests
         [Fact]
         public void AfterRun_ThrowsInvalidOperation()
         {
-            var segment = new JobSegment<int, string>(capacity: 2);
+            var segment = new JobSegment<int, string, DefaultHasher<int>>(capacity: 2);
 
             segment.Advance(1, Watermark.From(10));
             segment.RunJob(new WarmingHelper.PartialJobFactory([]), CancellationToken.None);
@@ -34,7 +34,7 @@ public static partial class JobSegmentTests
         [Fact]
         public void WhenFull_ThrowsInvalidOperation()
         {
-            var segment = new JobSegment<int, string>(capacity: 1);
+            var segment = new JobSegment<int, string, DefaultHasher<int>>(capacity: 1);
 
             segment.Advance(1, Watermark.From(10));
 

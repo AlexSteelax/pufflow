@@ -2,7 +2,8 @@
 
 namespace Steelax.Pufflow.Operators.Aggregators.Warming;
 
-internal sealed partial class WarmProcessor<TKey, TValue, TGroup, TWarm>
+internal sealed partial class WarmProcessor<TKey, TValue, TGroup, TWarm, THasher>
+    where THasher : struct, IHashProvider<TKey>
 {
     private async Task InternalExecuteAsync(CancellationToken cancellationToken)
     {

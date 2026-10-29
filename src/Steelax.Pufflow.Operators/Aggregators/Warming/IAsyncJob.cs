@@ -14,20 +14,19 @@
 ///         been applied (or when the warmer itself is disposed).
 ///     </para>
 ///     <para>
-    ///         The job writes a result for a key only when it produced warm data for it; keys it does not write are
-    ///         reported downstream as warmed without data. All writes must happen before <see cref="ExecuteAsync" />
-    ///         returns, so the returned task's completion publishes the results to the framework.
-    ///     </para>
-    ///     <para>
-    ///         The implementation is responsible for providing the level of asynchrony that keeps the warmer's
-    ///         consumer loop unblocked. The returned task should be genuinely asynchronous: heavy CPU-bound work
-    ///         should be dispatched to a pool (for example via <c>Task.Run</c>), while pure I/O can rely on the
-    ///         framework's async model without extra wrapping.
-    ///     </para>
-    /// </remarks>
+///         The job writes a result for a key only when it produced warm data for it; keys it does not write are
+///         reported downstream as warmed without data. All writes must happen before <see cref="ExecuteAsync" />
+///         returns, so the returned task's completion publishes the results to the framework.
+///     </para>
+///     <para>
+///         The implementation is responsible for providing the level of asynchrony that keeps the warmer's
+///         consumer loop unblocked. The returned task should be genuinely asynchronous: heavy CPU-bound work
+///         should be dispatched to a pool (for example via <c>Task.Run</c>), while pure I/O can rely on the
+///         framework's async model without extra wrapping.
+///     </para>
+/// </remarks>
 [PublicAPI]
 public interface IAsyncJob<TKey, TWarm> : IDisposable
-    where TKey : notnull
 {
     /// <summary>
     ///     Starts warming for the given keys, recording each produced result into <paramref name="holder" />.

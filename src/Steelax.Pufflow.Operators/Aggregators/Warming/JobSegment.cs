@@ -9,6 +9,7 @@ namespace Steelax.Pufflow.Operators.Aggregators.Warming;
 /// </summary>
 /// <typeparam name="TKey">The key type used to partition the stream for warming.</typeparam>
 /// <typeparam name="TWarm">The warming data type produced by an <see cref="IAsyncJob{TKey,TWarm}" />.</typeparam>
+/// <typeparam name="THasher">The hasher used by the segment's reusable result buffer.</typeparam>
 /// <remarks>
 ///     <para>
 ///         The segment holds a fixed-capacity key buffer, the reusable result buffer (backed by the
@@ -23,15 +24,15 @@ namespace Steelax.Pufflow.Operators.Aggregators.Warming;
 ///         be returned to the pool by the warmer.
 ///     </para>
 /// </remarks>
-internal sealed class JobSegment<TKey, TWarm>(int capacity) : IAsyncDisposable
-    where TKey : notnull
+internal sealed class JobSegment<TKey, TWarm, THasher>(int capacity) : IAsyncDisposable
+    where THasher : struct, IHashProvider<TKey>
 {
     private static readonly bool IsReferenceOrContainsReferences = RuntimeHelpers.IsReferenceOrContainsReferences<TKey>();
 
     private readonly TKey[] _keys = new TKey[capacity];
     private int _count;
 
-    private readonly Dictionary<TKey, TWarm> _holder = new(capacity);
+    private readonly CelerityDictionary<TKey, TWarm, THasher> _holder = new(capacity);
     private IAsyncJob<TKey, TWarm>? _job;
     private Task? _task;
 
@@ -86,7 +87,7 @@ internal sealed class JobSegment<TKey, TWarm>(int capacity) : IAsyncDisposable
                 var key = _keys[i];
                 
                 if (_holder.TryGetValue(key, out var warm))
-                    policy.OnWarmed(key, warm);
+                    policy.OnWarmed(key, warm!);
                 else
                     policy.OnWarmed(key);
             }

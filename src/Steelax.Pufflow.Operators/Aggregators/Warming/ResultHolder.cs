@@ -1,11 +1,11 @@
-﻿using System.Runtime.InteropServices;
-
-namespace Steelax.Pufflow.Operators.Aggregators.Warming;
+﻿namespace Steelax.Pufflow.Operators.Aggregators.Warming;
 
 /// <summary>
 ///     A write-only sink handed to an <see cref="IAsyncJob{TKey,TWarm}" /> so it can record the warm data
-///     it produced for the segment's keys. The holder wraps a reusable <see cref="Dictionary{TKey,TWarm}" />
-///     that the framework owns and recycles across segments; the job only fills it and never reads it back.
+///     it produced for the segment's keys. The holder wraps the framework's reusable keyed buffer behind the
+///     standard <see cref="IDictionary{TKey,TValue}" /> write surface, so the job's contract stays hasher-free;
+///     the framework owns and recycles the buffer across segments, and the job only fills it and never reads
+///     it back.
 /// </summary>
 /// <typeparam name="TKey">The key type used to partition the stream for warming.</typeparam>
 /// <typeparam name="TWarm">The warming data type produced by the job.</typeparam>
@@ -17,18 +17,17 @@ namespace Steelax.Pufflow.Operators.Aggregators.Warming;
 ///     </para>
 ///     <para>
 ///         The holder is not thread-safe and must be used only from the job's warm thread, strictly before the
-///         task returned by <see cref="IAsyncJob{TKey,TWarm}.ExecuteAsync" /> completes. The framework reads it
-///         back after that completion, so the completion of the task acts as the publication barrier for all
+///         task returned by <see cref="IAsyncJob{TKey,TWarm}.ExecuteAsync" /> completes. The framework reads
+///         it back after that completion, so the completion of the task acts as the publication barrier for all
 ///         writes made before it.
 ///     </para>
 /// </remarks>
 [PublicAPI]
 public readonly struct ResultHolder<TKey, TWarm>
-    where TKey : notnull
 {
-    private readonly Dictionary<TKey, TWarm> _buffer;
-    
-    internal ResultHolder(Dictionary<TKey, TWarm> buffer) => _buffer = buffer;
+    private readonly IDictionary<TKey, TWarm?> _buffer;
+
+    internal ResultHolder(IDictionary<TKey, TWarm?> buffer) => _buffer = buffer;
 
     /// <summary>
     ///     Records the warm data produced for <paramref name="key" />. Overwrites any earlier value for the
@@ -37,5 +36,5 @@ public readonly struct ResultHolder<TKey, TWarm>
     /// <param name="key">The warmed key.</param>
     /// <param name="warm">The warm data produced for the key.</param>
     [PublicAPI]
-    public void Write(TKey key, TWarm warm) => CollectionsMarshal.GetValueRefOrAddDefault(_buffer, key, out _) = warm;
+    public void Write(TKey key, TWarm warm) => _buffer[key] = warm;
 }

@@ -11,7 +11,7 @@ public static partial class JobSegmentTests
         [Fact]
         public void Initially_CanAdvanceAndEmpty()
         {
-            var segment = new JobSegment<int, string>(capacity: 2);
+            var segment = new JobSegment<int, string, DefaultHasher<int>>(capacity: 2);
 
             Assert.True(segment.CanAdvance);
             Assert.False(segment.HasAny);
@@ -22,7 +22,7 @@ public static partial class JobSegmentTests
         [Fact]
         public void AfterAdvance_HasAny_AndStillCanAdvance()
         {
-            var segment = new JobSegment<int, string>(capacity: 2);
+            var segment = new JobSegment<int, string, DefaultHasher<int>>(capacity: 2);
 
             segment.Advance(1, Watermark.From(10));
 
@@ -34,7 +34,7 @@ public static partial class JobSegmentTests
         [Fact]
         public void AfterRunJob_Completed_NotCanAdvance()
         {
-            var segment = new JobSegment<int, string>(capacity: 2);
+            var segment = new JobSegment<int, string, DefaultHasher<int>>(capacity: 2);
 
             segment.Advance(1, Watermark.From(10));
             segment.RunJob(new WarmingHelper.PartialJobFactory([]), CancellationToken.None);
@@ -47,7 +47,7 @@ public static partial class JobSegmentTests
         [Fact]
         public void AfterApply_ResetToInitial()
         {
-            var segment = new JobSegment<int, string>(capacity: 2);
+            var segment = new JobSegment<int, string, DefaultHasher<int>>(capacity: 2);
 
             segment.Advance(1, Watermark.From(10));
             segment.RunJob(new WarmingHelper.PartialJobFactory([]), CancellationToken.None);

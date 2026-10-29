@@ -11,6 +11,7 @@ namespace Steelax.Pufflow.Operators.Aggregators.Warming;
 /// </summary>
 /// <typeparam name="TKey">The key type used to partition the stream for warming.</typeparam>
 /// <typeparam name="TWarm">The warming data type produced by an <see cref="IAsyncJob{TKey,TWarm}" />.</typeparam>
+/// <typeparam name="THasher">The hasher used by the segments' reusable result buffers.</typeparam>
 /// <remarks>
 ///     <para>
 ///         Keys are accumulated into fixed-capacity segments, which are handed to a warming job once they are
@@ -29,13 +30,13 @@ namespace Steelax.Pufflow.Operators.Aggregators.Warming;
 ///         Faults and cancellations of a segment's job surface when that segment reaches the head.
 ///     </para>
 /// </remarks>
-internal sealed class Warmer<TKey, TWarm> : IAsyncDisposable
-    where TKey : notnull
+internal sealed class Warmer<TKey, TWarm, THasher> : IAsyncDisposable
+    where THasher : struct, IHashProvider<TKey>
 {
     private readonly CancellationTokenSource _cts = new();
-    private readonly Stack<JobSegment<TKey, TWarm>> _free = new();
+    private readonly Stack<JobSegment<TKey, TWarm, THasher>> _free = new();
     private readonly IJobFactory<TKey, TWarm> _jobFactory;
-    private readonly FixedDeque<JobSegment<TKey, TWarm>> _queue;
+    private readonly FixedDeque<JobSegment<TKey, TWarm, THasher>> _queue;
     private readonly BitTaskAny _taskAny;
 
     /// <summary>The number of segments from the head already handed to <see cref="_taskAny" /> (the run frontier).</summary>
@@ -43,7 +44,7 @@ internal sealed class Warmer<TKey, TWarm> : IAsyncDisposable
     private readonly int _segmentCapacity;
 
     /// <summary>
-    ///     Initializes a new <see cref="Warmer{TKey,TWarm}" />.
+    ///     Initializes a new <see cref="Warmer{TKey,TWarm,THasher}" />.
     /// </summary>
     /// <param name="maxConcurrency">The maximum number of concurrently running jobs (1..32).</param>
     /// <param name="maxQueued">The maximum number of segments buffered in the ring.</param>
@@ -64,7 +65,7 @@ internal sealed class Warmer<TKey, TWarm> : IAsyncDisposable
         _jobFactory = jobFactory;
         _segmentCapacity = segmentCapacity;
         _taskAny = new BitTaskAny(OnSignal, maxConcurrency);
-        _queue = new FixedDeque<JobSegment<TKey, TWarm>>(maxQueued);
+        _queue = new FixedDeque<JobSegment<TKey, TWarm, THasher>>(maxQueued);
     }
 
     /// <summary>
@@ -115,14 +116,14 @@ internal sealed class Warmer<TKey, TWarm> : IAsyncDisposable
 
     /// <summary>Takes a reusable segment from the free pool, or allocates a new one.</summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private JobSegment<TKey, TWarm> GetSegment()
+    private JobSegment<TKey, TWarm, THasher> GetSegment()
     {
-        return _free.TryPop(out var segment) ? segment : new JobSegment<TKey, TWarm>(_segmentCapacity);
+        return _free.TryPop(out var segment) ? segment : new JobSegment<TKey, TWarm, THasher>(_segmentCapacity);
     }
 
-    /// <summary>Returns the segment (already reset by its <see cref="JobSegment{TKey,TWarm}.ApplyResult" />) to the free pool.</summary>
+    /// <summary>Returns the segment (already reset by its <see cref="JobSegment{TKey,TWarm,THasher}.ApplyResult" />) to the free pool.</summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private void ReturnSegment(JobSegment<TKey, TWarm> segment)
+    private void ReturnSegment(JobSegment<TKey, TWarm, THasher> segment)
     {
         _free.Push(segment);
     }
@@ -272,7 +273,7 @@ internal sealed class Warmer<TKey, TWarm> : IAsyncDisposable
 
     /// <summary>
     ///     Dequeues the next completed head segment (strict head-of-line), without applying its result.
-    ///     The caller proceeds to apply the result via <see cref="JobSegment{TKey,TWarm}.ApplyResult" /> once
+    ///     The caller proceeds to apply the result via <see cref="JobSegment{TKey,TWarm,THasher}.ApplyResult" /> once
     ///     the segment is out; the caller is also responsible for returning it to the pool. A no-op when
     ///     the head is not yet complete.
     /// </summary>
@@ -280,7 +281,7 @@ internal sealed class Warmer<TKey, TWarm> : IAsyncDisposable
     /// <returns>
     ///     <see langword="true" /> when a completed head segment was extracted; otherwise <see langword="false" />.
     /// </returns>
-    private bool TryExtractCompleted([MaybeNullWhen(false)] out JobSegment<TKey, TWarm> segment)
+    private bool TryExtractCompleted([MaybeNullWhen(false)] out JobSegment<TKey, TWarm, THasher> segment)
     {
         if (_queue.TryPeekFirst(out var head) && head.IsJobCompleted)
         {

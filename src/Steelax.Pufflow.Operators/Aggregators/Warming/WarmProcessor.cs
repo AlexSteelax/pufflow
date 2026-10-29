@@ -12,6 +12,7 @@ namespace Steelax.Pufflow.Operators.Aggregators.Warming;
 /// <typeparam name="TValue">The type of input values.</typeparam>
 /// <typeparam name="TGroup">The type of warmed group results produced by an accumulator.</typeparam>
 /// <typeparam name="TWarm">The warming data type produced by an <see cref="IAsyncJob{TKey,TWarm}" />.</typeparam>
+/// <typeparam name="THasher">The hasher used by the per-key delayed buffer.</typeparam>
 /// <remarks>
 ///     Consumes <see cref="Carrier{T}" /> items of <typeparamref name="TValue" />: an element with data is a value
 ///     to process; an empty element (<see cref="Carrier{T}.HasValue" /> is <see langword="false" />) is a pure
@@ -31,7 +32,7 @@ namespace Steelax.Pufflow.Operators.Aggregators.Warming;
 ///         </item>
 ///         <item>
 ///             <description>
-///                 the <see cref="Warmer{TKey,TWarm}" />: key segmentation, bounded concurrent warm
+///                 the <see cref="Warmer{TKey,TWarm,THasher}" />: key segmentation, bounded concurrent warm
 ///                 jobs, and head-of-line (watermark-ordered) emission — it is the watermark barrier.
 ///             </description>
 ///         </item>
@@ -43,11 +44,11 @@ namespace Steelax.Pufflow.Operators.Aggregators.Warming;
 ///     a fresh segment is extracted from the warmer (see the draining partial).
 /// </remarks>
 [Flow]
-internal sealed partial class WarmProcessor<TKey, TValue, TGroup, TWarm> : IAsyncDisposable
-    where TKey : notnull
+internal sealed partial class WarmProcessor<TKey, TValue, TGroup, TWarm, THasher> : IAsyncDisposable
+    where THasher : struct, IHashProvider<TKey>
 {
     /// <summary>
-    ///     Initializes a new instance of the <see cref="WarmProcessor{TKey,TValue,TGroup,TWarm}" /> class.
+    ///     Initializes a new instance of the <see cref="WarmProcessor{TKey,TValue,TGroup,TWarm,THasher}" /> class.
     /// </summary>
     /// <param name="options">
     ///     Tuning values for the warmer (concurrency, queue, segment size) and the processor (delayed-queue
@@ -77,7 +78,7 @@ internal sealed partial class WarmProcessor<TKey, TValue, TGroup, TWarm> : IAsyn
         ArgumentOutOfRangeException.ThrowIfZero(options.WatchdogPeriod.TotalMilliseconds, nameof(options.WatchdogPeriod));
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(options.SegmentTtl.TotalMilliseconds, nameof(options.SegmentTtl));
 
-        _warmer = new Warmer<TKey, TWarm>(options.MaxConcurrency, options.MaxQueued, options.SegmentCapacity, jobFactory);
+        _warmer = new Warmer<TKey, TWarm, THasher>(options.MaxConcurrency, options.MaxQueued, options.SegmentCapacity, jobFactory);
         
         _keySelector = keySelector;
         _policy = policy;
@@ -85,7 +86,7 @@ internal sealed partial class WarmProcessor<TKey, TValue, TGroup, TWarm> : IAsyn
         _queueWeightLimit = options.QueueWeightLimit;
 
         _fanIn = new FanInSlim();
-        _delayedQueue = new Dictionary<TKey, WarmAccumulator<TValue, TGroup>>();
+        _delayedQueue = new SwissDictionary<TKey, WarmAccumulator<TValue, TGroup>, THasher>();
 
         // Wake the loop when a warm job completes. The input/output readiness is wired in Fuse once the
         // wrapping ManualConsumator / ManualProducator are assigned.

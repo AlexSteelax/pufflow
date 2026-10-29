@@ -3,12 +3,13 @@ using Steelax.Pufflow.Operators.Common;
 namespace Steelax.Pufflow.Operators.Aggregators.Warming;
 
 /// <summary>
-///     Ready-data draining for the <see cref="WarmProcessor{TKey,TValue,TGroup,TWarm}" />: a state machine that
+///     Ready-data draining for the <see cref="WarmProcessor{TKey,TValue,TGroup,TWarm,THasher}" />: a state machine that
 ///     extracts completed segments from the warmer (head-of-line) and emits their groups and covering watermark,
 ///     giving the output to the delayed buffers over the source when both compete. Intended to drive a dedicated
 ///     drain loop; not wired into the consumer loop yet.
 /// </summary>
-internal sealed partial class WarmProcessor<TKey, TValue, TGroup, TWarm>
+internal sealed partial class WarmProcessor<TKey, TValue, TGroup, TWarm, THasher>
+    where THasher : struct, IHashProvider<TKey>
 {
     /// <summary>The portion of a warmed segment (keys + watermark) that could not be fully drained yet.</summary>
     private PendingSegment _pending = new(default, Watermark.Nothing);
@@ -53,7 +54,7 @@ internal sealed partial class WarmProcessor<TKey, TValue, TGroup, TWarm>
                 if (!_delayedQueue.TryGetValue(key, out var accumulator))
                     continue;
 
-                while (accumulator.TryPeek(out var group))
+                while (accumulator!.TryPeek(out var group))
                 {
                     var written = _writer.TryWrite(GroupItem(group));
                     Trace.WriteLine($"[WarmProcessor] write group: key={key}, group={group}, watermark=none, ok={written}");

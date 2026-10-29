@@ -7,14 +7,14 @@ namespace Steelax.Pufflow.Operators.Tests.Aggregators.Warming;
 /// </summary>
 public static partial class WarmerTests
 {
-    private static Warmer<int, string> Create(
+    private static Warmer<int, string, DefaultHasher<int>> Create(
         IJobFactory<int, string>? jobFactory = null,
         Action? onReady = null,
         int maxConcurrency = 2,
         int maxQueued = 4,
         int segmentCapacity = 2)
     {
-        var warmer = new Warmer<int, string>(maxConcurrency, maxQueued, segmentCapacity, jobFactory ?? new WarmingHelper.SyncJobFactory());
+        var warmer = new Warmer<int, string, DefaultHasher<int>>(maxConcurrency, maxQueued, segmentCapacity, jobFactory ?? new WarmingHelper.SyncJobFactory());
 
         if (onReady is not null)
             warmer.OnReady += onReady;
@@ -22,7 +22,7 @@ public static partial class WarmerTests
         return warmer;
     }
 
-    private static void AddKeys(Warmer<int, string> warmer, int[] keys, WatermarkProvider? watermarkProvider = null)
+    private static void AddKeys(Warmer<int, string, DefaultHasher<int>> warmer, int[] keys, WatermarkProvider? watermarkProvider = null)
     {
         watermarkProvider ??= WatermarkProvider.System;
         

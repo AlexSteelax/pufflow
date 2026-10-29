@@ -11,7 +11,7 @@ public static partial class JobSegmentTests
         [Fact]
         public void WhenJobWritesEveryKey_NotifiesPolicyWithWarm()
         {
-            var segment = new JobSegment<int, string>(capacity: 4);
+            var segment = new JobSegment<int, string, DefaultHasher<int>>(capacity: 4);
             var policy = new WarmingHelper.DefaultPolicy();
 
             segment.Advance(1, Watermark.From(10));
@@ -27,7 +27,7 @@ public static partial class JobSegmentTests
         [Fact]
         public void WhenJobWritesNoResult_NotifiesPolicyWithoutWarm()
         {
-            var segment = new JobSegment<int, string>(capacity: 4);
+            var segment = new JobSegment<int, string, DefaultHasher<int>>(capacity: 4);
             var policy = new WarmingHelper.DefaultPolicy();
 
             segment.Advance(1, Watermark.From(10));
@@ -42,7 +42,7 @@ public static partial class JobSegmentTests
         [Fact]
         public void WhenJobWritesSubset_NotifiesEveryKeyExactlyOnce()
         {
-            var segment = new JobSegment<int, string>(capacity: 4);
+            var segment = new JobSegment<int, string, DefaultHasher<int>>(capacity: 4);
             var policy = new WarmingHelper.DefaultPolicy();
 
             segment.Advance(1, Watermark.From(10));
@@ -59,7 +59,7 @@ public static partial class JobSegmentTests
         [Fact]
         public void ReturnsKeysInSegmentOrder()
         {
-            var segment = new JobSegment<int, string>(capacity: 4);
+            var segment = new JobSegment<int, string, DefaultHasher<int>>(capacity: 4);
 
             segment.Advance(3, Watermark.From(30));
             segment.Advance(1, Watermark.From(10));
@@ -74,7 +74,7 @@ public static partial class JobSegmentTests
         [Fact]
         public void BeforeRun_ThrowsInvalidOperation()
         {
-            var segment = new JobSegment<int, string>(capacity: 4);
+            var segment = new JobSegment<int, string, DefaultHasher<int>>(capacity: 4);
             segment.Advance(1, Watermark.From(10));
 
             Assert.Throws<InvalidOperationException>(() => segment.ApplyResult(new WarmingHelper.DefaultPolicy()));
@@ -83,7 +83,7 @@ public static partial class JobSegmentTests
         [Fact]
         public void Twice_ThrowsInvalidOperation()
         {
-            var segment = new JobSegment<int, string>(capacity: 2);
+            var segment = new JobSegment<int, string, DefaultHasher<int>>(capacity: 2);
             segment.Advance(1, Watermark.From(10));
             segment.RunJob(new WarmingHelper.PartialJobFactory([]), CancellationToken.None);
             segment.ApplyResult(new WarmingHelper.DefaultPolicy());
@@ -94,7 +94,7 @@ public static partial class JobSegmentTests
         [Fact]
         public void FaultingJob_ApplyResultRethrowsAndGuards()
         {
-            var segment = new JobSegment<int, string>(capacity: 2);
+            var segment = new JobSegment<int, string, DefaultHasher<int>>(capacity: 2);
             segment.Advance(1, Watermark.From(10));
 
             // The faulting job surfaces its exception when the (completed) task is awaited in ApplyResult.

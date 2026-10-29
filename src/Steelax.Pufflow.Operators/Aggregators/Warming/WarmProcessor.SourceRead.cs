@@ -4,12 +4,13 @@ using Steelax.Pufflow.Operators.Internal;
 namespace Steelax.Pufflow.Operators.Aggregators.Warming;
 
 /// <summary>
-///     Source reading for the <see cref="WarmProcessor{TKey,TValue,TGroup,TWarm}" />: a state machine that
+///     Source reading for the <see cref="WarmProcessor{TKey,TValue,TGroup,TWarm,THasher}" />: a state machine that
 ///     advances the wrapped <see cref="ManualConsumator{T}" /> source one value at a time and reports the
 ///     outcome. Intended to drive a dedicated read loop with output-capacity priority over the delayed
 ///     buffers; not wired into the consumer loop yet.
 /// </summary>
-internal sealed partial class WarmProcessor<TKey, TValue, TGroup, TWarm>
+internal sealed partial class WarmProcessor<TKey, TValue, TGroup, TWarm, THasher>
+    where THasher : struct, IHashProvider<TKey>
 {
     /// <summary>The global progress watermark (max seen from the source), held until the delayed queue is empty.</summary>
     private Watermark _watermark = Watermark.Nothing;
@@ -82,7 +83,7 @@ internal sealed partial class WarmProcessor<TKey, TValue, TGroup, TWarm>
         var key = _keySelector.Invoke(value);
         
         if (_delayedQueue.TryGetValue(key, out var accumulator))
-            return Accumulate(accumulator, in value, watermark);
+            return Accumulate(accumulator!, in value, watermark);
 
         if (_policy.ShouldWarm(key))
             return PlaceOnWarm(key, in value, watermark);

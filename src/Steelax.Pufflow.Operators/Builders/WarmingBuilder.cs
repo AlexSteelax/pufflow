@@ -23,7 +23,7 @@ internal record WarmingBuilderContext<TValue>(
 ///     The resolved projection of a warming builder context, produced from the raw context
 ///     (<see cref="WarmingBuilderContext{TValue}" />) once the key and warm types are known. This is the
 ///     single point where the chain's raw fields are downcast to their actual types, so the
-///     <see cref="WarmingBuilder{TKey,TValue,TWarm}" /> terminal stage can consume strongly typed values.
+///     <see cref="WarmingBuilder{TKey,TValue,TWarm,THasher}" /> terminal stage can consume strongly typed values.
 /// </summary>
 /// <typeparam name="TValue">The upstream element type.</typeparam>
 /// <typeparam name="TKey">The key type used to partition the stream for warming.</typeparam>
@@ -33,7 +33,7 @@ internal record WarmingBuilderContext<TValue, TKey, TWarm>(
     WarmOptions Options,
     MapSelector<TValue, TKey> KeySelector = null!,
     IWarmPolicy<TKey, TWarm> Policy = null!,
-    IJobFactory<TKey, TWarm> JobFactory = null!) where TKey : notnull
+    IJobFactory<TKey, TWarm> JobFactory = null!)
 {
     /// <summary>
     ///     Resolves a raw builder context into its typed projection by downcasting the erased fields.
@@ -50,9 +50,10 @@ internal record WarmingBuilderContext<TValue, TKey, TWarm>(
 
 /// <summary>
 ///     Fluent entry point of the warming stage: selects how the upstream stream is partitioned into
-///     warming segments. Start a chain with <see cref="PartitionBy{TKey}" />, continue with
-///     <see cref="WarmingBuilder{TValue,TKey}.Prefetch{TWarm}" /> and finish with
-///     <see cref="WarmingBuilder{TKey,TValue,TWarm}.Accumulate{TGroup}" />
+///     warming segments. Start a chain with <see cref="PartitionBy{TKey}" /> (default hasher) or
+///     <see cref="PartitionBy{TKey,THasher}" /> (explicit hasher), continue with
+///     <see cref="WarmingBuilder{TValue,TKey,THasher}.Prefetch{TWarm}" />, and finish with
+///     <see cref="WarmingBuilder{TKey,TValue,TWarm,THasher}.Accumulate{TGroup}" />
 ///     (or its collapsing overload).
 /// </summary>
 /// <typeparam name="TValue">The upstream element type.</typeparam>
@@ -68,22 +69,38 @@ public readonly ref struct WarmingBuilder<TValue>
         new WarmingBuilderContext<TValue>(left, options);
     
     /// <summary>
-    ///     Selects the key used to partition the stream into warming segments.
+    ///     Selects the key used to partition the stream into warming segments, probing the processor's
+    ///     per-key buffers with the default <see cref="DefaultHasher{TKey}" />.
     /// </summary>
-    /// <typeparam name="TKey">The key type; must be usable as a dictionary key.</typeparam>
+    /// <typeparam name="TKey">The key type.</typeparam>
     /// <param name="keySelector">Extracts the warming key from each input value.</param>
-    /// <returns>The next chain step, carrying the selected key type.</returns>
-    public WarmingBuilder<TValue, TKey> PartitionBy<TKey>(MapSelector<TValue, TKey> keySelector) where TKey : notnull =>
+    /// <returns>The next chain step, carrying the selected key type and the default hasher.</returns>
+    public WarmingBuilder<TValue, TKey, DefaultHasher<TKey>> PartitionBy<TKey>(MapSelector<TValue, TKey> keySelector) =>
+        new(_context with { KeySelector = keySelector });
+
+    /// <summary>
+    ///     Selects the key used to partition the stream into warming segments, probing the processor's
+    ///     per-key buffers with an explicit struct hasher (for example <c>StringFnV1AHasher</c> for string
+    ///     keys) so the JIT can inline faster probing.
+    /// </summary>
+    /// <typeparam name="TKey">The key type.</typeparam>
+    /// <typeparam name="THasher">The hasher used by the processor's per-key buffers.</typeparam>
+    /// <param name="keySelector">Extracts the warming key from each input value.</param>
+    /// <returns>The next chain step, carrying the selected key type and hasher.</returns>
+    public WarmingBuilder<TValue, TKey, THasher> PartitionBy<TKey, THasher>(MapSelector<TValue, TKey> keySelector)
+        where THasher : struct, IHashProvider<TKey> =>
         new(_context with { KeySelector = keySelector });
 }
 
 /// <summary>
-///     Second stage of the warming chain: configures the warming jobs and the policy deciding which keys
-///     must be warmed and where their results go.
+///     Second stage of the warming chain: carries the selected key type and its hasher; continue with
+///     <see cref="Prefetch{TWarm}" />.
 /// </summary>
 /// <typeparam name="TValue">The upstream element type.</typeparam>
 /// <typeparam name="TKey">The key type used to partition the stream for warming.</typeparam>
-public readonly ref struct WarmingBuilder<TValue, TKey> where TKey : notnull
+/// <typeparam name="THasher">The hasher used by the processor's per-key buffers.</typeparam>
+public readonly ref struct WarmingBuilder<TValue, TKey, THasher>
+    where THasher : struct, IHashProvider<TKey>
 {
     private readonly WarmingBuilderContext<TValue> _context;
     internal WarmingBuilder(WarmingBuilderContext<TValue> context) => _context = context;
@@ -96,7 +113,9 @@ public readonly ref struct WarmingBuilder<TValue, TKey> where TKey : notnull
     /// <param name="jobFactory">Creates the warming jobs.</param>
     /// <param name="policy">Decides which keys require warming and receives the warm results.</param>
     /// <returns>The terminal chain step, ready to configure grouping.</returns>
-    public WarmingBuilder<TKey, TValue, TWarm> Prefetch<TWarm>(IJobFactory<TKey, TWarm> jobFactory, IWarmPolicy<TKey, TWarm> policy) =>
+    public WarmingBuilder<TKey, TValue, TWarm, THasher> Prefetch<TWarm>(
+        IJobFactory<TKey, TWarm> jobFactory,
+        IWarmPolicy<TKey, TWarm> policy) =>
         new(_context with { JobFactory = jobFactory, Policy = policy });
 }
 
@@ -107,7 +126,9 @@ public readonly ref struct WarmingBuilder<TValue, TKey> where TKey : notnull
 /// <typeparam name="TKey">The key type used to partition the stream for warming.</typeparam>
 /// <typeparam name="TValue">The upstream element type.</typeparam>
 /// <typeparam name="TWarm">The warming data type produced by the jobs.</typeparam>
-public readonly ref struct WarmingBuilder<TKey, TValue, TWarm> where TKey : notnull
+/// <typeparam name="THasher">The hasher used by the processor's per-key buffers.</typeparam>
+public readonly ref struct WarmingBuilder<TKey, TValue, TWarm, THasher>
+    where THasher : struct, IHashProvider<TKey>
 {
     private readonly WarmingBuilderContext<TValue> _context;
     
@@ -123,10 +144,11 @@ public readonly ref struct WarmingBuilder<TKey, TValue, TWarm> where TKey : notn
     ///     A source emitting <see cref="Carrier{T}" /> items carrying either a passthrough
     ///     <typeparamref name="TValue" /> or an accumulated <typeparamref name="TGroup" />.
     /// </returns>
-    public Source<IAsyncProducator<Carrier<Unio<TValue, TGroup>>>> Accumulate<TGroup>(IWarmAccumulatorFactory<TKey, TValue, TGroup> accumulatorFactory)
+    public Source<IAsyncProducator<Carrier<Unio<TValue, TGroup>>>> Accumulate<TGroup>(
+        IWarmAccumulatorFactory<TKey, TValue, TGroup> accumulatorFactory)
     {
         var context = new WarmingBuilderContext<TValue, TKey, TWarm>(_context);
-        var processor = new WarmProcessor<TKey, TValue, TGroup, TWarm>(
+        var processor = new WarmProcessor<TKey, TValue, TGroup, TWarm, THasher>(
             context.KeySelector,
             context.Options,
             context.Policy,
@@ -143,10 +165,11 @@ public readonly ref struct WarmingBuilder<TKey, TValue, TWarm> where TKey : notn
     /// </summary>
     /// <param name="accumulatorFactory">Creates the per-key accumulator buffers producing values.</param>
     /// <returns>A source carrying the warmed (value = group) results.</returns>
-    public Source<IAsyncProducator<Carrier<TValue>>> Accumulate(IWarmAccumulatorFactory<TKey, TValue> accumulatorFactory)
+    public Source<IAsyncProducator<Carrier<TValue>>> Accumulate(
+        IWarmAccumulatorFactory<TKey, TValue> accumulatorFactory)
     {
         var context = new WarmingBuilderContext<TValue, TKey, TWarm>(_context);
-        var processor = new WarmProcessor<TKey, TValue, TValue, TWarm>(
+        var processor = new WarmProcessor<TKey, TValue, TValue, TWarm, THasher>(
             context.KeySelector,
             context.Options,
             context.Policy,

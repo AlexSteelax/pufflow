@@ -9,7 +9,6 @@
 /// </remarks>
 [PublicAPI]
 public interface IJobFactory<TKey, TWarm>
-    where TKey : notnull
 {
     /// <summary>Creates a new warming job.</summary>
     /// <returns>A fresh <see cref="IAsyncJob{TKey,TWarm}" /> instance.</returns>

@@ -5,11 +5,12 @@ using Steelax.Toolkit.HighPerformance.Concurrency.Primitives;
 
 namespace Steelax.Pufflow.Operators.Aggregators.Warming;
 
-internal sealed partial class WarmProcessor<TKey, TValue, TGroup, TWarm>
+internal sealed partial class WarmProcessor<TKey, TValue, TGroup, TWarm, THasher>
+    where THasher : struct, IHashProvider<TKey>
 {
     #region signals
     
-    /// <summary>The fan-in slot signaled by the <see cref="Warmer{TKey,TWarm}" /> when work completes.</summary>
+    /// <summary>The fan-in slot signaled by the <see cref="Warmer{TKey,TWarm,THasher}" /> when work completes.</summary>
     private const int WarmSlot = 1;
 
     /// <summary>The fan-in slot signaled when the wrapped output producer frees capacity (<see cref="_writer" />).</summary>
@@ -45,7 +46,7 @@ internal sealed partial class WarmProcessor<TKey, TValue, TGroup, TWarm>
     private readonly IWarmAccumulatorFactory<TKey, TValue, TGroup> _accumulatorFactory;
 
     /// <summary>The per-key delayed buffers (the FlowGate dictionary).</summary>
-    private readonly Dictionary<TKey, WarmAccumulator<TValue, TGroup>> _delayedQueue;
+    private readonly SwissDictionary<TKey, WarmAccumulator<TValue, TGroup>, THasher> _delayedQueue;
     
     /// <summary>The shared fan-in multiplexing source readiness and warm completion.</summary>
     private readonly FanInSlim _fanIn;
@@ -60,7 +61,7 @@ internal sealed partial class WarmProcessor<TKey, TValue, TGroup, TWarm>
     private readonly long _queueWeightLimit;
     
     /// <summary>The warmer providing key segmentation, concurrent warming, and the watermark barrier.</summary>
-    private readonly Warmer<TKey, TWarm> _warmer;
+    private readonly Warmer<TKey, TWarm, THasher> _warmer;
 
     /// <summary>The started periodic watchdog; created in the constructor and stopped when the loop exits.</summary>
     private readonly WatchTimer<FanInSlim> _watchdog;
