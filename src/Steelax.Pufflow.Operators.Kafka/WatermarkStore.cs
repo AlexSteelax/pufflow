@@ -9,13 +9,13 @@ namespace Steelax.Pufflow.Operators.Kafka;
 ///     watermark among the added messages.
 /// </summary>
 /// <remarks>
-    ///     <para>
-    ///         The window is a pure data container owned by the consumer loop: it accumulates offsets as messages
-    ///         are emitted and exposes its content through an allocation-free struct enumerator. Committing the
-    ///         collected offsets to Kafka is deliberately <em>not</em> its concern — that is done by
-    ///         <see cref="KafkaAdvanceStrategy.Flush" />, after which the owner resets the window for reuse via
-    ///         <see cref="Clear" />.
-    ///     </para>
+///     <para>
+///         The window is a pure data container owned by the consumer loop: it accumulates offsets as messages
+///         are emitted and exposes its content through an allocation-free struct enumerator. Committing the
+///         collected offsets to Kafka is deliberately <em>not</em> its concern — that is done by
+///         <see cref="KafkaAdvanceStrategy.Flush" />, after which the owner resets the window for reuse via
+///         <see cref="Clear" />.
+///     </para>
 ///     <para>
 ///         Window readiness is determined by the owning processor: the closed-window counter and the
 ///         comparison of the window watermark (<see cref="Watermark" />) with the reader's watermark
@@ -89,5 +89,4 @@ internal struct WatermarkStore()
 ///     The leader epoch participates in the key on par with topic and partition because, after a leader
 ///     re-election, offsets may roll back — progress from different epochs must not be mixed.
 /// </remarks>
-[PublicAPI]
 internal readonly record struct TopicPartitionEpoch(string Topic, Partition Partition, int? LeaderEpoch);
