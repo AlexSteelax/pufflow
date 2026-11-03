@@ -26,6 +26,21 @@ public static partial class OperatorExtensions
         /// </returns>
         [PublicAPI]
         public WarmingBuilder<TValue> Warming(WarmOptions options) => new(left, options);
+
+        /// <summary>
+        ///     Starts the fluent periodic-runner stage: values pass through, while the stream's watermark is
+        ///     held back and released downstream once per interval after a periodic handler runs.
+        /// </summary>
+        /// <param name="handler">The action invoked once per interval.</param>
+        /// <returns>
+        ///     A chain entry point: finish with <c>Every(period, timeProvider?)</c>.
+        /// </returns>
+        [PublicAPI]
+        public PeriodicRunnerBuilder<TValue> PeriodicRunner(Action handler)
+        {
+            ArgumentNullException.ThrowIfNull(handler);
+            return new(left, handler);
+        }
     }
     
     /// <summary>
