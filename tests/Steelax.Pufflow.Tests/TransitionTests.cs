@@ -11,7 +11,7 @@ public class TransitionTests
         // → a push sink (producator).
         await using var source = new FlowSource();
 
-        var sourceFlow = source
+        source
             .OnAsyncConsumatorSource(Enumerable.Range(1, 5))
             .ToAsyncProducator(static v => v * 10)
             .ToAsyncProducator(static v => v)

@@ -1,136 +1,104 @@
-﻿using System.Threading.Channels;
+using System.Threading.Channels;
 using JetBrains.Annotations;
 using Steelax.Pufflow.Abstractions;
 using Steelax.Pufflow.Sdk.Test.SourceProcessors;
 
 namespace Steelax.Pufflow.Sdk.Test;
 
+/// <summary>Source-opening helpers for tests: seeds a channel and opens a flow over it.</summary>
 [PublicAPI]
 public static class TestSourceExtensions
 {
+    private static Channel<T> CreateChannel<T>() => Channel.CreateUnbounded<T>(new UnboundedChannelOptions
+    {
+        SingleReader = true,
+        SingleWriter = false,
+        AllowSynchronousContinuations = true
+    });
+
     private static void InitialFill<T>(ChannelWriter<T> writer, IEnumerable<T>? initial)
     {
         if (initial is null)
             return;
 
-        if (initial.Any(item => !writer.TryWrite(item)))
-            throw new InvalidOperationException();
+        foreach (var item in initial)
+            if (!writer.TryWrite(item))
+                throw new InvalidOperationException();
     }
-    
-    extension(FlowSource flowSource)
+
+    /// <summary>Opens an asynchronous push source, returning the writer to feed it.</summary>
+    [PublicAPI]
+    public static Fuse<IAsyncProducator<T>> OnAsyncProducatorSource<T>(this FlowSource flowSource, out ChannelWriter<T> writer, IEnumerable<T>? initial = null)
     {
-        public Source<IAsyncProducator<T>> OnAsyncProducatorSource<T>(out ChannelWriter<T> writer, IEnumerable<T>? initial = null)
-        {
-            var source = new FlowSourceProducator<T>();
-            InitialFill(source.Writer, initial);
-            
-            writer = source.Writer;
-            
-            return flowSource.On(source.FlowAProd);
-        }
-
-        public Source<IProducator<T>> OnProducatorSource<T>(out ChannelWriter<T> writer, IEnumerable<T>? initial = null)
-        {
-            var source = new FlowSourceProducator<T>();
-            InitialFill(source.Writer, initial);
-            
-            writer = source.Writer;
-            return flowSource.On(source.FlowProd);
-        }
-
-        public Source<IAsyncConsumator<T>> OnAsyncConsumatorSource<T>(out ChannelWriter<T> writer, IEnumerable<T>? initial = null)
-        {
-            var source = new FlowSourceConsumator<T>();
-            InitialFill(source.Writer, initial);
-            
-            writer = source.Writer;
-            return flowSource.On(source.FlowACons);
-        }
-
-        public Source<IConsumator<T>> OnConsumatorSource<T>(out ChannelWriter<T> writer, IEnumerable<T>? initial = null)
-        {
-            var source = new FlowSourceConsumator<T>();
-            InitialFill(source.Writer, initial);
-            
-            writer = source.Writer;
-            return flowSource.On(source.FlowCons);
-        }
-
-        public Source<IAsyncEnumerator<T>> OnAsyncEnumeratorSource<T>(out ChannelWriter<T> writer, IEnumerable<T>? initial = null)
-        {
-            var source = new FlowSourceEnumerator<T>();
-            InitialFill(source.Writer, initial);
-            
-            writer = source.Writer;
-            return flowSource.On<IAsyncEnumerator<T>>(source);
-        }
+        var channel = CreateChannel<T>();
+        InitialFill(channel.Writer, initial);
+        writer = channel.Writer;
+        return flowSource.On(FlowAsyncProducatorSource<T>.Configure(channel));
     }
-    
-    extension(FlowSource flowSource)
+
+    /// <summary>Opens a synchronous push source, returning the writer to feed it.</summary>
+    [PublicAPI]
+    public static Fuse<IProducator<T>> OnProducatorSource<T>(this FlowSource flowSource, out ChannelWriter<T> writer, IEnumerable<T>? initial = null)
     {
-        public Source<IAsyncProducator<T>> OnAsyncProducatorSource<T>(IEnumerable<T> items)
-        {
-            ChannelWriter<T>? writer = null;
-            try
-            {
-                return flowSource.OnAsyncProducatorSource(out writer, items);
-            }
-            finally
-            {
-                writer?.TryComplete();
-            }
-        }
+        var channel = CreateChannel<T>();
+        InitialFill(channel.Writer, initial);
+        writer = channel.Writer;
+        return flowSource.On(FlowProducatorSource<T>.Configure(channel));
+    }
 
-        public Source<IProducator<T>> OnProducatorSource<T>(IEnumerable<T> items)
-        {
-            ChannelWriter<T>? writer = null;
-            try
-            {
-                return flowSource.OnProducatorSource(out writer, items);
-            }
-            finally
-            {
-                writer?.TryComplete();
-            }
-        }
+    /// <summary>Opens an asynchronous pull source, returning the writer to feed it.</summary>
+    [PublicAPI]
+    public static Fuse<IAsyncConsumator<T>> OnAsyncConsumatorSource<T>(this FlowSource flowSource, out ChannelWriter<T> writer, IEnumerable<T>? initial = null)
+    {
+        var channel = CreateChannel<T>();
+        InitialFill(channel.Writer, initial);
+        writer = channel.Writer;
+        return flowSource.On(FlowAsyncConsumatorSource<T>.Configure(channel));
+    }
 
-        public Source<IAsyncConsumator<T>> OnAsyncConsumatorSource<T>(IEnumerable<T> items)
-        {
-            ChannelWriter<T>? writer = null;
-            try
-            {
-                return flowSource.OnAsyncConsumatorSource(out writer, items);
-            }
-            finally
-            {
-                writer?.TryComplete();
-            }
-        }
+    /// <summary>Opens a synchronous pull source, returning the writer to feed it.</summary>
+    [PublicAPI]
+    public static Fuse<IConsumator<T>> OnConsumatorSource<T>(this FlowSource flowSource, out ChannelWriter<T> writer, IEnumerable<T>? initial = null)
+    {
+        var channel = CreateChannel<T>();
+        InitialFill(channel.Writer, initial);
+        writer = channel.Writer;
+        return flowSource.On(FlowConsumatorSource<T>.Configure(channel));
+    }
 
-        public Source<IConsumator<T>> OnConsumatorSource<T>(IEnumerable<T> items)
-        {
-            ChannelWriter<T>? writer = null;
-            try
-            {
-                return flowSource.OnConsumatorSource(out writer, items);
-            }
-            finally
-            {
-                writer?.TryComplete();
-            }
-        }
+    /// <summary>Opens an asynchronous push source pre-filled with the given items.</summary>
+    [PublicAPI]
+    public static Fuse<IAsyncProducator<T>> OnAsyncProducatorSource<T>(this FlowSource flowSource, IEnumerable<T> items)
+    {
+        var fuse = flowSource.OnAsyncProducatorSource<T>(out var writer, items);
+        writer.TryComplete();
+        return fuse;
+    }
 
-        public Source<IAsyncEnumerator<T>> OnAsyncEnumeratorSource<T>(IEnumerable<T> items)
-        {
-            ChannelWriter<T>? writer = null;
-            try
-            {
-                return flowSource.OnAsyncEnumeratorSource(out writer, items);
-            }
-            finally
-            {
-                writer?.TryComplete();
-            }
-        }
+    /// <summary>Opens a synchronous push source pre-filled with the given items.</summary>
+    [PublicAPI]
+    public static Fuse<IProducator<T>> OnProducatorSource<T>(this FlowSource flowSource, IEnumerable<T> items)
+    {
+        var fuse = flowSource.OnProducatorSource<T>(out var writer, items);
+        writer.TryComplete();
+        return fuse;
+    }
+
+    /// <summary>Opens an asynchronous pull source pre-filled with the given items.</summary>
+    [PublicAPI]
+    public static Fuse<IAsyncConsumator<T>> OnAsyncConsumatorSource<T>(this FlowSource flowSource, IEnumerable<T> items)
+    {
+        var fuse = flowSource.OnAsyncConsumatorSource<T>(out var writer, items);
+        writer.TryComplete();
+        return fuse;
+    }
+
+    /// <summary>Opens a synchronous pull source pre-filled with the given items.</summary>
+    [PublicAPI]
+    public static Fuse<IConsumator<T>> OnConsumatorSource<T>(this FlowSource flowSource, IEnumerable<T> items)
+    {
+        var fuse = flowSource.OnConsumatorSource<T>(out var writer, items);
+        writer.TryComplete();
+        return fuse;
     }
 }

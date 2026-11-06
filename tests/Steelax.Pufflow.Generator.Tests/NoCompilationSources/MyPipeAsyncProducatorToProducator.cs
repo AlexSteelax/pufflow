@@ -1,12 +1,14 @@
+using Steelax.Pufflow;
 using Steelax.Pufflow.Abstractions;
 
 namespace Steelax.Pufflow.Generator.Tests.NoCompilationSources;
 
 [Flow]
-public partial class MyPipeAsyncProducatorToProducator<T1, T2>
+internal partial class MyPipeAsyncProducatorToProducator<T1, T2>
 {
-    public void Fuse(IAsyncProducator<T1> source, IProducator<T2> target, Steelax.Pufflow.FlowContext ctx)
+    public MyPipeAsyncProducatorToProducator(out IAsyncProducator<T1> producer, IProducator<T2> writer, FlowContext _)
     {
-        throw new System.NotImplementedException();
+        _ = writer;
+        producer = null!;
     }
 }

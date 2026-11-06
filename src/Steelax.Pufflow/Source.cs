@@ -1,34 +1,25 @@
-﻿ using Steelax.Pufflow.Abstractions;
- using Steelax.Pufflow.Runtime;
+﻿using System.ComponentModel;
 
- namespace Steelax.Pufflow;
+namespace Steelax.Pufflow;
 
 /// <summary>
-///     A marker struct that represents a data source emitting values of type <typeparamref name="T" /> via a poll
-///     interface.
+///     A configured, source-side block factory produced by the source generator for a
+///     <c>[Flow]</c> class. Construction of the concrete block instance is deferred until the composed
+///     chain is built (at the terminal <c>End</c> or when the source is opened).
 /// </summary>
-/// <typeparam name="T">The poll output interface type (e.g., <see cref="IConsumator{T}" /> or <c>IEnumerator{T}</c>).</typeparam>
-/// <remarks>
-///     A Source component has no push input — it only exposes a poll (read) side.
-///     Carries the component <see cref="Meta" /> and <see cref="FlowSource" /> for the runtime pipeline builder.
-/// </remarks>
+/// <typeparam name="T">The flow interface this source produces (a pull reader or a push target).</typeparam>
 [PublicAPI]
 public readonly struct Source<T>
 {
-    /// <summary>
-    ///     The node metadata that implements the source logic.
-    /// </summary>
-    internal readonly FlowMeta Meta;
+    private readonly Func<object> _lazy;
 
-    /// <summary>
-    ///     The flow source owning cancellation and background tasks for the pipeline.
-    /// </summary>
-    internal readonly FlowSource FlowSource;
+    /// <summary>Initializes a source factory from a lazy chain-producing delegate.</summary>
+    /// <param name="lazy">A function producing the source's chain link.</param>
+    /// <remarks>This constructor is part of the generated <c>[Flow]</c> contract and is not intended for direct use.</remarks>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public Source(Func<object> lazy) => _lazy = lazy;
 
-    /// <summary>Initializes a source marker with its node metadata and flow source.</summary>
-    internal Source(FlowMeta meta, FlowSource flowSource)
-    {
-        Meta = meta;
-        FlowSource = flowSource;
-    }
+    /// <summary>Materializes the source's chain link ({@link ConsumatorChain}/{@link ProducatorChain}).</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    internal object Invoke() => _lazy.Invoke();
 }

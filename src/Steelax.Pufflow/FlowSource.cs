@@ -48,9 +48,11 @@ public sealed class FlowSource : IDisposable, IAsyncDisposable
     /// </param>
     /// <remarks>
     ///     The resource is released in the owning <see cref="FlowSource" />'s cleanup phase, after the
-    ///     registered background tasks have finished.
+    ///     registered background tasks have finished. This member is part of the generated
+    ///     <c>[Flow]</c> chain contract.
     /// </remarks>
-    internal void RegisterDisposable(object disposable)
+    [PublicAPI]
+    public void RegisterDisposable(object disposable)
     {
         ObjectDisposedException.ThrowIf(_disposed, typeof(FlowSource));
         
@@ -63,7 +65,9 @@ public sealed class FlowSource : IDisposable, IAsyncDisposable
     /// </summary>
     /// <value>A new flow context backed by this source's cancellation token source.</value>
     /// <exception cref="ObjectDisposedException">Thrown if the <see cref="FlowSource" /> has been disposed.</exception>
-    internal FlowContext Context
+    /// <remarks>This member is part of the generated <c>[Flow]</c> chain contract.</remarks>
+    [PublicAPI]
+    public FlowContext Context
     {
         get
         {

@@ -49,14 +49,8 @@ public abstract class ManualProducator<T>
     {
         if (producator is Conduit<T> conduit)
             return new ConduitManualProducator<T>(conduit);
-        
-        return CreateAsGeneric(producator);
-    }
-    
-    private static ManualProducator<T> CreateAsGeneric(IAsyncProducator<T> consumator)
-    {
-        var genericType = typeof(SharedManualProducator<,>).MakeGenericType(typeof(T), consumator.GetType());
-        return (ManualProducator<T>)Activator.CreateInstance(genericType, consumator)!;
+
+        return new SharedManualProducator<T>(producator);
     }
 }
 
@@ -88,8 +82,7 @@ file sealed class ConduitManualProducator<T>(Conduit<T> conduit) : ManualProduca
     }
 }
 
-file sealed class SharedManualProducator<T, TProducator>(TProducator producator) : ManualProducator<T>
-    where TProducator : IAsyncProducator<T>
+file sealed class SharedManualProducator<T>(IAsyncProducator<T> producator) : ManualProducator<T>
 {
     private readonly EventTask<bool> _input = new();
     

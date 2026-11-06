@@ -1,0 +1,15 @@
+﻿    public static [[MARKER]] Configure([[CFG_PARAMS]])
+    {
+        return new [[MARKER]](__Func);
+
+        [[CHAIN_TYPE]] __Func()
+        {
+            return __Chain;
+
+            void __Chain([[CHAIN_PARAM]])
+            {
+                var __instance = new [[CLASS_NAME]]([[CTOR_ARGS]]);
+                __flow.RegisterDisposable(__instance);
+            }
+        }
+    }

@@ -12,12 +12,14 @@
         <PackageTags>dataflow;pipeline;poll;push;kafka;stream;pufflow</PackageTags>
         <PackageReleaseNotes>Initial pre-release.</PackageReleaseNotes>
         <GenerateDocumentationFile>true</GenerateDocumentationFile>
+
+        <IsAotCompatible>true</IsAotCompatible>
+        <IsTrimmable>true</IsTrimmable>
     </PropertyGroup>
 
     <ItemGroup>
         <PackageReference Include="Confluent.Kafka" />
         <PackageReference Include="JetBrains.Annotations" />
-        <PackageReference Include="Steelax.Toolkit.HighPerformance" />
     </ItemGroup>
 
     <ItemGroup>

@@ -1,34 +1,27 @@
-﻿ using Steelax.Pufflow.Abstractions;
- using Steelax.Pufflow.Runtime;
+﻿using System.ComponentModel;
 
- namespace Steelax.Pufflow;
+namespace Steelax.Pufflow;
 
 /// <summary>
-///     A marker struct that represents a data sink consuming values of type <typeparamref name="T" /> via a push
-///     interface.
+///     A configured sink block factory produced by the source generator for a <c>[Flow]</c> class.
+///     Terminates a chain: its delegate consumes the upstream chain link and builds (or reaps) the final
+///     block, typically registering background work or a consumer.
 /// </summary>
-/// <typeparam name="T">The push input interface type (e.g., <see cref="IProducator{T}" />).</typeparam>
-/// <remarks>
-///     A Sink component has no poll output — it only exposes a push (write) side and terminates the pipeline.
-///     Carries the component <see cref="Meta" /> and <see cref="FlowSource" /> for the runtime pipeline builder.
-/// </remarks>
+/// <typeparam name="T">The flow interface this sink consumes (a pull reader or a handed-out push target).</typeparam>
 [PublicAPI]
 public readonly struct Sink<T>
 {
-    /// <summary>
-    ///     The node metadata that implements the sink logic.
-    /// </summary>
-    internal readonly FlowMeta Meta;
+    private readonly Action<FlowSource, object> _lazy;
 
-    /// <summary>
-    ///     The flow source owning cancellation and background tasks for the pipeline.
-    /// </summary>
-    internal readonly FlowSource FlowSource;
+    /// <summary>Initializes a sink factory from a terminating delegate.</summary>
+    /// <param name="lazy">A delegate that builds the sink against the upstream chain link.</param>
+    /// <remarks>This constructor is part of the generated <c>[Flow]</c> contract and is not intended for direct use.</remarks>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public Sink(Action<FlowSource, object> lazy) => _lazy = lazy;
 
-    /// <summary>Initializes a sink marker with its node metadata and flow source.</summary>
-    internal Sink(FlowMeta meta, FlowSource flowSource)
-    {
-        Meta = meta;
-        FlowSource = flowSource;
-    }
+    /// <summary>Terminates the chain, building the sink block against the given flow and upstream link.</summary>
+    /// <param name="flowSource">The flow source owning the chain.</param>
+    /// <param name="prev">The upstream chain link feeding this sink.</param>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    internal void Invoke(FlowSource flowSource, object prev) => _lazy.Invoke(flowSource, prev);
 }

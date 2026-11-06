@@ -1,4 +1,5 @@
-﻿using Steelax.Pufflow.Operators.Abstractions;
+﻿#pragma warning disable CS1574
+using Steelax.Pufflow.Operators.Abstractions;
 using Steelax.Pufflow.Operators.Common;
 using Steelax.Pufflow.Operators.Internal;
 using Steelax.Toolkit.HighPerformance.Concurrency.Primitives;
@@ -32,10 +33,10 @@ internal sealed partial class WarmProcessor<TKey, TValue, TGroup, TWarm, THasher
     
     #region source and sink
     
-    /// <summary>The wrapped upstream source; assigned in <see cref="Fuse" />.</summary>
+    /// <summary>The wrapped upstream source; assigned in the constructor.</summary>
     private ManualConsumator<Carrier<TValue>> _source = null!;
 
-    /// <summary>The wrapped downstream producer; assigned in <see cref="Fuse" />.</summary>
+    /// <summary>The wrapped downstream producer; assigned in the constructor.</summary>
     private ManualProducator<Carrier<Unio<TValue, TGroup>>> _writer = null!;
     
     #endregion

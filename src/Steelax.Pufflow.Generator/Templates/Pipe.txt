@@ -1,0 +1,21 @@
+﻿    public static [[MARKER]] Configure([[CFG_PARAMS]])
+    {
+        return new [[MARKER]](__Func);
+
+        [[CHAIN_TYPE]] __Func(object __prev)
+        {
+            return __Chain;
+
+            void __Chain([[CHAIN_PARAM]])
+            {
+                object __instance;
+                switch (__prev)
+                {
+[[CASES]]
+                default:
+                    throw new System.NotSupportedException();
+                }
+                __flow.RegisterDisposable(__instance);
+            }
+        }
+    }

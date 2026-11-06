@@ -10,6 +10,9 @@
         <PackageTags>dataflow;pipeline;poll;push;operators;stream;pufflow</PackageTags>
         <PackageReleaseNotes>Initial pre-release.</PackageReleaseNotes>
         <GenerateDocumentationFile>true</GenerateDocumentationFile>
+
+        <IsAotCompatible>true</IsAotCompatible>
+        <IsTrimmable>true</IsTrimmable>
     </PropertyGroup>
 
     <ItemGroup>
@@ -24,7 +27,6 @@
 
     <ItemGroup>
         <PackageReference Include="Celerity.Collections" />
-        <PackageReference Include="Steelax.Toolkit.HighPerformance"/>
         <PackageReference Include="Unio"/>
     </ItemGroup>
 

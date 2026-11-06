@@ -1,3 +1,4 @@
+#pragma warning disable CS1591
 using System.Runtime.CompilerServices;
 using Steelax.Pufflow.Operators.Abstractions;
 using Steelax.Pufflow.Operators.Common;
@@ -17,90 +18,44 @@ public static partial class OperatorExtensions
 
     #region producator
 
-    /// <param name="left">The asynchronous upstream producer of carriers to filter.</param>
-    /// <typeparam name="TSource">The carried element type flowing through the pipe.</typeparam>
-    extension<TSource>(Source<IAsyncProducator<Carrier<TSource>>> left)
+    extension<TSource>(Fuse<IAsyncProducator<Carrier<TSource>>> left)
     {
-        /// <summary>
-        ///     Keeps only the carriers whose value satisfies <paramref name="predicate" />; bare-progress elements are
-        ///     structural and are always forwarded. A rejected carrier that carries a real watermark is re-emitted as
-        ///     a bare progress carrier so the downstream watermark keeps advancing.
-        /// </summary>
-        /// <param name="predicate">Determines whether a carried value is kept.</param>
-        /// <returns>A source carrying only the events that pass the predicate.</returns>
-        public Source<IAsyncProducator<Carrier<TSource>>> Filter(FilterPredicate<TSource> predicate)
-        {
-            var processor = new BypassFilterCarrierProcessor<TSource, FilterPredicate<TSource>, Unit>(FilterCarrier, predicate, default);
-            return left.Next(processor.FlowAProdToAProd);
-        }
+        public Fuse<IAsyncProducator<Carrier<TSource>>> Filter(FilterPredicate<TSource> predicate)
+            => left.Next(BypassFilterCarrierAProdToAProd<TSource, FilterPredicate<TSource>, Unit>.Configure(FilterCarrier, predicate, default));
 
-        /// <summary>Carrier-based filter with fixed arguments over an asynchronous push source.</summary>
-        public Source<IAsyncProducator<Carrier<TSource>>> Filter<TArgs>(FilterPredicate<TSource, TArgs> predicate, TArgs args)
-        {
-            var processor = new BypassFilterCarrierProcessor<TSource, FilterPredicate<TSource, TArgs>, TArgs>(FilterCarrier, predicate, args);
-            return left.Next(processor.FlowAProdToAProd);
-        }
+        public Fuse<IAsyncProducator<Carrier<TSource>>> Filter<TArgs>(FilterPredicate<TSource, TArgs> predicate, TArgs args)
+            => left.Next(BypassFilterCarrierAProdToAProd<TSource, FilterPredicate<TSource, TArgs>, TArgs>.Configure(FilterCarrier, predicate, args));
     }
 
-    /// <param name="left">The synchronous upstream producer of carriers to filter.</param>
-    /// <typeparam name="TSource">The carried element type flowing through the pipe.</typeparam>
-    extension<TSource>(Source<IProducator<Carrier<TSource>>> left)
+    extension<TSource>(Fuse<IProducator<Carrier<TSource>>> left)
     {
-        /// <summary>Carrier-based filter over a synchronous push source. See the async counterpart.</summary>
-        public Source<IProducator<Carrier<TSource>>> Filter(FilterPredicate<TSource> predicate)
-        {
-            var processor = new BypassFilterCarrierProcessor<TSource, FilterPredicate<TSource>, Unit>(FilterCarrier, predicate, default);
-            return left.Next(processor.FlowProdToProd);
-        }
+        public Fuse<IProducator<Carrier<TSource>>> Filter(FilterPredicate<TSource> predicate)
+            => left.Next(BypassFilterCarrierProdToProd<TSource, FilterPredicate<TSource>, Unit>.Configure(FilterCarrier, predicate, default));
 
-        /// <summary>Carrier-based filter with fixed arguments over a synchronous push source.</summary>
-        public Source<IProducator<Carrier<TSource>>> Filter<TArgs>(FilterPredicate<TSource, TArgs> predicate, TArgs args)
-        {
-            var processor = new BypassFilterCarrierProcessor<TSource, FilterPredicate<TSource, TArgs>, TArgs>(FilterCarrier, predicate, args);
-            return left.Next(processor.FlowProdToProd);
-        }
+        public Fuse<IProducator<Carrier<TSource>>> Filter<TArgs>(FilterPredicate<TSource, TArgs> predicate, TArgs args)
+            => left.Next(BypassFilterCarrierProdToProd<TSource, FilterPredicate<TSource, TArgs>, TArgs>.Configure(FilterCarrier, predicate, args));
     }
 
     #endregion
 
     #region consumator
 
-    /// <param name="left">The asynchronous upstream consumer of carriers to filter.</param>
-    /// <typeparam name="TSource">The carried element type flowing through the pipe.</typeparam>
-    extension<TSource>(Source<IAsyncConsumator<Carrier<TSource>>> left)
+    extension<TSource>(Fuse<IAsyncConsumator<Carrier<TSource>>> left)
     {
-        /// <summary>Carrier-based filter over an asynchronous pull source. See the producer counterpart.</summary>
-        public Source<IAsyncConsumator<Carrier<TSource>>> Filter(FilterPredicate<TSource> predicate)
-        {
-            var processor = new BypassFilterCarrierProcessor<TSource, FilterPredicate<TSource>, Unit>(FilterCarrier, predicate, default);
-            return left.Next(processor.FlowAConsToACons);
-        }
+        public Fuse<IAsyncConsumator<Carrier<TSource>>> Filter(FilterPredicate<TSource> predicate)
+            => left.Next(BypassFilterCarrierAConsToACons<TSource, FilterPredicate<TSource>, Unit>.Configure(FilterCarrier, predicate, default));
 
-        /// <summary>Carrier-based filter with fixed arguments over an asynchronous pull source.</summary>
-        public Source<IAsyncConsumator<Carrier<TSource>>> Filter<TArgs>(FilterPredicate<TSource, TArgs> predicate, TArgs args)
-        {
-            var processor = new BypassFilterCarrierProcessor<TSource, FilterPredicate<TSource, TArgs>, TArgs>(FilterCarrier, predicate, args);
-            return left.Next(processor.FlowAConsToACons);
-        }
+        public Fuse<IAsyncConsumator<Carrier<TSource>>> Filter<TArgs>(FilterPredicate<TSource, TArgs> predicate, TArgs args)
+            => left.Next(BypassFilterCarrierAConsToACons<TSource, FilterPredicate<TSource, TArgs>, TArgs>.Configure(FilterCarrier, predicate, args));
     }
 
-    /// <param name="left">The synchronous upstream consumer of carriers to filter.</param>
-    /// <typeparam name="TSource">The carried element type flowing through the pipe.</typeparam>
-    extension<TSource>(Source<IConsumator<Carrier<TSource>>> left)
+    extension<TSource>(Fuse<IConsumator<Carrier<TSource>>> left)
     {
-        /// <summary>Carrier-based filter over a synchronous pull source. See the async counterpart.</summary>
-        public Source<IConsumator<Carrier<TSource>>> Filter(FilterPredicate<TSource> predicate)
-        {
-            var processor = new BypassFilterCarrierProcessor<TSource, FilterPredicate<TSource>, Unit>(FilterCarrier, predicate, default);
-            return left.Next(processor.FlowConsToCons);
-        }
+        public Fuse<IConsumator<Carrier<TSource>>> Filter(FilterPredicate<TSource> predicate)
+            => left.Next(BypassFilterCarrierConsToCons<TSource, FilterPredicate<TSource>, Unit>.Configure(FilterCarrier, predicate, default));
 
-        /// <summary>Carrier-based filter with fixed arguments over a synchronous pull source.</summary>
-        public Source<IConsumator<Carrier<TSource>>> Filter<TArgs>(FilterPredicate<TSource, TArgs> predicate, TArgs args)
-        {
-            var processor = new BypassFilterCarrierProcessor<TSource, FilterPredicate<TSource, TArgs>, TArgs>(FilterCarrier, predicate, args);
-            return left.Next(processor.FlowConsToCons);
-        }
+        public Fuse<IConsumator<Carrier<TSource>>> Filter<TArgs>(FilterPredicate<TSource, TArgs> predicate, TArgs args)
+            => left.Next(BypassFilterCarrierConsToCons<TSource, FilterPredicate<TSource, TArgs>, TArgs>.Configure(FilterCarrier, predicate, args));
     }
 
     #endregion

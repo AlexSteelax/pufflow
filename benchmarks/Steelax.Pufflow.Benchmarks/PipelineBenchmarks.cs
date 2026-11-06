@@ -59,7 +59,7 @@ public class PipelineBenchmarks
             .Chunking(ChunkSize, ChunkLinger)
             // A dedicated chunk null sink: it disposes each Chunk<T>, returning the buffer to the pool.
             // The generic null sink cannot do this without boxing a struct.
-            .End(new ChunkNullSink<int>());
+            .End(ChunkNullSink<int>.Configure());
     }
 
     /// <summary>Releases the pipeline (safe after the loop has already completed).</summary>

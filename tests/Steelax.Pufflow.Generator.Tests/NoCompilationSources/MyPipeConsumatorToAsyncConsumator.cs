@@ -1,12 +1,14 @@
+using Steelax.Pufflow;
 using Steelax.Pufflow.Abstractions;
 
 namespace Steelax.Pufflow.Generator.Tests.NoCompilationSources;
 
 [Flow]
-public partial class MyPipeConsumatorToAsyncConsumator<T1, T2>
+internal partial class MyPipeConsumatorToAsyncConsumator<T1, T2>
 {
-    public void Fuse(in IConsumator<T1> source, out IAsyncConsumator<T2> target, Steelax.Pufflow.FlowContext ctx)
+    public MyPipeConsumatorToAsyncConsumator(IConsumator<T1> reader, out IAsyncConsumator<T2> output, FlowContext _)
     {
-        target = null!;
+        _ = reader;
+        output = null!;
     }
 }

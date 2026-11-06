@@ -76,11 +76,11 @@ public readonly ref struct KafkaConsumerBuilder
     ///     <see cref="ConsumeResult{TKey,TValue}" /> when data is available, or empty (bare progress) otherwise.
     /// </returns>
     [PublicAPI]
-    public Source<IProducator<Carrier<ConsumeResult<TKey, TValue>>>> Use<TKey, TValue>(
+    public Fuse<IProducator<Carrier<ConsumeResult<TKey, TValue>>>> Use<TKey, TValue>(
         IConsumer<TKey, TValue> consumer,
         WatermarkTracker tracker)
     {
-        var processor = new KafkaConsumerProcessor<TKey, TValue>(
+        var source = KafkaConsumerProcessor<TKey, TValue>.Configure(
             consumer,
             _context.Options,
             tracker,
@@ -88,6 +88,6 @@ public readonly ref struct KafkaConsumerBuilder
             _context.WatermarkProvider,
             _context.TimeProvider);
 
-        return _context.FlowSource.On(processor);
+        return _context.FlowSource.On(source);
     }
 }

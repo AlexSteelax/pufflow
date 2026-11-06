@@ -1,20 +1,15 @@
-using System.Collections.Generic;
+using Steelax.Pufflow;
 using Steelax.Pufflow.Abstractions;
 
 namespace Steelax.Pufflow.Generator.Tests.NoCompilationSources;
 
-public class BatchBase<T> { }
-
-public interface IBatchFactory<TBatch, T> where TBatch : BatchBase<T>
-{
-    static abstract TBatch Create(int size);
-}
-
 [Flow]
-public partial class MyConstrained<T, TBatch> where TBatch : BatchBase<T>, IBatchFactory<TBatch, T>
+internal partial class MyConstrained<T, TBatch>
+    where T : notnull
 {
-    public void Fuse(in IAsyncEnumerator<T> source, out IAsyncEnumerator<TBatch> target, Steelax.Pufflow.FlowContext ctx)
+    public MyConstrained(IAsyncConsumator<T> reader, out IAsyncConsumator<TBatch> output, FlowContext _)
     {
-        target = null!;
+        _ = reader;
+        output = null!;
     }
 }

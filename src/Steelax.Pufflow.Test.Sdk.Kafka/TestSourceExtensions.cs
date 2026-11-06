@@ -22,7 +22,7 @@ public static class TestSourceExtensions
     
     extension(FlowSource flowSource)
     {
-        public Source<IProducator<Carrier<ConsumeResult<TKey, TValue>>>> OnKafkaSource<TKey, TValue>(
+        public Fuse<IProducator<Carrier<ConsumeResult<TKey, TValue>>>> OnKafkaSource<TKey, TValue>(
             KafkaConsumerOptions options,
             WatermarkTracker tracker,
             out ChannelWriter<KeyValuePair<TKey, TValue>> writer,
@@ -46,7 +46,7 @@ public static class TestSourceExtensions
     
     extension(FlowSource flowSource)
     {
-        public Source<IProducator<Carrier<ConsumeResult<TKey, TValue>>>> OnKafkaSource<TKey, TValue>(
+        public Fuse<IProducator<Carrier<ConsumeResult<TKey, TValue>>>> OnKafkaSource<TKey, TValue>(
             KafkaConsumerOptions options,
             WatermarkTracker tracker,
             IEnumerable<KeyValuePair<TKey, TValue>> items,

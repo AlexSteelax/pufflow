@@ -1,0 +1,16 @@
+﻿    public static [[MARKER]] Configure([[CFG_PARAMS]])
+    {
+        return new [[MARKER]](__Func);
+
+        void __Func(FlowSource __flow, object __prev)
+        {
+            object __instance;
+            switch (__prev)
+            {
+[[CASES]]
+                default:
+                    throw new System.NotSupportedException();
+            }
+            __flow.RegisterDisposable(__instance);
+        }
+    }

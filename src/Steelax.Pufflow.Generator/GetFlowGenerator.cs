@@ -1,5 +1,6 @@
+using System.Collections.Generic;
 using System.Collections.Immutable;
-using System.Diagnostics;
+using System.IO;
 using System.Text;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
@@ -9,52 +10,23 @@ using Microsoft.CodeAnalysis.Text;
 namespace Steelax.Pufflow.Generator;
 
 /// <summary>
-///     An incremental Roslyn source generator that produces IFlowable interface implementations
-///     implementations for classes annotated with the <c>[Flow]</c> attribute.
+///     An incremental Roslyn source generator that produces the static <c>Configure(...)</c> factory for
+///     classes annotated with the <c>[Flow]</c> attribute.
 /// </summary>
 /// <remarks>
-///     The generator inspects the public, non-static <c>Fuse(...)</c> handler methods of a flow-annotated
-///     class and emits a partial class implementing the appropriate IFlowable (Source, Sink, or Pipe)
-///     interface, plus disambiguation view properties. The node's role is derived from the Fuse parameter
-///     directions (out → Source, explicit in / plain read → Sink, two parameters → Pipe).
+///     The generator inspects the single public instance constructor that contains flow interface
+///     parameters (<c>IConsumator</c>/<c>IProducator</c> and their async variants, plus a trailing
+///     <c>FlowContext</c>). The parameter directions define the component's role (source/sink/pipe) and
+///     its pull/push wiring. The emitted factory builds the block lazily inside a composed chain — the
+///     concrete instance is constructed only when the chain is built at the terminal <c>End</c> (or when
+///     the source is opened via <c>On</c>).
 /// </remarks>
 [Generator]
 public class GetFlowGenerator : IIncrementalGenerator
 {
-    private const string FlowContextName = "Steelax.Pufflow.FlowContext";
     private const string FlowInterfaceNs = "Steelax.Pufflow.Abstractions";
-    private const string ReadInterfacesNs = "System.Collections.Generic";
 
-    private const string SourceName = "Steelax.Pufflow.Source";
-    private const string SinkName = "Steelax.Pufflow.Sink";
-    private const string PipeName = "Steelax.Pufflow.Pipe";
-    private static readonly string[] HandlerNames = ["Fuse"];
-
-    // Read interfaces (pull - data flows out)
-    private static readonly string[] ReadInterfaceNames =
-    [
-        "System.Collections.Generic.IEnumerator",
-        "System.Collections.Generic.IAsyncEnumerator",
-        "Steelax.Pufflow.Abstractions.IConsumator",
-        "Steelax.Pufflow.Abstractions.IAsyncConsumator"
-    ];
-
-    // Write interfaces (push - data flows in)
-    private static readonly string[] WriteInterfaceNames =
-    [
-        "Steelax.Pufflow.Abstractions.IProducator",
-        "Steelax.Pufflow.Abstractions.IAsyncProducator"
-    ];
-
-    /// <summary>
-    ///     Initializes the incremental generator pipeline.
-    /// </summary>
-    /// <param name="context">The incremental generator initialization context.</param>
-    /// <remarks>
-    ///     Registers a syntax provider that filters class declarations with attributes
-    ///     and produces the <c>[Flow]</c>-annotated class symbols, then combines them
-    ///     with the compilation to emit the generated source.
-    /// </remarks>
+    /// <summary>Initializes the incremental generator pipeline.</summary>
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
         var provider = context.SyntaxProvider
@@ -65,7 +37,7 @@ public class GetFlowGenerator : IIncrementalGenerator
 
         context.RegisterSourceOutput(
             context.CompilationProvider.Combine(provider.Collect()),
-            static (ctx, t) => GenerateCode(ctx, t.Left, t.Right!));
+            static (ctx, t) => GenerateCode(ctx, t.Right!));
     }
 
     private static bool IsCandidate(SyntaxNode node)
@@ -78,373 +50,528 @@ public class GetFlowGenerator : IIncrementalGenerator
         if (context.Node is not ClassDeclarationSyntax classDeclaration)
             return null;
 
-        var semanticModel = context.SemanticModel;
-        var classSymbol = semanticModel.GetDeclaredSymbol(classDeclaration);
+        var classSymbol = context.SemanticModel.GetDeclaredSymbol(classDeclaration);
 
         if (classSymbol is null)
             return null;
 
         var flowAttributeType =
-            semanticModel.Compilation.GetTypeByMetadataName("Steelax.Pufflow.Abstractions.FlowAttribute");
+            context.SemanticModel.Compilation.GetTypeByMetadataName(FlowInterfaceNs + ".FlowAttribute");
 
         if (flowAttributeType is null)
             return null;
 
-        var attrs = classSymbol.GetAttributes();
-
-        foreach (var attr in attrs)
+        foreach (var attr in classSymbol.GetAttributes())
         {
-            var attrClass = attr.AttributeClass;
-
-            if (attrClass is null)
+            if (attr.AttributeClass is not { } attrClass)
                 continue;
 
             var attrName = attrClass.ToDisplayString();
 
+            // Match by metadata identity or by the attribute's simple name to stay robust across
+            // compilations where the attribute's base (System.Attribute) is not fully bound.
             if (attrName == "Steelax.Pufflow.Abstractions.FlowAttribute" ||
-                attrName is "FlowAttribute" or "Flow")
+                attrName is "FlowAttribute" or "Flow" ||
+                SymbolEqualityComparer.Default.Equals(attrClass, flowAttributeType))
+            {
                 return classSymbol;
-
-            if (SymbolEqualityComparer.Default.Equals(attrClass, flowAttributeType))
-                return classSymbol;
+            }
         }
 
         return null;
     }
 
-    private static void GenerateCode(
-        SourceProductionContext context,
-        Compilation compilation,
-        ImmutableArray<INamedTypeSymbol> classSymbols)
+    private static void GenerateCode(SourceProductionContext context, ImmutableArray<INamedTypeSymbol> classSymbols)
     {
         foreach (var classSymbol in classSymbols)
-            try
-            {
-                GenerateForClass(context, classSymbol);
-            }
-            catch (Exception ex)
-            {
-                context.ReportDiagnostic(
-                    Diagnostic.Create(
-                        new DiagnosticDescriptor(
-                            "DFG001",
-                            "GetFlowGenerator Error",
-                            "Error generating GetFlow for {0}: {1}",
-                            "GetFlowGenerator",
-                            DiagnosticSeverity.Warning,
-                            true),
-                        classSymbol.Locations.FirstOrDefault(),
-                        classSymbol.Name,
-                        ex.Message));
-            }
+            GenerateForClass(context, classSymbol);
     }
 
     private static void GenerateForClass(SourceProductionContext context, INamedTypeSymbol classSymbol)
     {
-        var handlers = FindHandlerMethods(classSymbol);
-
-        if (handlers.Count == 0)
-            return;
-
-        var interfaceLines = new List<string>();
-
-        foreach (var handler in handlers)
-            interfaceLines.Add(BuildFuseBasedInterface(handler));
-
-        if (interfaceLines.Count == 0)
-            return;
-
-        // Build combined interface declaration
-        var interfaceLine = interfaceLines[0];
-        for (var i = 1; i < interfaceLines.Count; i++)
+        try
         {
-            var line = interfaceLines[i].TrimStart();
-            if (line.StartsWith(": "))
-                line = line.Substring(2);
-            interfaceLine += ",\n      " + line;
-        }
+            var emission = TryEmitConfigure(classSymbol);
+            if (emission is null)
+                return;
 
-        Trace.WriteLine(
-            $"[GetFlowGenerator] GenerateForClass: class='{classSymbol.ToDisplayString()}', typeParams={classSymbol.TypeParameters.Length}");
+            context.AddSource(classSymbol.Name + ".g.cs", SourceText.From(emission, Encoding.UTF8));
+        }
+        catch (Exception ex)
+        {
+            context.ReportDiagnostic(
+                Diagnostic.Create(
+                    new DiagnosticDescriptor(
+                        "DFG001",
+                        "GetFlowGenerator Error",
+                        "Error generating Configure for {0}: {1}",
+                        "GetFlowGenerator",
+                        DiagnosticSeverity.Warning,
+                        true),
+                    classSymbol.Locations.FirstOrDefault(),
+                    classSymbol.Name,
+                    ex.Message));
+        }
+    }
+
+    private static string? TryEmitConfigure(INamedTypeSymbol classSymbol)
+    {
+        var shape = ResolveShape(classSymbol);
+
+        if (shape is null)
+            return null;
 
         var namespaceName = classSymbol.ContainingNamespace.ToDisplayString();
-        var className = classSymbol.Name;
-        var isRecord = classSymbol.IsRecord;
-        var recordPrefix = isRecord ? " record" : "";
+        var classDecl = BuildClassDecl(classSymbol, shape);
 
-        // Build nested class declaration chain
-        var classDecl = "";
-        var currentSymbol = classSymbol;
-        var first = true;
-
-        while (currentSymbol is not null)
-        {
-            var currentName = currentSymbol.Name;
-            var currentTypeParams = "";
-
-            // Collect type parameter names; constraints are declared by the user-authored partial
-            // and must not be duplicated in the generated declaration.
-            if (currentSymbol.TypeParameters.Length > 0)
-                currentTypeParams = "<" + string.Join(", ", currentSymbol.TypeParameters.Select(tp => tp.Name)) + ">";
-
-            var currentRecord = currentSymbol.IsRecord ? " record" : "";
-            var currentPartial = currentSymbol.DeclaredAccessibility == Accessibility.Public
-                ? "public partial"
-                : "partial";
-
-            // First (innermost) gets the interface + view properties, rest are containers
-            if (first)
-            {
-                classDecl = currentPartial + currentRecord + " class " + currentName + currentTypeParams + "\n" +
-                            interfaceLine + "\n{\n";
-
-                // Add view properties for disambiguation.
-                foreach (var handler in handlers)
-                {
-                    var propType = GetHandlerTFlowTypeName(handler);
-                    if (propType is not null)
-                    {
-                        var propName = GetViewPropertyName(handler);
-                        classDecl += "    /// <summary>Gets the " + propName +
-                                     " view of the flow for typed chaining.</summary>\n";
-                        classDecl += "    public " + FlowInterfaceNs + ".IFlowable<" + propType + "> " + propName +
-                                     " => this;\n";
-                    }
-                }
-
-                first = false;
-            }
-            else
-            {
-                classDecl = currentPartial + currentRecord + " class " + currentName + currentTypeParams + "\n{\n" +
-                            classDecl;
-            }
-
-            classDecl += "}\n";
-            currentSymbol = currentSymbol.ContainingType;
-        }
-
-        var code = @"// <auto-generated/>
-#nullable enable
-
-namespace " + namespaceName + @";
-
-" + classDecl + @"
-";
-
-
-        context.AddSource(className + ".g.cs", SourceText.From(code, Encoding.UTF8));
+        return "// <auto-generated/>\n#nullable enable\n\nnamespace " + namespaceName + ";\n\n" + classDecl + "\n";
     }
 
-    private static List<HandlerInfo> FindHandlerMethods(INamedTypeSymbol classSymbol)
+    private static string BuildClassDecl(INamedTypeSymbol classSymbol, FlowShape shape)
     {
-        var result = new List<HandlerInfo>();
+        var sb = new StringBuilder();
 
-        foreach (var member in classSymbol.GetMembers())
+        // Build the chain of containing partial classes (outermost first), then the innermost one.
+        var containers = new Stack<(string Name, string TypeParams, string Partial)>();
+
+        for (var current = classSymbol; current is not null; current = current.ContainingType)
         {
-            if (member is not IMethodSymbol { DeclaredAccessibility: Accessibility.Public, IsStatic: false } method)
-                continue;
-
-            if (!HandlerNames.Contains(method.Name))
-                continue;
-
-            // Must have FlowContext parameter
-            var hasFlowContext = false;
-            var flowParams = new List<IParameterSymbol>();
-
-            foreach (var param in method.Parameters)
-            {
-                var paramType = param.Type.ToDisplayString();
-                Trace.WriteLine($"[GetFlowGenerator] FindHandlerMethods: method='{method.Name}' param='{paramType}' isRef='{param.RefKind}' isFlow='{IsFlowInterfaceType(param.Type)}'");
-
-                if (paramType == FlowContextName || paramType == FlowContextName + "?")
-                    hasFlowContext = true;
-                else if (IsFlowInterfaceType(param.Type)) flowParams.Add(param);
-            }
-
-            if (!hasFlowContext)
-                continue;
-
-            result.Add(new HandlerInfo
-            {
-                Method = method,
-                ReturnType = method.ReturnType,
-                FlowParams = flowParams
-            });
+            var partial = current.DeclaredAccessibility == Accessibility.Public ? "public partial" : "partial";
+            var typeParams = current.TypeParameters.Length > 0
+                ? "<" + string.Join(", ", current.TypeParameters.Select(static tp => tp.Name)) + ">"
+                : "";
+            containers.Push((current.Name, typeParams, partial));
         }
 
-        return result;
+        while (containers.Count > 0)
+        {
+            var (name, typeParams, partial) = containers.Pop();
+            sb.AppendLine(partial + " class " + name + typeParams);
+            sb.AppendLine("{");
+        }
+
+        sb.AppendLine(EmitConfigureMethod(shape).TrimEnd());
+        sb.AppendLine();
+
+        for (var i = 0; i < CountContaining(classSymbol) + 1; i++)
+            sb.AppendLine("}");
+
+        return sb.ToString();
     }
 
-    /// <summary>Gets the TFlow type name for a handler method (without IFlowable wrapper).</summary>
-    private static string? GetHandlerTFlowTypeName(HandlerInfo h)
+    private static FlowShape? ResolveShape(INamedTypeSymbol classSymbol)
     {
-        var flowParamCount = CountFlowParams(h);
+        IMethodSymbol? flowCtor = null;
 
-        if (flowParamCount == 1)
+        foreach (var ctor in classSymbol.InstanceConstructors)
         {
-            var p = h.FlowParams[0].Type.ToDisplayString();
-            var refKind = h.FlowParams[0].RefKind;
-            var isWrite = IsWriteInterface(h.FlowParams[0].Type);
+            if (ctor.DeclaredAccessibility != Accessibility.Public)
+                continue;
 
-            // Fuse role for a single parameter:
-            //  - out + read (IEnumerator/IConsumator): the node emits a stream → Source;
-            //  - out + write (IProducator): the node hands out a target to be written into → Sink (passive consumer);
-            //  - plain write (IProducator): the node pushes into the supplied target → Source;
-            //  - plain/explicit-in read: the node consumes the supplied source → Sink.
-            return (refKind == RefKind.Out && !isWrite) || (refKind == RefKind.None && isWrite)
-                ? SourceName + "<" + p + ">"
-                : SinkName + "<" + p + ">";
+            if (ctor.Parameters.Any(static p => Classify(p) is not null))
+            {
+                flowCtor = ctor;
+                break;
+            }
         }
 
-        if (flowParamCount == 2)
+        if (flowCtor is null)
+            return null;
+
+        var flows = flowCtor.Parameters
+            .Select(Classify)
+            .OfType<FlowParam>()
+            .ToList();
+
+        var contextParam = flowCtor.Parameters.FirstOrDefault(
+            static p => p.Type.ToDisplayString() == "Steelax.Pufflow.FlowContext");
+
+        var userArgs = flowCtor.Parameters
+            .Where(p => !ReferenceEquals(p, contextParam) && Classify(p) is null)
+            .ToList();
+
+        var kind = flows.Count switch
         {
-            var p1 = h.FlowParams[0].Type.ToDisplayString();
-            var p2 = h.FlowParams[1].Type.ToDisplayString();
-            return PipeName + "<" + p1 + ", " + p2 + ">";
-        }
+            1 => ResolveSingleKind(flows[0]),
+            2 => ShapeKind.Pipe,
+            _ => null
+        };
+
+        if (kind is null)
+            return null;
+
+        var input = flows.Count switch
+        {
+            1 => kind is ShapeKind.SinkPull or ShapeKind.SinkPush ? flows[0] : null,
+            2 => flows[0],
+            _ => null
+        };
+
+        var output = flows.Count switch
+        {
+            1 => kind is ShapeKind.SourcePull or ShapeKind.SourcePush ? flows[0] : null,
+            2 => flows[1],
+            _ => null
+        };
+
+        return new FlowShape(classSymbol, flowCtor, userArgs, flows, input, output, kind.Value);
+    }
+
+    private static ShapeKind? ResolveSingleKind(FlowParam p)
+    {
+        // A pull output (out IConsumator / IAsyncConsumator / IAsyncEnumerator) or a plain push target — a source.
+        if (p.IsOut && p.Family is Family.Consumator or Family.Enumerator)
+            return ShapeKind.SourcePull;
+
+        if (!p.IsOut && p.Family == Family.Producator)
+            return ShapeKind.SourcePush;
+
+        // A pull input (plain IConsumator / IAsyncConsumator / IAsyncEnumerator) or an owned push producer — a sink.
+        if (!p.IsOut && p.Family is Family.Consumator or Family.Enumerator)
+            return ShapeKind.SinkPull;
+
+        if (p.IsOut && p.Family == Family.Producator)
+            return ShapeKind.SinkPush;
 
         return null;
     }
 
-    /// <summary>Gets a human-readable property name for a handler view.</summary>
-    private static string GetViewPropertyName(HandlerInfo h)
+    private static FlowParam? Classify(IParameterSymbol p)
     {
-        var flowParamCount = CountFlowParams(h);
+        if (p.Type is not INamedTypeSymbol { TypeArguments.Length: 1 } named)
+            return null;
 
-        if (flowParamCount == 2)
+        var ns = named.ContainingNamespace.ToDisplayString();
+        var isAsync = named.Name is "IAsyncConsumator" or "IAsyncProducator" or "IAsyncEnumerator";
+
+        Family family;
+
+        if (ns == FlowInterfaceNs)
         {
-            // Pattern: FlowEnumToAProd (Fuse pipe: read → write)
-            var p1 = GetInterfaceShortName(h.FlowParams[0].Type);
-            var p2 = GetInterfaceShortName(h.FlowParams[1].Type);
-            return "Flow" + p1 + "To" + p2;
+            family = named.Name switch
+            {
+                "IConsumator" or "IAsyncConsumator" => Family.Consumator,
+                "IProducator" or "IAsyncProducator" => Family.Producator,
+                _ => default
+            };
+        }
+        else if (ns == "System.Collections.Generic" && named.Name == "IAsyncEnumerator")
+        {
+            family = Family.Enumerator;
+        }
+        else
+        {
+            return null;
         }
 
-        if (flowParamCount == 1)
-        {
-            // Pattern: FlowAProd (source) / FlowEnum (sink)
-            return "Flow" + GetInterfaceShortName(h.FlowParams[0].Type);
-        }
-
-        return "View";
+        return new FlowParam(p, family, isAsync, p.RefKind == RefKind.Out,
+            named.TypeArguments[0].ToDisplayString(), named.ToDisplayString());
     }
 
-    /// <summary>
-    ///     Extracts the short (abbreviated) name from a flow interface type, e.g.:
-    ///     IEnumerator → "Enum", IAsyncEnumerator → "AEnum",
-    ///     IConsumator → "Cons", IAsyncConsumator → "ACons",
-    ///     IProducator → "Prod", IAsyncProducator → "AProd".
-    /// </summary>
-    private static string GetInterfaceShortName(ITypeSymbol type)
+    private static string EmitConfigureMethod(FlowShape shape)
     {
-        var name = type.Name;
-
-        // Remove leading "I" if present
-        if (name.StartsWith("I") && name.Length > 1 && char.IsUpper(name[1]))
-            name = name.Substring(1);
-
-        return name switch
+        var template = LoadTemplate(shape.Kind switch
         {
-            "Enumerator" => "Enum",
-            "AsyncEnumerator" => "AEnum",
-            "Consumator" => "Cons",
-            "AsyncConsumator" => "ACons",
-            "Producator" => "Prod",
-            "AsyncProducator" => "AProd",
-            _ => name
+            ShapeKind.SourcePull or ShapeKind.SourcePush => "Source",
+            ShapeKind.SinkPull or ShapeKind.SinkPush => "Sink",
+            ShapeKind.Pipe => "Pipe",
+            _ => throw new ArgumentOutOfRangeException()
+        });
+
+        var cfgParams = string.Join(", ", shape.UserArgs.Select(static a => a.Type.ToDisplayString() + " " + a.Name));
+
+        template = template
+            .Replace("[[MARKER]]", Marker(shape))
+            .Replace("[[CFG_PARAMS]]", cfgParams)
+            .Replace("[[CLASS_NAME]]", ClassName(shape))
+            .Replace("[[CTOR_ARGS]]", CtorArgs(shape, "__reader", "__writer", "__output", "__producer"));
+
+        if (shape.Kind is ShapeKind.SourcePull or ShapeKind.SourcePush or ShapeKind.Pipe)
+        {
+            var output = shape.Output!;
+            var chainParam = output.Family is Family.Consumator or Family.Enumerator
+                ? "FlowSource __flow, out " + output.InterfaceType + " __output"
+                : "FlowSource __flow, " + output.InterfaceType + " __writer";
+
+            template = template
+                .Replace("[[CHAIN_TYPE]]", ChainType(output))
+                .Replace("[[CHAIN_PARAM]]", chainParam);
+        }
+
+        if (shape.Kind is ShapeKind.SinkPull or ShapeKind.SinkPush or ShapeKind.Pipe)
+        {
+            var cases = new StringBuilder();
+            AppendInputCases(cases, shape, shape.Input!, "                ");
+            template = template.Replace("[[CASES]]", cases.ToString().TrimEnd('\r', '\n'));
+        }
+
+        return template;
+    }
+
+    /// <summary>Emits the <c>switch</c> cases dispatching on the upstream chain link for the pipe/sink input.</summary>
+    private static void AppendInputCases(StringBuilder sb, FlowShape shape, FlowParam input, string indent)
+    {
+        if (input.Family == Family.Consumator)
+        {
+            AppendPullCases(sb, shape, input, indent);
+            return;
+        }
+
+        if (input.Family == Family.Enumerator)
+        {
+            AppendEnumeratorConsumeCase(sb, shape, input, indent);
+            AppendConsumatorWrapIntoEnumeratorCase(sb, shape, input, indent);
+            return;
+        }
+
+        EmitPushOwnCase(sb, shape, input, async: false, indent: indent);
+
+        if (input.IsAsync)
+            EmitPushOwnCase(sb, shape, input, async: true, indent: indent);
+    }
+
+    /// <summary>Emits the <c>case</c> consuming an upstream enumerator link into the block.</summary>
+    private static void AppendEnumeratorConsumeCase(StringBuilder sb, FlowShape shape, FlowParam input, string indent)
+    {
+        sb.AppendLine(indent + "case " + ChainType(input) + " __chain:");
+        sb.AppendLine(indent + "{");
+        sb.AppendLine(indent + "    __chain.Invoke(__flow, out var __reader);");
+        sb.AppendLine(indent + "    __instance = new " + ClassName(shape) + "(" + CtorArgs(shape, "__reader", "__writer", "__output", "__producer") + ");");
+        sb.AppendLine(indent + "}");
+        sb.AppendLine(indent + "    break;");
+    }
+
+    /// <summary>Emits a <c>case</c> that wraps an upstream async consumator into an enumerator via the adapter.</summary>
+    private static void AppendConsumatorWrapIntoEnumeratorCase(StringBuilder sb, FlowShape shape, FlowParam input, string indent)
+    {
+        var wrapReader = "new Steelax.Pufflow.Adapters.AsyncEnumeratorByConsumator<" + input.ElementType + ">(__reader)";
+
+        sb.AppendLine(indent + "case " + Fq("AsyncConsumatorChain<" + input.ElementType + ">") + " __chain:");
+        sb.AppendLine(indent + "{");
+        sb.AppendLine(indent + "    __chain.Invoke(__flow, out var __reader);");
+        sb.AppendLine(indent + "    __instance = new " + ClassName(shape) + "(" + CtorArgs(shape, wrapReader, "__writer", "__output", "__producer") + ");");
+        sb.AppendLine(indent + "}");
+        sb.AppendLine(indent + "    break;");
+    }
+
+    private const string TemplateNs = "Steelax.Pufflow.Generator.Templates";
+
+    private static readonly Dictionary<string, string> Templates = new();
+
+    private static string LoadTemplate(string name)
+    {
+        if (Templates.TryGetValue(name, out var cached))
+            return cached;
+
+        using var stream = typeof(GetFlowGenerator).Assembly
+            .GetManifestResourceStream($"{TemplateNs}.{name}.txt");
+        using var reader = stream is null
+            ? throw new InvalidOperationException($"Generator template '{name}' was not found as an embedded resource.")
+            : new StreamReader(stream);
+
+        var template = reader.ReadToEnd();
+        Templates[name] = template;
+        return template;
+    }
+
+    /// <summary>Emits the pull-consume cases: an async input accepts only the async chain; a sync input accepts both (async via upcast).</summary>
+    private static void AppendPullCases(StringBuilder sb, FlowShape shape, FlowParam input, string indent)
+    {
+        if (input.IsAsync)
+        {
+            AppendPullConsumeCase(sb, shape, input, async: true, indent: indent);
+            // An upstream standard .NET enumerator is bridged into this async-consumator input via the adapter.
+            AppendEnumeratorWrapCase(sb, shape, input, indent);
+            return;
+        }
+
+        AppendPullConsumeCase(sb, shape, input, async: false, indent: indent);
+        AppendPullConsumeCase(sb, shape, input, async: true, indent: indent);
+    }
+
+    /// <summary>Emits a <c>case</c> that wraps an upstream enumerator into an async consumator via the adapter.</summary>
+    private static void AppendEnumeratorWrapCase(StringBuilder sb, FlowShape shape, FlowParam input, string indent)
+    {
+        var wrapReader = "new Steelax.Pufflow.Adapters.AsyncConsumatorByEnumerator<" + input.ElementType + ">(__enumerator, __flow.Context.Token)";
+
+        sb.AppendLine(indent + "case " + Fq("EnumeratorChain<" + input.ElementType + ">") + " __chain:");
+        sb.AppendLine(indent + "{");
+        sb.AppendLine(indent + "    __chain.Invoke(__flow, out var __enumerator);");
+        sb.AppendLine(indent + "    __instance = new " + ClassName(shape) + "(" + CtorArgs(shape, wrapReader, "__writer", "__output", "__producer") + ");");
+        sb.AppendLine(indent + "}");
+        sb.AppendLine(indent + "    break;");
+    }
+
+    /// <summary>Emits a <c>case</c> for a pull consumer: invokes the upstream reader and constructs the block with it.</summary>
+    private static void AppendPullConsumeCase(StringBuilder sb, FlowShape shape, FlowParam input, bool async, string indent)
+    {
+        var chainType = ChainType(input.WithFamilyAndAsync(Family.Consumator, async));
+
+        sb.AppendLine(indent + "case " + chainType + " __chain:");
+        sb.AppendLine(indent + "{");
+        sb.AppendLine(indent + "    __chain.Invoke(__flow, out var __reader);");
+        sb.AppendLine(indent + "    __instance = new " + ClassName(shape) + "(" + CtorArgs(shape, "__reader", "__writer", "__output", "__producer") + ");");
+        sb.AppendLine(indent + "}");
+        sb.AppendLine(indent + "    break;");
+    }
+
+    /// <summary>Emits a <c>case</c> for an owned push producer: constructs the block, then feeds its producer upstream.</summary>
+    private static void EmitPushOwnCase(StringBuilder sb, FlowShape shape, FlowParam input, bool async, string indent)
+    {
+        var chainType = ChainType(input.WithFamilyAndAsync(Family.Producator, async));
+
+        sb.AppendLine(indent + "case " + chainType + " __chain:");
+        sb.AppendLine(indent + "{");
+        sb.AppendLine(indent + "    __instance = new " + ClassName(shape) + "(" + CtorArgs(shape, "__reader", "__writer", "__output", "__producer") + ");");
+        sb.AppendLine(indent + "    __chain.Invoke(__flow, __producer);");
+        sb.AppendLine(indent + "}");
+        sb.AppendLine(indent + "    break;");
+    }
+
+    private static string Marker(FlowShape shape)
+    {
+        return shape.Kind switch
+        {
+            ShapeKind.SourcePull or ShapeKind.SourcePush => "Source<" + shape.Output!.InterfaceType + ">",
+            ShapeKind.SinkPull or ShapeKind.SinkPush => "Sink<" + shape.Input!.InterfaceType + ">",
+            ShapeKind.Pipe => "Pipe<" + shape.Input!.InterfaceType + ", " + shape.Output!.InterfaceType + ">",
+            _ => throw new ArgumentOutOfRangeException()
         };
     }
 
-    private static string? BuildSingleInterface(HandlerInfo h)
+    private static string ChainType(FlowParam p)
     {
-        return BuildFuseBasedInterface(h);
+        if (p.Family == Family.Enumerator)
+            return Fq("EnumeratorChain<" + p.ElementType + ">");
+
+        var kind = p.Family == Family.Consumator
+            ? (p.IsAsync ? "AsyncConsumatorChain" : "ConsumatorChain")
+            : (p.IsAsync ? "AsyncProducatorChain" : "ProducatorChain");
+
+        return Fq(kind + "<" + p.ElementType + ">");
     }
 
-    private static string BuildFuseBasedInterface(HandlerInfo h)
+    private static string Fq(string name) => "Steelax.Pufflow." + name;
+
+    /// <summary>Builds the constructor argument list in the constructor's parameter order.</summary>
+    private static string CtorArgs(FlowShape shape, string reader, string writer, string output, string producer)
     {
-        var flowParamCount = h.FlowParams.Count;
+        var args = new List<string>();
 
-        if (flowParamCount == 1)
+        foreach (var param in shape.FlowCtor.Parameters)
         {
-            var paramTypeStr = h.FlowParams[0].Type.ToDisplayString();
-            var refKind = h.FlowParams[0].RefKind;
-            var isWrite = IsWriteInterface(h.FlowParams[0].Type);
+            if (param.Type.ToDisplayString() == "Steelax.Pufflow.FlowContext")
+            {
+                args.Add("__flow.Context");
+                continue;
+            }
 
-            // For Fuse the node's role is determined by the parameter direction and family:
-            //  - out + read (IEnumerator/IConsumator): the node emits a stream → Source;
-            //  - out + write (IProducator): the node hands out a target to be written into → Sink;
-            //  - plain write (IProducator): the node pushes into the supplied target → Source;
-            //  - plain/explicit-in read: the node consumes the supplied source → Sink.
-            if ((refKind == RefKind.Out && !isWrite) || (refKind == RefKind.None && isWrite))
-                return "    : " + FlowInterfaceNs + ".IFlowable<" + SourceName + "<" + paramTypeStr + ">>";
-            return "    : " + FlowInterfaceNs + ".IFlowable<" + SinkName + "<" + paramTypeStr + ">>";
+            var flow = shape.Flows.FirstOrDefault(f => ReferenceEquals(f.Param, param));
+
+            if (flow is null)
+            {
+                args.Add(param.Name);
+                continue;
+            }
+
+            var isInput = shape.Input is { } input && ReferenceEquals(input.Param, param);
+
+            if (isInput)
+            {
+                args.Add(flow.IsOut ? "out var __producer" : reader);
+            }
+            else
+            {
+                args.Add(flow.IsOut ? "out __output" : "__writer");
+            }
         }
 
-        if (flowParamCount == 2)
+        return string.Join(", ", args);
+    }
+
+    private static string ClassName(FlowShape shape)
+    {
+        var name = shape.ClassSymbol.Name;
+        if (shape.ClassSymbol.TypeParameters.Length > 0)
+            name += "<" + string.Join(", ", shape.ClassSymbol.TypeParameters.Select(static tp => tp.Name)) + ">";
+        return name;
+    }
+
+    private static int CountContaining(INamedTypeSymbol symbol)
+    {
+        var count = 0;
+        for (var current = symbol.ContainingType; current is not null; current = current.ContainingType)
+            count++;
+        return count;
+    }
+
+    private enum Family
+    {
+        Consumator,
+        Producator,
+        Enumerator
+    }
+
+    private enum ShapeKind
+    {
+        SourcePull,
+        SourcePush,
+        SinkPull,
+        SinkPush,
+        Pipe
+    }
+
+    private sealed class FlowParam
+    {
+        public FlowParam(IParameterSymbol param, Family family, bool isAsync, bool isOut, string elementType, string interfaceType)
         {
-            var p1 = h.FlowParams[0].Type.ToDisplayString();
-            var p2 = h.FlowParams[1].Type.ToDisplayString();
-            return "    : " + FlowInterfaceNs + ".IFlowable<" + PipeName + "<" + p1 + ", " + p2 + ">>";
+            Param = param;
+            Family = family;
+            IsAsync = isAsync;
+            IsOut = isOut;
+            ElementType = elementType;
+            InterfaceType = interfaceType;
         }
 
-        return "";
+        public IParameterSymbol Param { get; }
+        public Family Family { get; }
+        public bool IsAsync { get; }
+        public bool IsOut { get; }
+        public string ElementType { get; }
+        public string InterfaceType { get; }
+
+        public FlowParam WithFamilyAndAsync(Family family, bool isAsync)
+        {
+            return new FlowParam(Param, family, isAsync, IsOut, ElementType, InterfaceType);
+        }
     }
 
-    private static int CountFlowParams(HandlerInfo h)
+    private sealed class FlowShape
     {
-        return h.FlowParams.Count;
-    }
+        public FlowShape(
+            INamedTypeSymbol classSymbol,
+            IMethodSymbol flowCtor,
+            List<IParameterSymbol> userArgs,
+            List<FlowParam> flows,
+            FlowParam? input,
+            FlowParam? output,
+            ShapeKind kind)
+        {
+            ClassSymbol = classSymbol;
+            FlowCtor = flowCtor;
+            UserArgs = userArgs;
+            Flows = flows;
+            Input = input;
+            Output = output;
+            Kind = kind;
+        }
 
-    private static bool IsFlowInterfaceType(ITypeSymbol type)
-    {
-        if (type is not INamedTypeSymbol namedType)
-            return false;
-
-        var baseType = namedType.ConstructedFrom.ToDisplayString();
-
-        foreach (var fi in ReadInterfaceNames)
-            if (baseType == fi || baseType.StartsWith(fi + "<"))
-                return true;
-
-        foreach (var fi in WriteInterfaceNames)
-            if (baseType == fi || baseType.StartsWith(fi + "<"))
-                return true;
-
-        return false;
-    }
-
-    private static bool IsReadInterface(ITypeSymbol type)
-    {
-        if (type is not INamedTypeSymbol namedType)
-            return false;
-
-        var baseType = namedType.ConstructedFrom.ToDisplayString();
-
-        foreach (var fi in ReadInterfaceNames)
-            if (baseType == fi || baseType.StartsWith(fi + "<"))
-                return true;
-
-        return false;
-    }
-
-    private static bool IsWriteInterface(ITypeSymbol type)
-    {
-        if (type is not INamedTypeSymbol namedType)
-            return false;
-
-        var baseType = namedType.ConstructedFrom.ToDisplayString();
-
-        foreach (var fi in WriteInterfaceNames)
-            if (baseType == fi || baseType.StartsWith(fi + "<"))
-                return true;
-
-        return false;
-    }
-
-    private struct HandlerInfo
-    {
-        public IMethodSymbol Method;
-        public ITypeSymbol ReturnType;
-        public List<IParameterSymbol> FlowParams;
+        public INamedTypeSymbol ClassSymbol { get; }
+        public IMethodSymbol FlowCtor { get; }
+        public List<IParameterSymbol> UserArgs { get; }
+        public List<FlowParam> Flows { get; }
+        public FlowParam? Input { get; }
+        public FlowParam? Output { get; }
+        public ShapeKind Kind { get; }
     }
 }

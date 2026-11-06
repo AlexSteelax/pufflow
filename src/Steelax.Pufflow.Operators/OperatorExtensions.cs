@@ -12,7 +12,7 @@ namespace Steelax.Pufflow.Operators;
 [PublicAPI]
 public static partial class OperatorExtensions
 {
-    extension<TValue>(Source<IAsyncConsumator<Carrier<TValue>>> left)
+    extension<TValue>(Fuse<IAsyncConsumator<Carrier<TValue>>> left)
     {
         /// <summary>
         ///     Starts the fluent warming stage builder. The stream is warmed in key segments before values are
@@ -57,14 +57,13 @@ public static partial class OperatorExtensions
     ///     carries the maximum watermark seen across the sources. Inputs can be produced by any pull stage,
     ///     e.g. <see cref="Expose{T}" /> from other pipelines.
     /// </remarks>
-    [PublicAPI]
-    public static Source<IAsyncConsumator<Carrier<T>>> MergeSources<T>(
-        this FlowSource flowSource,
-        params IAsyncConsumator<Carrier<T>>[] sources)
-    {
-        var processor = new MergeProcessor<T>(sources);
-        return flowSource.On(processor);
-    }
+[PublicAPI]
+        public static Fuse<IAsyncConsumator<Carrier<T>>> MergeSources<T>(
+            this FlowSource flowSource,
+            params IAsyncConsumator<Carrier<T>>[] sources)
+        {
+            return flowSource.On(MergeProcessor<T>.Configure(sources));
+        }
     
     // extension<T>(Source<IAsyncEnumerator<T>> left)
     // {
@@ -88,10 +87,9 @@ public static partial class OperatorExtensions
     /// <param name="left">The upstream push source to decouple from the downstream pull consumer.</param>
     /// <param name="capacity">The maximum number of buffered values before the producer applies backpressure.</param>
     /// <returns>A source exposing the buffered stream as a pull (consumator) interface.</returns>
-    public static Source<IAsyncConsumator<T>> Buffering<T>(this Source<IProducator<T>> left, int capacity)
+    public static Fuse<IAsyncConsumator<T>> Buffering<T>(this Fuse<IProducator<T>> left, int capacity)
     {
-        var processor = new BypassBufferProcessor<T>(capacity);
-        return left.Next(processor.FlowProdToACons);
+        return left.Next(BypassBufferProdToACons<T>.Configure(capacity));
     }
     
     /// <summary>
@@ -101,9 +99,8 @@ public static partial class OperatorExtensions
     /// <param name="left">The upstream push source to decouple from the downstream pull consumer.</param>
     /// <param name="capacity">The maximum number of buffered values before the producer applies backpressure.</param>
     /// <returns>A source exposing the buffered stream as a pull (consumator) interface.</returns>
-    public static Source<IAsyncConsumator<T>> Buffering<T>(this Source<IAsyncProducator<T>> left, int capacity)
+    public static Fuse<IAsyncConsumator<T>> Buffering<T>(this Fuse<IAsyncProducator<T>> left, int capacity)
     {
-        var processor = new BypassBufferProcessor<T>(capacity);
-        return left.Next(processor.FlowAProdToACons);
+        return left.Next(BypassBufferAProdToACons<T>.Configure(capacity));
     }
 }

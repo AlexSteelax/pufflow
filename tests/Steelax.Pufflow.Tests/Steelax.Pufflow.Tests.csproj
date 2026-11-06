@@ -18,6 +18,7 @@
             <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
         </PackageReference>
         <PackageReference Include="Microsoft.NET.Test.Sdk"/>
+        <PackageReference Include="Steelax.XUnit.v3.Flaky" />
         <PackageReference Include="Unio" />
         <PackageReference Include="xunit.analyzers">
           <PrivateAssets>all</PrivateAssets>

@@ -19,6 +19,7 @@ internal sealed partial class ChunkProcessor<T, TChunk> : IAsyncConsumator<TChun
     private bool _ready;
     private bool _completed;
 
+    /// <summary>Validates the chunker configuration and initializes the timer. No flow wiring happens here.</summary>
     public ChunkProcessor(IChunkBuilder<T, TChunk> chunker, TimeSpan linger, TimeProvider? timeProvider = null)
     {
         ArgumentNullException.ThrowIfNull(chunker);
@@ -29,9 +30,11 @@ internal sealed partial class ChunkProcessor<T, TChunk> : IAsyncConsumator<TChun
         _signal = new CompleteSignal();
         _timer = new WatchTimer<ChunkProcessor<T, TChunk>>(static self => self.FireLingerSignal(), this, timeProvider);
     }
-    
-    [PublicAPI]
-    public void Fuse(IAsyncConsumator<T> source, out IAsyncConsumator<TChunk> target, FlowContext context)
+
+    /// <summary>Validates the chunker configuration, wires the upstream source and hands out the chunk stream.</summary>
+    public ChunkProcessor(IChunkBuilder<T, TChunk> chunker, TimeSpan linger, TimeProvider? timeProvider,
+        IAsyncConsumator<T> source, out IAsyncConsumator<TChunk> target, FlowContext context)
+        : this(chunker, linger, timeProvider)
     {
         _source = ManualConsumator<T>.Create(source);
         _source.OnReady += _signal.Signal;

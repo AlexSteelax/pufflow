@@ -1,35 +1,28 @@
-﻿ using Steelax.Pufflow.Abstractions;
- using Steelax.Pufflow.Runtime;
+﻿using System.ComponentModel;
 
- namespace Steelax.Pufflow;
+namespace Steelax.Pufflow;
 
 /// <summary>
-///     A marker struct that represents a data transformer pipe from <typeparamref name="TLeft" /> to
-///     <typeparamref name="TRight" />.
+///     A configured pipe block factory produced by the source generator for a <c>[Flow]</c> class.
+///     Wraps a lazy link producer that, given the upstream chain link, returns the downstream chain link;
+///     the concrete block instance is constructed when the chain is built.
 /// </summary>
-/// <typeparam name="TLeft">The push input type (e.g., <see cref="IProducator{T}" />).</typeparam>
-/// <typeparam name="TRight">The poll output type (e.g., <see cref="IConsumator{T}" />).</typeparam>
-/// <remarks>
-///     Encodes a two-interface shape: push input → poll output.
-///     Carries the component <see cref="Meta" /> and <see cref="FlowSource" /> for the runtime pipeline builder.
-/// </remarks>
+/// <typeparam name="TLeft">The flow interface this pipe consumes (a pull reader or an owned push producer).</typeparam>
+/// <typeparam name="TRight">The flow interface this pipe produces (a pull reader or a push target).</typeparam>
 [PublicAPI]
 public readonly struct Pipe<TLeft, TRight>
 {
-    /// <summary>
-    ///     The node metadata that implements the pipe logic.
-    /// </summary>
-    internal readonly FlowMeta Meta;
+    private readonly Func<object, object> _lazy;
 
-    /// <summary>
-    ///     The flow source owning cancellation and background tasks for the pipeline.
-    /// </summary>
-    internal readonly FlowSource FlowSource;
+    /// <summary>Initializes a pipe factory from a link-producing delegate.</summary>
+    /// <param name="lazy">A function that turns the upstream chain link into this pipe's chain link.</param>
+    /// <remarks>This constructor is part of the generated <c>[Flow]</c> contract and is not intended for direct use.</remarks>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public Pipe(Func<object, object> lazy) => _lazy = lazy;
 
-    /// <summary>Initializes a pipe marker with its node metadata and flow source.</summary>
-    internal Pipe(FlowMeta meta, FlowSource flowSource)
-    {
-        Meta = meta;
-        FlowSource = flowSource;
-    }
+    /// <summary>Connects this pipe to the upstream chain link and returns the downstream link.</summary>
+    /// <param name="prev">The upstream chain link (an {@link ConsumatorChain} or {@link ProducatorChain}).</param>
+    /// <returns>The downstream chain link, ready for further composition or terminal consumption.</returns>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    internal object Invoke(object prev) => _lazy.Invoke(prev);
 }

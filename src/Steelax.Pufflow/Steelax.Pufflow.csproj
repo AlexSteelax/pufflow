@@ -13,6 +13,9 @@
 
         <!-- Documentation -->
         <GenerateDocumentationFile>true</GenerateDocumentationFile>
+
+        <IsAotCompatible>true</IsAotCompatible>
+        <IsTrimmable>true</IsTrimmable>
     </PropertyGroup>
 
     <ItemGroup>
@@ -27,7 +30,7 @@
     
     <ItemGroup>
         <PackageReference Include="JetBrains.Annotations"/>
-        <PackageReference Include="Steelax.Toolkit.HighPerformance"/>
+        <PackageReference Include="steelax.toolkit.highperformance" />
     </ItemGroup>
 
 </Project>

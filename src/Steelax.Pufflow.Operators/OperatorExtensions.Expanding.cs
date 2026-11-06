@@ -1,3 +1,4 @@
+#pragma warning disable CS1591
 using Steelax.Pufflow.Operators.Abstractions;
 using Steelax.Pufflow.Operators.Common;
 using Steelax.Pufflow.Operators.Transforms;
@@ -8,28 +9,18 @@ public static partial class OperatorExtensions
 {
     #region consumator
 
-    /// <typeparam name="TSource">The carried input element type.</typeparam>
-    extension<TSource>(Source<IAsyncConsumator<Carrier<TSource>>> left)
+    extension<TSource>(Fuse<IAsyncConsumator<Carrier<TSource>>> left)
     {
-        /// <summary>Carrier-based expand over an asynchronous pull source. See the producer counterparts.</summary>
         [PublicAPI]
-        public Source<IAsyncConsumator<Carrier<TTarget>>> Expand<TTarget>(ExpandSelector<TSource, TTarget> selector)
-        {
-            var processor = new BypassExpandCarrierProcessor<TSource, TTarget>(selector);
-            return left.Next(processor.FlowAConsToACons);
-        }
+        public Fuse<IAsyncConsumator<Carrier<TTarget>>> Expand<TTarget>(ExpandSelector<TSource, TTarget> selector)
+            => left.Next(BypassExpandCarrierAConsToACons<TSource, TTarget>.Configure(selector));
     }
 
-    /// <typeparam name="TSource">The carried input element type.</typeparam>
-    extension<TSource>(Source<IConsumator<Carrier<TSource>>> left)
+    extension<TSource>(Fuse<IConsumator<Carrier<TSource>>> left)
     {
-        /// <summary>Carrier-based expand over a synchronous pull source. See the producer counterparts.</summary>
         [PublicAPI]
-        public Source<IConsumator<Carrier<TTarget>>> Expand<TTarget>(ExpandSelector<TSource, TTarget> selector)
-        {
-            var processor = new BypassExpandCarrierProcessor<TSource, TTarget>(selector);
-            return left.Next(processor.FlowConsToCons);
-        }
+        public Fuse<IConsumator<Carrier<TTarget>>> Expand<TTarget>(ExpandSelector<TSource, TTarget> selector)
+            => left.Next(BypassExpandCarrierConsToCons<TSource, TTarget>.Configure(selector));
     }
 
     #endregion

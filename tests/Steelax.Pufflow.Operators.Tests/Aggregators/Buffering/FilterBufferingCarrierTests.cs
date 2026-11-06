@@ -22,10 +22,8 @@ public class FilterBufferingCarrierTests
         
         await using var flow = new FlowSource();
 
-        var seq = new CarrierSequenceSource<int>(count, nothingRatio, static i => i);
-        
         flow
-            .On(seq)
+            .On(CarrierSequenceSource<int>.Configure(count, nothingRatio, static i => i, null))
             .Filter(static (in s) => s >= 0)
             .Buffering(16)
             .Consume(out var reader);
@@ -46,29 +44,37 @@ public class FilterBufferingCarrierTests
         }
         catch
         {
-            Trace.WriteLine($"Count {seq.Count}");
+            Trace.WriteLine($"Count expected {count}");
         }
     }
 }
 
 [Flow]
-internal sealed partial class CarrierSequenceSource<T>(int count, float nothingRatio, Func<int, T> factory, WatermarkProvider? watermarkProvider = null)
+internal sealed partial class CarrierSequenceSource<T>
 {
-    private readonly WatermarkProvider _watermarkProvider = watermarkProvider ?? WatermarkProvider.System;
+    private readonly int _countLimit;
+    private readonly float _nothingRatio;
+    private readonly Func<int, T> _factory;
+    private readonly WatermarkProvider _watermarkProvider;
     private int _count;
+
+    public CarrierSequenceSource(int count, float nothingRatio, Func<int, T> factory, WatermarkProvider? watermarkProvider,
+        IAsyncProducator<Carrier<T>> source, FlowContext context)
+    {
+        _countLimit = count;
+        _nothingRatio = nothingRatio;
+        _factory = factory;
+        _watermarkProvider = watermarkProvider ?? WatermarkProvider.System;
+        context.RegisterBackgroundProcess(_ => MainLoopAsync(source, context));
+    }
     
     public int Count => Volatile.Read(ref _count);
     
-    public void Fuse(IAsyncProducator<Carrier<T>> source, FlowContext context)
-    {
-        context.RegisterBackgroundProcess(_ => MainLoopAsync(source, context));
-    }
-
     private async Task MainLoopAsync(IAsyncProducator<Carrier<T>> source, CancellationToken cancellationToken)
     {
         try
         {
-            for (;_count < count; _count++)
+            for (;_count < _countLimit; _count++)
             {
                 cancellationToken.ThrowIfCancellationRequested();
 
@@ -76,10 +82,10 @@ internal sealed partial class CarrierSequenceSource<T>(int count, float nothingR
                     if (!await source.WaitToWriteAsync())
                         break;
 
-                var value = factory.Invoke(Count);
+                var value = _factory.Invoke(Count);
                 var watermark = _watermarkProvider.GetWatermark();
 
-                if (Random.Shared.NextSingle() <= nothingRatio)
+                if (Random.Shared.NextSingle() <= _nothingRatio)
                     watermark = Watermark.Nothing;
 
                 if (!source.TryWrite(new Carrier<T>(value, watermark)))

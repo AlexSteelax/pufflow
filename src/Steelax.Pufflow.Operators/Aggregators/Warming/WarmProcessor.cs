@@ -1,4 +1,5 @@
-﻿using Steelax.Pufflow.Operators.Abstractions;
+﻿#pragma warning disable CS1573, CS1574
+using Steelax.Pufflow.Operators.Abstractions;
 using Steelax.Pufflow.Operators.Common;
 using Steelax.Pufflow.Operators.Internal;
 using Steelax.Toolkit.HighPerformance.Concurrency.Primitives;
@@ -67,7 +68,10 @@ internal sealed partial class WarmProcessor<TKey, TValue, TGroup, TWarm, THasher
         WarmOptions options,
         IWarmPolicy<TKey, TWarm> policy,
         IJobFactory<TKey, TWarm> jobFactory,
-        IWarmAccumulatorFactory<TKey, TValue, TGroup> accumulatorFactory)
+        IWarmAccumulatorFactory<TKey, TValue, TGroup> accumulatorFactory,
+        IAsyncConsumator<Carrier<TValue>> source,
+        IAsyncProducator<Carrier<Unio<TValue, TGroup>>> output,
+        FlowContext context)
     {
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(jobFactory);
@@ -102,19 +106,9 @@ internal sealed partial class WarmProcessor<TKey, TValue, TGroup, TWarm, THasher
         // The one-shot linger timer signals LingerSlot after the idle interval so a partial tail is sealed.
         // It is created once here and armed directly (_linger.Start(_segmentLinger)) when the source is silent.
         _ttl = new WatchTimer<FanInSlim>(static state => state.Signal(LingerSlot), _fanIn);
-    }
 
-    /// <summary>
-    ///     Fuses the processor into the flow: registers the main consumer loop as a background task that
-    ///     reads <paramref name="source" />, warms it in key segments and writes the result into
-    ///     <paramref name="output" />.
-    /// </summary>
-    /// <param name="source">The upstream source to consume.</param>
-    /// <param name="output">The downstream producer to write passthrough/group results into.</param>
-    /// <param name="context">The flow context that owns the background task and the cancellation token.</param>
-    public void Fuse(IAsyncConsumator<Carrier<TValue>> source, IAsyncProducator<Carrier<Unio<TValue, TGroup>>> output, FlowContext context)
-    {
-        // Store the wrapped source and the wrapped output producer for the consumer loop.
+        // Wire the consumer loop into the flow: read the upstream source, warm it in key segments and
+        // write the result into the downstream output producer.
         _source = ManualConsumator<Carrier<TValue>>.Create(source);
         _writer = ManualProducator<Carrier<Unio<TValue, TGroup>>>.Create(output);
 
@@ -124,7 +118,7 @@ internal sealed partial class WarmProcessor<TKey, TValue, TGroup, TWarm, THasher
 
         // Register this processor for release (watchdog/warmer) when the pipeline completes.
         context.RegisterBackgroundProcess(_ => InternalExecuteAsync(context));
-        
+
         context.OnCancelled(_ => _fanIn.Complete());
     }
 

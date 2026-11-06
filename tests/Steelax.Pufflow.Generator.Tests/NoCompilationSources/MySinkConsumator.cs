@@ -1,12 +1,13 @@
+using Steelax.Pufflow;
 using Steelax.Pufflow.Abstractions;
 
 namespace Steelax.Pufflow.Generator.Tests.NoCompilationSources;
 
 [Flow]
-public partial class MySinkConsumator<T>
+internal partial class MySinkConsumator<T>
 {
-    public void Fuse(IConsumator<T> source, Steelax.Pufflow.FlowContext ctx)
+    public MySinkConsumator(IConsumator<T> reader, FlowContext _)
     {
-        throw new System.NotImplementedException();
+        _ = reader;
     }
 }

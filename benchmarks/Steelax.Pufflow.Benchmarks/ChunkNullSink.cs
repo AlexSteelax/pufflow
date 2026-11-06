@@ -12,7 +12,7 @@ namespace Steelax.Pufflow.Benchmarks;
 [Flow]
 internal partial class ChunkNullSink<T>
 {
-    public void Fuse(IAsyncConsumator<Chunk<T>> source, FlowContext context)
+    public ChunkNullSink(IAsyncConsumator<Chunk<T>> source, FlowContext context)
     {
         context.RegisterBackgroundProcess(_ => ConsumeLoopAsync(source, context));
     }

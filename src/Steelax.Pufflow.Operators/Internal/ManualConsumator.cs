@@ -50,14 +50,8 @@ public abstract class ManualConsumator<T>
     {
         if (consumator is Conduit<T> conduit)
             return new ConduitManualConsumator<T>(conduit);
-        
-        return CreateAsGeneric(consumator);
-    }
 
-    private static ManualConsumator<T> CreateAsGeneric(IAsyncConsumator<T> consumator)
-    {
-        var genericType = typeof(SharedManualConsumator<,>).MakeGenericType(typeof(T), consumator.GetType());
-        return (ManualConsumator<T>)Activator.CreateInstance(genericType, consumator)!;
+        return new SharedManualConsumator<T>(consumator);
     }
 }
 
@@ -103,8 +97,7 @@ file sealed class ConduitManualConsumator<T>(Conduit<T> conduit) : ManualConsuma
     }
 }
 
-file sealed class SharedManualConsumator<T, TConsumator>(TConsumator consumator) : ManualConsumator<T>
-    where TConsumator : IAsyncConsumator<T>
+file sealed class SharedManualConsumator<T>(IAsyncConsumator<T> consumator) : ManualConsumator<T>
 {
     private readonly EventTask<bool> _input = new();
     

@@ -19,19 +19,17 @@ internal sealed partial class PeriodicRunnerProcessor<T> : IAsyncConsumator<Carr
 
     private Watermark _lastWatermark = Watermark.Nothing;
 
-    public PeriodicRunnerProcessor(Action handler, TimeSpan period, TimeProvider? timeProvider = null)
+    public PeriodicRunnerProcessor(Action handler, TimeSpan period, TimeProvider? timeProvider,
+        IAsyncConsumator<Carrier<T>> source, out IAsyncConsumator<Carrier<T>> target, FlowContext context)
     {
         _handler = handler;
         _fanInSlim = new FanInSlim();
         _runnerTimer = new WatchTimer<FanInSlim>(static fanInSlim => fanInSlim.Signal(IntervalCompleteLabel), _fanInSlim, period, timeProvider);
-    }
-    
-    public void Fuse(IAsyncConsumator<Carrier<T>> source, out IAsyncConsumator<Carrier<T>> target, FlowContext context)
-    {
+
         _source = ManualConsumator<Carrier<T>>.Create(source);
         target = this;
         context.OnCancelled(_ => _fanInSlim.Complete());
-        
+
         _source.OnReady += _fanInSlim.GetSignalCallback(SourceReadyLabel).Handler;
 
         // The recurrence kickoff: the timer is created stopped and must be started once the processor is

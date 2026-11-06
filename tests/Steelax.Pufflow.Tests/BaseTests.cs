@@ -9,7 +9,7 @@ public class BaseTests
     {
         await using var source = new FlowSource();
 
-        var sourceFlow = source
+        source
             .OnAsyncConsumatorSource(Enumerable.Range(1, 5))
             .ToAsyncConsumator(static v => v)
             .ToAsyncConsumator(static v => v)
@@ -27,7 +27,7 @@ public class BaseTests
     {
         await using var source = new FlowSource();
 
-        var sourceFlow = source
+        source
             .OnAsyncProducatorSource(Enumerable.Range(1, 5))
             .ToAsyncProducator(static v => v)
             .ToAsyncProducator(static v => v)

@@ -123,20 +123,22 @@ internal sealed partial class KafkaConsumerProcessor<TKey, TValue> : IAsyncDispo
             .CreateTimer(static state => Unsafe.As<object?, FanInSlim>(ref state).Signal(WatermarkTimerSignal), _fan, Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
     }
 
-    /// <summary>
-    ///     Starts pushing carrier items (records or bare progress) into a synchronous producer, launching the
-    ///     background loop on the thread pool.
-    /// </summary>
-    /// <param name="target">The synchronous producer receiving the emitted carriers.</param>
-    /// <param name="context">The flow context providing cancellation.</param>
-    /// <returns>The background consume task.</returns>
-    [PublicAPI]
-    public void Fuse(IProducator<Carrier<ConsumeResult<TKey, TValue>>> target, FlowContext context)
+    /// <summary>Wires the processor into the flow: launches the consume loop and registers cancellation.</summary>
+    public KafkaConsumerProcessor(
+        IConsumer<TKey, TValue> consumer,
+        KafkaConsumerOptions options,
+        WatermarkTracker tracker,
+        KafkaErrorPolicy? errorPolicy,
+        WatermarkProvider? watermarkProvider,
+        TimeProvider? timeProvider,
+        IProducator<Carrier<ConsumeResult<TKey, TValue>>> target,
+        FlowContext context)
+        : this(consumer, options, tracker, errorPolicy, watermarkProvider, timeProvider)
     {
         _buffer = target;
-        
-        _ = context.RegisterBackgroundProcess(static (context, instance) => instance.InternalExecuteAsync(context), this);
-        
+
+        _ = context.RegisterBackgroundProcess(static (flowContext, instance) => instance.InternalExecuteAsync(flowContext), this);
+
         context.OnCancelled(_ => _fan.Complete());
     }
 

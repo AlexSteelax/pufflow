@@ -19,7 +19,8 @@ internal sealed partial class MergeProcessor<T> : IAsyncConsumator<Carrier<T>>
     
     private int _globalIdx = -1;
     
-    public MergeProcessor(IAsyncConsumator<Carrier<T>>[] sources)
+    public MergeProcessor(IAsyncConsumator<Carrier<T>>[] sources,
+        out IAsyncConsumator<Carrier<T>> target, FlowContext context)
     {
         // Поддерживаем только до 32 источников для слияния. Этого должно быть более чем достаточно.
         ArgumentOutOfRangeException.ThrowIfGreaterThan(sources.Length, 32, nameof(sources));
@@ -38,10 +39,7 @@ internal sealed partial class MergeProcessor<T> : IAsyncConsumator<Carrier<T>>
             var consumator = _sources[i] = ManualConsumator<Carrier<T>>.Create(sources[i]);
             consumator.OnReady += _fanIn.GetSignalCallback(i).Handler;
         }
-    }
-    
-    public void Fuse(out IAsyncConsumator<Carrier<T>> target, FlowContext context)
-    {
+
         target = this;
         context.OnCancelled(_ => _fanIn.Complete());
     }

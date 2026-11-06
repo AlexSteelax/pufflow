@@ -1,78 +1,74 @@
-﻿using System.Threading.Channels;
+using System.Threading.Channels;
 using JetBrains.Annotations;
 using Steelax.Pufflow.Abstractions;
 using Steelax.Pufflow.Sdk.Test.SinkProcessors;
 
 namespace Steelax.Pufflow.Sdk.Test;
 
+/// <summary>Sink helpers for tests: terminates a chain into a channel or a discard sink.</summary>
 [PublicAPI]
 public static class TestSinkExtensions
 {
-    [PublicAPI]
-    public static Sink<IAsyncConsumator<T>> Consume<T>(this Source<IAsyncConsumator<T>> left, out ChannelReader<T> reader)
+    private static Channel<T> CreateChannel<T>() => Channel.CreateUnbounded<T>(new UnboundedChannelOptions
     {
-        var right = new FlowSinkConsumator<T>();
-        reader = right.Reader;
-        return left.End(right);
-    }
-    
+        SingleReader = false,
+        SingleWriter = true,
+        AllowSynchronousContinuations = true
+    });
+
+    /// <summary>Terminates an async pull chain into a channel, returning its reader.</summary>
     [PublicAPI]
-    public static Sink<IAsyncConsumator<T>> Consume<T>(this Source<IAsyncConsumator<T>> left)
+    public static void Consume<T>(this Fuse<IAsyncConsumator<T>> left, out ChannelReader<T> reader)
     {
-        var right = new FlowNullSinkConsumator<T>();
-        return left.End(right);
+        var channel = CreateChannel<T>();
+        reader = channel.Reader;
+        left.End(FlowAsyncConsumatorSink<T>.Configure(channel));
     }
-    
+
+    /// <summary>Terminates an async pull chain into a discard sink.</summary>
     [PublicAPI]
-    public static Sink<IConsumator<T>> Consume<T>(this Source<IConsumator<T>> left, out ChannelReader<T> reader)
-    {
-        var right = new FlowSinkConsumator<T>();
-        reader = right.Reader;
-        return left.End(right.FlowCons);
-    }
-    
+    public static void Consume<T>(this Fuse<IAsyncConsumator<T>> left)
+        => left.End(FlowNullAsyncConsumatorSink<T>.Configure());
+
+    /// <summary>Terminates a sync pull chain into a channel, returning its reader.</summary>
     [PublicAPI]
-    public static Sink<IAsyncEnumerator<T>> Consume<T>(this Source<IAsyncEnumerator<T>> left, out ChannelReader<T> reader)
+    public static void Consume<T>(this Fuse<IConsumator<T>> left, out ChannelReader<T> reader)
     {
-        var right = new FlowSinkEnumerator<T>();
-        reader = right.Reader;
-        return left.End(right);
+        var channel = CreateChannel<T>();
+        reader = channel.Reader;
+        left.End(FlowConsumatorSink<T>.Configure(channel));
     }
-    
+
+    /// <summary>Terminates a sync pull chain into a discard sink.</summary>
     [PublicAPI]
-    public static Sink<IAsyncEnumerator<T>> Consume<T>(this Source<IAsyncEnumerator<T>> left)
-    {
-        var right = new FlowNullSinkEnumerator<T>();
-        return left.End(right);
-    }
-    
+    public static void Consume<T>(this Fuse<IConsumator<T>> left)
+        => left.End(FlowNullConsumatorSink<T>.Configure());
+
+    /// <summary>Terminates an async push chain into a channel, returning its reader.</summary>
     [PublicAPI]
-    public static Sink<IAsyncProducator<T>> Consume<T>(this Source<IAsyncProducator<T>> left, out ChannelReader<T> reader)
+    public static void Consume<T>(this Fuse<IAsyncProducator<T>> left, out ChannelReader<T> reader)
     {
-        var right = new FlowSinkProducator<T>();
-        reader = right.Reader;
-        return left.End(right.FlowAProd);
+        var channel = CreateChannel<T>();
+        reader = channel.Reader;
+        left.End(FlowAsyncProducatorSink<T>.Configure(channel));
     }
-    
+
+    /// <summary>Terminates an async push chain into a discard sink.</summary>
     [PublicAPI]
-    public static Sink<IAsyncProducator<T>> Consume<T>(this Source<IAsyncProducator<T>> left)
-    {
-        var right = new FlowNullSinkProducator<T>();
-        return left.End(right.FlowAProd);
-    }
-    
+    public static void Consume<T>(this Fuse<IAsyncProducator<T>> left)
+        => left.End(FlowNullAsyncProducatorSink<T>.Configure());
+
+    /// <summary>Terminates a sync push chain into a channel, returning its reader.</summary>
     [PublicAPI]
-    public static Sink<IProducator<T>> Consume<T>(this Source<IProducator<T>> left, out ChannelReader<T> reader)
+    public static void Consume<T>(this Fuse<IProducator<T>> left, out ChannelReader<T> reader)
     {
-        var right = new FlowSinkProducator<T>();
-        reader = right.Reader;
-        return left.End(right.FlowProd);
+        var channel = CreateChannel<T>();
+        reader = channel.Reader;
+        left.End(FlowProducatorSink<T>.Configure(channel));
     }
-    
+
+    /// <summary>Terminates a sync push chain into a discard sink.</summary>
     [PublicAPI]
-    public static Sink<IProducator<T>> Consume<T>(this Source<IProducator<T>> left)
-    {
-        var right = new FlowNullSinkProducator<T>();
-        return left.End(right.FlowProd);
-    }
+    public static void Consume<T>(this Fuse<IProducator<T>> left)
+        => left.End(FlowNullProducatorSink<T>.Configure());
 }

@@ -13,26 +13,14 @@ public static partial class OperatorExtensions
     /// <param name="left">The upstream pull source whose readable interface is exposed.</param>
     /// <param name="source">
     ///     Receives the exposed pull interface. Reading from it mirrors consuming the pipeline output: values
-    ///     are delivered in order, <c>WaitToReadAsync</c>/<c>IsCompleted</c> reflect the stream state, and end-of-
-    ///     stream is signalled by the upstream completion. The interface is valid while the owning pipeline
-    ///     (the returned <see cref="Sink{T}" /> / its flow) is alive.
+    ///     are delivered in order, <c>WaitToReadAsync</c>/<c>IsCompleted</c> reflect the stream state, and end-of-stream
+    ///     is signalled by the upstream completion. The interface is valid while the owning pipeline is alive.
     /// </param>
-    /// <returns>A sink terminating the current pipeline.</returns>
-    /// <remarks>
-    ///     Unlike a consuming <c>sink</c>, <see cref="Expose{T}" /> does not drain the stream itself — it
-    ///     hands the pull interface to the caller and stops the stage chain. Lifetime ownership stays with the
-    ///     flow that owns this sink; disposing that flow finalizes the exposed source.
-    /// </remarks>
     [PublicAPI]
-    public static Sink<IAsyncConsumator<T>> Expose<T>(
-        this Source<IAsyncConsumator<T>> left,
-        out IAsyncConsumator<T> source)
+    public static void Expose<T>(this Fuse<IAsyncConsumator<T>> left, out IAsyncConsumator<T> source)
     {
-        var processor = new ExposeProcessor<T>();
-        var flow = left.End(processor);
-
-        source = processor.Source;
-        
-        return flow;
+        IAsyncConsumator<T>? captured = null;
+        left.End(ExposeProcessor<T>.Configure(value => captured = value));
+        source = captured!;
     }
 }

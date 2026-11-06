@@ -1,3 +1,5 @@
+using Steelax.Pufflow;
+using Steelax.Pufflow.Abstractions;
 using static Steelax.Pufflow.Generator.Tests.TestMarshal;
 
 namespace Steelax.Pufflow.Generator.Tests;
@@ -13,11 +15,11 @@ public class EdgeCasesTests
     }
 
     [Fact]
-    public void NoHandlerMethod_DoesNotGenerate()
+    public void NoFlowConstructor_DoesNotGenerate()
     {
-        var runResult = RunGenerator(GetNoCompilationSource("NoHandler"));
+        var runResult = RunGenerator(GetNoCompilationSource("NoFlowConstructor"));
 
-        Assert.DoesNotContain(runResult.GeneratedTrees, t => t.FilePath.EndsWith("NoHandler.g.cs"));
+        Assert.DoesNotContain(runResult.GeneratedTrees, t => t.FilePath.EndsWith("NoFlowConstructor.g.cs"));
     }
 
     [Fact]
@@ -32,9 +34,9 @@ public class EdgeCasesTests
         var text = tree.GetText(TestContext.Current.CancellationToken).ToString();
 
         // Constraints are declared on the user-authored partial, never on the emitted generic args.
-        Assert.DoesNotMatch(@"public partial class MyConstrained<T, TBatch>\s+where", text);
+        Assert.DoesNotMatch(@"partial class MyConstrained<T, TBatch>\s+where", text);
 
-        // The flow marker itself is still produced (a Pipe over async enumerators, like the MyPipe*To* fixtures).
-        Assert.Matches(FlowMarkerPattern(typeof(Pipe<,>), typeof(IAsyncEnumerator<>), typeof(IAsyncEnumerator<>)), text);
+        // The Configure factory is still produced (a pipe over async consumators).
+        Assert.Matches(ConfigureMarkerPattern(typeof(Pipe<,>), typeof(IAsyncConsumator<>), typeof(IAsyncConsumator<>)), text);
     }
 }

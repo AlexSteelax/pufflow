@@ -1,4 +1,5 @@
-﻿using System.Runtime.CompilerServices;
+﻿#pragma warning disable CS1591
+using System.Runtime.CompilerServices;
 using Steelax.Pufflow.Operators.Abstractions;
 using Steelax.Pufflow.Operators.Common;
 using Steelax.Pufflow.Operators.Transforms;
@@ -10,134 +11,54 @@ public static partial class OperatorExtensions
     [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
     private static bool FilterHandler<TSource, TArgs>(scoped in TSource source, FilterPredicate<TSource> scope, scoped in TArgs _)
         => scope.Invoke(source);
-    
+
     [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
     private static bool FilterHandler<TSource, TArgs>(scoped in TSource source, FilterPredicate<TSource, TArgs> scope, scoped in TArgs args)
         => scope.Invoke(source, args);
 
-    
+
     #region producator
 
-    extension<TSource>(Source<IAsyncProducator<TSource>> left)
+    extension<TSource>(Fuse<IAsyncProducator<TSource>> left)
     {
-        /// <summary>
-        ///     Keeps only the elements that satisfy <paramref name="selector" />. Non-matching elements are dropped;
-        ///     for a watermarked source a rejected value is re-emitted as an empty marker so progress still flows.
-        /// </summary>
-        /// <param name="selector">Determines whether an element is kept.</param>
-        /// <returns>A source of the elements that pass the predicate.</returns>
-        public Source<IAsyncProducator<TSource>> Filter(FilterPredicate<TSource> selector)
-        {
-            var processor = new BypassFilterProcessor<TSource, FilterPredicate<TSource>, Unit>(FilterHandler, selector, default);
-            return left.Next(processor.FlowAProdToAProd);
-        }
+        public Fuse<IAsyncProducator<TSource>> Filter(FilterPredicate<TSource> selector)
+            => left.Next(BypassFilterAProdToAProd<TSource, FilterPredicate<TSource>, Unit>.Configure(FilterHandler, selector, default));
 
-        /// <summary>
-        ///     Keeps only the elements that satisfy <paramref name="selector" />, complementing it with fixed
-        ///     per-pipe <paramref name="args" />.
-        /// </summary>
-        /// <typeparam name="TArgs">The type of the fixed per-pipe arguments.</typeparam>
-        /// <param name="selector">Determines whether an element is kept (given the fixed arguments).</param>
-        /// <param name="args">The fixed per-pipe arguments for the predicate.</param>
-        /// <returns>A source of the elements that pass the predicate.</returns>
-        public Source<IAsyncProducator<TSource>> Filter<TArgs>(FilterPredicate<TSource, TArgs> selector, TArgs args)
-        {
-            var processor = new BypassFilterProcessor<TSource, FilterPredicate<TSource, TArgs>, TArgs>(FilterHandler, selector, args);
-            return left.Next(processor.FlowAProdToAProd);
-        }
+        public Fuse<IAsyncProducator<TSource>> Filter<TArgs>(FilterPredicate<TSource, TArgs> selector, TArgs args)
+            => left.Next(BypassFilterAProdToAProd<TSource, FilterPredicate<TSource, TArgs>, TArgs>.Configure(FilterHandler, selector, args));
     }
 
-    extension<TSource>(Source<IProducator<TSource>> left)
+    extension<TSource>(Fuse<IProducator<TSource>> left)
     {
+        public Fuse<IProducator<TSource>> Filter(FilterPredicate<TSource> selector)
+            => left.Next(BypassFilterProdToProd<TSource, FilterPredicate<TSource>, Unit>.Configure(FilterHandler, selector, default));
 
-        /// <summary>
-        ///     Keeps only the elements that satisfy <paramref name="selector" />. Non-matching elements are dropped;
-        ///     for a watermarked source a rejected value is re-emitted as an empty marker so progress still flows.
-        /// </summary>
-        /// <param name="selector">Determines whether an element is kept.</param>
-        /// <returns>A source of the elements that pass the predicate.</returns>
-        public Source<IProducator<TSource>> Filter(FilterPredicate<TSource> selector)
-        {
-            var processor = new BypassFilterProcessor<TSource, FilterPredicate<TSource>, Unit>(FilterHandler, selector, default);
-            return left.Next(processor.FlowProdToProd);
-        }
-
-        /// <summary>
-        ///     Keeps only the elements that satisfy <paramref name="selector" />, complementing it with fixed
-        ///     per-pipe <paramref name="args" />.
-        /// </summary>
-        /// <typeparam name="TArgs">The type of the fixed per-pipe arguments.</typeparam>
-        /// <param name="selector">Determines whether an element is kept (given the fixed arguments).</param>
-        /// <param name="args">The fixed per-pipe arguments for the predicate.</param>
-        /// <returns>A source of the elements that pass the predicate.</returns>
-        public Source<IProducator<TSource>> Filter<TArgs>(FilterPredicate<TSource, TArgs> selector, TArgs args)
-        {
-            var processor = new BypassFilterProcessor<TSource, FilterPredicate<TSource, TArgs>, TArgs>(FilterHandler, selector, args);
-            return left.Next(processor.FlowProdToProd);
-        }
+        public Fuse<IProducator<TSource>> Filter<TArgs>(FilterPredicate<TSource, TArgs> selector, TArgs args)
+            => left.Next(BypassFilterProdToProd<TSource, FilterPredicate<TSource, TArgs>, TArgs>.Configure(FilterHandler, selector, args));
     }
-    
+
     #endregion
-    
+
     #region consumator
 
-    extension<TSource>(Source<IAsyncConsumator<TSource>> left)
+    extension<TSource>(Fuse<IAsyncConsumator<TSource>> left)
     {
-        /// <summary>
-        ///     Keeps only the elements that satisfy <paramref name="selector" />. Non-matching elements are dropped;
-        ///     for a watermarked source a rejected value is re-emitted as an empty marker so progress still flows.
-        /// </summary>
-        /// <param name="selector">Determines whether an element is kept.</param>
-        /// <returns>A source of the elements that pass the predicate.</returns>
-        public Source<IAsyncConsumator<TSource>> Filter(FilterPredicate<TSource> selector)
-        {
-            var processor = new BypassFilterProcessor<TSource, FilterPredicate<TSource>, Unit>(FilterHandler, selector, default);
-            return left.Next(processor.FlowAConsToACons);
-        }
+        public Fuse<IAsyncConsumator<TSource>> Filter(FilterPredicate<TSource> selector)
+            => left.Next(BypassFilterAConsToACons<TSource, FilterPredicate<TSource>, Unit>.Configure(FilterHandler, selector, default));
 
-        /// <summary>
-        ///     Keeps only the elements that satisfy <paramref name="selector" />, complementing it with fixed
-        ///     per-pipe <paramref name="args" />.
-        /// </summary>
-        /// <typeparam name="TArgs">The type of the fixed per-pipe arguments.</typeparam>
-        /// <param name="selector">Determines whether an element is kept (given the fixed arguments).</param>
-        /// <param name="args">The fixed per-pipe arguments for the predicate.</param>
-        /// <returns>A source of the elements that pass the predicate.</returns>
-        public Source<IAsyncConsumator<TSource>> Filter<TArgs>(FilterPredicate<TSource, TArgs> selector, TArgs args)
-        {
-            var processor = new BypassFilterProcessor<TSource, FilterPredicate<TSource, TArgs>, TArgs>(FilterHandler, selector, args);
-            return left.Next(processor.FlowAConsToACons);
-        }
+        public Fuse<IAsyncConsumator<TSource>> Filter<TArgs>(FilterPredicate<TSource, TArgs> selector, TArgs args)
+            => left.Next(BypassFilterAConsToACons<TSource, FilterPredicate<TSource, TArgs>, TArgs>.Configure(FilterHandler, selector, args));
     }
 
-    /// <param name="left">The upstream push source whose elements are projected.</param>
+    /// <param name="left">The upstream pull source whose elements are projected.</param>
     /// <typeparam name="TSource">The input element type.</typeparam>
-    extension<TSource>(Source<IConsumator<TSource>> left)
+    extension<TSource>(Fuse<IConsumator<TSource>> left)
     {
-        /// <summary>
-        ///     Keeps only the elements that satisfy <paramref name="selector" />; the rest are dropped.
-        /// </summary>
-        /// <param name="selector">Determines whether an element is kept.</param>
-        /// <returns>A source of the elements that pass the predicate.</returns>
-        public Source<IConsumator<TSource>> Filter(FilterPredicate<TSource> selector)
-        {
-            var processor = new BypassFilterProcessor<TSource, FilterPredicate<TSource>, Unit>(FilterHandler, selector, default);
-            return left.Next(processor.FlowConsToCons);
-        }
+        public Fuse<IConsumator<TSource>> Filter(FilterPredicate<TSource> selector)
+            => left.Next(BypassFilterConsToCons<TSource, FilterPredicate<TSource>, Unit>.Configure(FilterHandler, selector, default));
 
-        /// <summary>
-        ///     Keeps only the elements that satisfy <paramref name="selector" />, complementing it with fixed
-        ///     per-pipe <paramref name="args" />.
-        /// </summary>
-        /// <typeparam name="TArgs">The type of the fixed per-pipe arguments.</typeparam>
-        /// <param name="selector">Determines whether an element is kept (given the fixed arguments).</param>
-        /// <param name="args">The fixed per-pipe arguments for the predicate.</param>
-        /// <returns>A source of the elements that pass the predicate.</returns>
-        public Source<IConsumator<TSource>> Filter<TArgs>(FilterPredicate<TSource, TArgs> selector, TArgs args)
-        {
-            var processor = new BypassFilterProcessor<TSource, FilterPredicate<TSource, TArgs>, TArgs>(FilterHandler, selector, args);
-            return left.Next(processor.FlowConsToCons);
-        }
+        public Fuse<IConsumator<TSource>> Filter<TArgs>(FilterPredicate<TSource, TArgs> selector, TArgs args)
+            => left.Next(BypassFilterConsToCons<TSource, FilterPredicate<TSource, TArgs>, TArgs>.Configure(FilterHandler, selector, args));
     }
 
     #endregion
