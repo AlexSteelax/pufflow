@@ -55,7 +55,7 @@ public static class TestMarshal
         var kindName = StripArity(kind.Name);
 
         var sb = new StringBuilder();
-        sb.Append("public static ").Append(kindName).Append('<');
+        sb.Append("public static Steelax\\.Pufflow\\.").Append(kindName).Append('<');
 
         for (var i = 0; i < ifaces.Length; i++)
         {

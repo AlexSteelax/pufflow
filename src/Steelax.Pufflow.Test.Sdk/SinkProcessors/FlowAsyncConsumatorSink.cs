@@ -33,7 +33,12 @@ internal sealed partial class FlowAsyncConsumatorSink<T>
                 }
 
                 if (!await reader.WaitToReadAsync())
+                {
+                    // The upstream completed (possibly with a fault). Do one final read so a completion
+                    // error surfaces through the read path before the sink terminates.
+                    _ = reader.TryRead(out _);
                     break;
+                }
             }
         }
         catch (Exception ex)

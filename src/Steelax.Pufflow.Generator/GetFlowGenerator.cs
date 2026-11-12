@@ -290,8 +290,8 @@ public class GetFlowGenerator : IIncrementalGenerator
         {
             var output = shape.Output!;
             var chainParam = output.Family is Family.Consumator or Family.Enumerator
-                ? "FlowSource __flow, out " + output.InterfaceType + " __output"
-                : "FlowSource __flow, " + output.InterfaceType + " __writer";
+                ? "Steelax.Pufflow.FlowSource __flow, out " + output.InterfaceType + " __output"
+                : "Steelax.Pufflow.FlowSource __flow, " + output.InterfaceType + " __writer";
 
             template = template
                 .Replace("[[CHAIN_TYPE]]", ChainType(output))
@@ -432,9 +432,9 @@ public class GetFlowGenerator : IIncrementalGenerator
     {
         return shape.Kind switch
         {
-            ShapeKind.SourcePull or ShapeKind.SourcePush => "Source<" + shape.Output!.InterfaceType + ">",
-            ShapeKind.SinkPull or ShapeKind.SinkPush => "Sink<" + shape.Input!.InterfaceType + ">",
-            ShapeKind.Pipe => "Pipe<" + shape.Input!.InterfaceType + ", " + shape.Output!.InterfaceType + ">",
+            ShapeKind.SourcePull or ShapeKind.SourcePush => "Steelax.Pufflow.Source<" + shape.Output!.InterfaceType + ">",
+            ShapeKind.SinkPull or ShapeKind.SinkPush => "Steelax.Pufflow.Sink<" + shape.Input!.InterfaceType + ">",
+            ShapeKind.Pipe => "Steelax.Pufflow.Pipe<" + shape.Input!.InterfaceType + ", " + shape.Output!.InterfaceType + ">",
             _ => throw new ArgumentOutOfRangeException()
         };
     }

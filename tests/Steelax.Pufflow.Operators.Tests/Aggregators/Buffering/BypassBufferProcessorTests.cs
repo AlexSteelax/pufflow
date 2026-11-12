@@ -4,10 +4,10 @@ namespace Steelax.Pufflow.Operators.Tests.Aggregators.Buffering;
 
 /// <summary>
 ///     Black-box tests for the <c>Buffering(capacity)</c> operator (backed by
-///     <see cref="BypassBufferProcessor{T}" />): a push source writes values through the operator and the
-///     resulting pull stream (consumator) is observed downstream. The composite pipe
-///     <c>Fuse(out IAsyncProducator, out IAsyncConsumator, ctx)</c> bridges the push side (writer) to the
-///     pull side (reader) over a single bounded SPSC channel.
+///     <see cref="BypassBufferAProdToACons{T}" /> and <see cref="BypassBufferProdToACons{T}" />): a push
+///     source writes values through the operator and the resulting pull stream (consumator) is observed
+///     downstream. The composite pipe exposes the push side (writer) and the pull side (reader) over a
+///     single bounded SPSC channel.
 /// </summary>
 public static partial class BypassBufferProcessorTests
 {

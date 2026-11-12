@@ -124,8 +124,8 @@ internal sealed partial class WarmProcessor<TKey, TValue, TGroup, TWarm, THasher
 
     /// <summary>
     ///     Releases the resources owned by this processor: stops the watchdog and disposes the warmer
-    ///     (which cancels and awaits its in-flight warm jobs). Called through <see cref="Fuse" /> when the
-    ///     pipeline completes (normal or canceled).
+    ///     (which cancels and awaits its in-flight warm jobs). Called when the pipeline completes
+    ///     (normal or canceled).
     /// </summary>
     public async ValueTask DisposeAsync()
     {

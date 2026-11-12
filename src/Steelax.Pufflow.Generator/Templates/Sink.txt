@@ -2,7 +2,7 @@
     {
         return new [[MARKER]](__Func);
 
-        void __Func(FlowSource __flow, object __prev)
+        void __Func(Steelax.Pufflow.FlowSource __flow, object __prev)
         {
             object __instance;
             switch (__prev)
@@ -14,3 +14,4 @@
             __flow.RegisterDisposable(__instance);
         }
     }
+
